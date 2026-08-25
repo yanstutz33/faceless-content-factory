@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import sys
+import textwrap
 import unicodedata
 import uuid
 from pathlib import Path
@@ -38,6 +39,31 @@ class Pipeline:
         proc = subprocess.run(args, cwd=self.settings.root, text=True, capture_output=True)
         if proc.returncode:
             raise RuntimeError(f"FFmpeg falhou ({proc.returncode}): {proc.stderr[-3000:]}")
+
+    @staticmethod
+    def filter_path(path: Path) -> str:
+        return str(path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+
+    def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any]) -> None:
+        title_file = output.parent / "thumbnail-title.txt"
+        eyebrow_file = output.parent / "thumbnail-eyebrow.txt"
+        wrapped = "\n".join(textwrap.wrap(title.upper(), width=30, max_lines=3, placeholder="…"))
+        title_file.write_text(wrapped, encoding="utf-8")
+        eyebrow_file.write_text(str(design.get("eyebrow", "AMBIENTE IMERSIVO")), encoding="utf-8")
+        font_bold = self.filter_path(Path("C:/Windows/Fonts/georgiab.ttf"))
+        font_ui = self.filter_path(Path("C:/Windows/Fonts/segoeuib.ttf"))
+        title_path = self.filter_path(title_file)
+        eyebrow_path = self.filter_path(eyebrow_file)
+        font_size = max(30, round(height / 15))
+        eyebrow_size = max(14, round(height / 42))
+        vf = (
+            f"scale={width}:{height},drawbox=x=0:y=0:w=iw:h=ih:color=black@0.12:t=fill,"
+            f"drawbox=x=0:y=ih*0.48:w=iw:h=ih*0.52:color=#07101e@0.78:t=fill,"
+            f"drawbox=x=iw*0.06:y=ih*0.58:w=iw*0.08:h=5:color=#77e0bd:t=fill,"
+            f"drawtext=fontfile='{font_ui}':textfile='{eyebrow_path}':fontcolor=#77e0bd:fontsize={eyebrow_size}:x=w*0.06:y=h*0.52,"
+            f"drawtext=fontfile='{font_bold}':textfile='{title_path}':fontcolor=white:fontsize={font_size}:x=w*0.06:y=h*0.64:line_spacing=10"
+        )
+        self.command([self.settings.ffmpeg, "-y", "-i", str(source), "-vf", vf, "-frames:v", "1", "-q:v", "2", str(output)])
 
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
@@ -164,7 +190,8 @@ class Pipeline:
                               "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(video)])
                 self.store.event(job_id, "rendering", f"Composição multicena concluída com {len(backgrounds)} cenas")
             thumbnail = out / "thumbnail.jpg"
-            self.command([self.settings.ffmpeg, "-y", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(thumbnail)])
+            self.create_thumbnail(backgrounds[0], thumbnail, job["topic"], width, height, plan["visual"]["thumbnail"])
+            (out / "thumbnail-design.json").write_text(json.dumps(plan["visual"]["thumbnail"], ensure_ascii=False, indent=2), encoding="utf-8")
 
             self.store.update(job_id, "reviewing", metadata=metadata, progress=88)
             checklist = {

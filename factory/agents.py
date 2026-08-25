@@ -88,6 +88,7 @@ class ContentCrew:
             "motion": "slow_push_in",
             "sound": "brown noise, low warm drone, 2s fade",
             "asset_brief": f"Cena original de {topic_lower}, sem marcas, sem personagens identificáveis, composição cinematográfica",
+            "thumbnail": {"eyebrow": "AMBIENTE IMERSIVO", "headline": topic, "composition": "cena ampla, faixa escura inferior e tipografia editorial"},
         }
         minutes = max(1, math.ceil(duration / 60))
         title = f"{topic} — Ambiente para {use_case}"

@@ -16,6 +16,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Progresso, prioridade, histórico, revisão, aprovação/rejeição, repetição e métricas
 - Quatro templates de séries, geração em lote e calendário editorial
 - Biblioteca de assets com licença, confirmação de direitos e composição multicena
+- Thumbnails editoriais automáticas com identidade por série
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
@@ -104,9 +105,9 @@ A suíte cobre agentes, validação, migração/estado da fila, calendário, cat
 
 ## Próximas etapas
 
-1. Thumbnails com composição e tipografia específicas por série.
-2. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
-3. Transições e paisagens sonoras específicas por template.
+1. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
+2. Transições e paisagens sonoras específicas por template.
+3. Variantes A/B de thumbnail com registro de CTR.
 4. Templates de séries, geração em lote e calendário editorial.
 5. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
 6. Coleta automática de retenção e priorização de temas com base no histórico.

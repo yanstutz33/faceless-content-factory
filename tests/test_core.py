@@ -85,6 +85,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["progress"], 100)
             self.assertTrue((Path(job["output_dir"]) / "video.mp4").exists())
             self.assertTrue((Path(job["output_dir"]) / "agents.json").exists())
+            self.assertTrue((Path(job["output_dir"]) / "thumbnail-design.json").exists())
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_multiscene_render_and_manifest(self):
