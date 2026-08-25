@@ -58,7 +58,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "0.5",
+            "studio_version": "0.6",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -255,6 +255,44 @@ class Pipeline:
     def filter_path(path: Path) -> str:
         return str(path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
 
+    @staticmethod
+    def visual_motion(sound_profile: str, width: int, height: int, fps: int) -> tuple[str, dict[str, Any]]:
+        """Build a repeating ambient camera cycle instead of holding a still frame."""
+        cycle_seconds = 12
+        styles = {
+            "rain": {"name": "chuva cinematográfica", "brightness": 0.006, "saturation": 0.82,
+                     "contrast": 1.08, "zoom": 0.020, "pan_x": 12, "pan_y": 7},
+            "cosmic": {"name": "pulso cósmico", "brightness": 0.012, "saturation": 1.08,
+                       "contrast": 1.05, "zoom": 0.024, "pan_x": 14, "pan_y": 8},
+            "cozy": {"name": "luz aconchegante", "brightness": 0.009, "saturation": 1.03,
+                     "contrast": 1.03, "zoom": 0.018, "pan_x": 10, "pan_y": 6},
+            "focus": {"name": "respiração de câmera", "brightness": 0.006, "saturation": 0.94,
+                      "contrast": 1.04, "zoom": 0.016, "pan_x": 9, "pan_y": 5},
+        }
+        style = styles.get(sound_profile, styles["focus"])
+        base_zoom = 1.035
+        cycle = fps * cycle_seconds
+        vf = (
+            f"scale={int(width * 1.06)}:{int(height * 1.06)},"
+            f"zoompan=z='{base_zoom}+{style['zoom']}*sin(2*PI*on/{cycle})':d=1:"
+            f"x='iw/2-(iw/zoom/2)+{style['pan_x']}*sin(2*PI*on/{cycle})':"
+            f"y='ih/2-(ih/zoom/2)+{style['pan_y']}*cos(2*PI*on/{cycle})':"
+            f"s={width}x{height}:fps={fps},"
+            f"eq=brightness='{style['brightness']}*sin(2*PI*t/{cycle_seconds})':"
+            f"saturation={style['saturation']}:contrast={style['contrast']}:eval=frame,"
+            "vignette=PI/5,format=yuv420p"
+        )
+        recipe = {
+            "style": "ambient_seamless_loop",
+            "format": "mp4_h264",
+            "cycle_seconds": cycle_seconds,
+            "profile": sound_profile,
+            "atmosphere": style["name"],
+            "effects": ["camera_breathing", "slow_pan", "light_pulse", "soft_vignette"],
+            "source_policy": "original_or_commercially_licensed",
+        }
+        return vf, recipe
+
     def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any], variant: str = "a") -> None:
         title_file = output.parent / "thumbnail-title.txt"
         eyebrow_file = output.parent / "thumbnail-eyebrow.txt"
@@ -406,8 +444,9 @@ class Pipeline:
 
             video = out / "video.mp4"
             width, height, fps = profile["width"], profile["height"], profile["fps"]
-            scaled_w, scaled_h = int(width * 1.05), int(height * 1.05)
-            vf = f"scale={scaled_w}:{scaled_h},zoompan=z='min(zoom+0.00008,1.05)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},format=yuv420p"
+            vf, motion = self.visual_motion(sound_profile, width, height, fps)
+            metadata["motion"] = motion
+            self.store.event(job_id, "motion", f"Loop visual de {motion['cycle_seconds']} s aplicado: {motion['atmosphere']}")
             if len(backgrounds) == 1:
                 self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(backgrounds[0]), "-i", str(audio),
                               "-vf", vf, "-t", str(job["duration"]), "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",

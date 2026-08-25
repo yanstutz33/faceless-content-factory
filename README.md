@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 0.5
+# Faceless Content Factory — Studio MVP 0.6
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -9,6 +9,8 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
 - Três cenas-mestre lo-fi originais incluídas: café chuvoso, estúdio acolhedor e lounge cósmico
 - Seleção automática da cena conforme o tema quando nenhum asset próprio é informado
+- Loop visual ambiente de 12 segundos com respiração de câmera, movimento lateral e luz pulsante
+- Direção de movimento própria para chuva, cozy, cosmic e focus, codificada no MP4 em vez de GIF pesado
 - Música chill/lo-fi original gerada localmente com acordes, beat, BPM e variação determinística por tema
 - Chuva apenas como camada discreta nos temas correspondentes; cozy, cosmic e focus não recebem chuva
 - Ingestão opcional de JPG/PNG/WebP próprio com enquadramento automático
@@ -38,6 +40,8 @@ Narração é opcional. `--narration` usa voz neural em português e requer inte
 ## Imagem e música automáticas
 
 Produções antigas não são modificadas retroativamente. Os primeiros testes sem asset usavam apenas um fundo procedural escuro e ruídos ambientais; por isso pareciam não ter imagem e soavam semelhantes. Todo pacote novo agora recebe uma cena ilustrada real do starter pack e uma trilha lo-fi original. O perfil `rain` adiciona chuva baixa atrás da música, enquanto `cozy`, `cosmic` e `focus` usam somente variações musicais e textura leve.
+
+A imagem também não fica mais parada. O renderizador cria um ciclo visual suave de 12 segundos que volta ao ponto inicial e se repete ao longo de toda a produção. É o efeito de um GIF ambiente, mas entregue diretamente no vídeo MP4/H.264 para preservar qualidade e evitar arquivos intermediários gigantes. Perfil, atmosfera e efeitos usados ficam registrados no campo `motion` de `metadata.json`.
 
 O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, progressão, BPM e melodia. Os detalhes ficam em `metadata.json` no campo `music`.
 

@@ -189,6 +189,9 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["metadata"]["selected_thumbnail"], "a")
             self.assertEqual(job["metadata"]["music"]["style"], "original_lofi_chill")
             self.assertGreaterEqual(job["metadata"]["music"]["bpm"], 70)
+            self.assertEqual(job["metadata"]["motion"]["style"], "ambient_seamless_loop")
+            self.assertEqual(job["metadata"]["motion"]["cycle_seconds"], 12)
+            self.assertIn("camera_breathing", job["metadata"]["motion"]["effects"])
             assets = json.loads((Path(job["output_dir"]) / "asset-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(assets[0]["license_type"], "original_ai_generated")
             report = json.loads((Path(job["output_dir"]) / "render-report.json").read_text(encoding="utf-8"))
@@ -223,6 +226,17 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(music["style"], "original_lofi_chill")
                 hashes.add(hashlib.sha256(output.read_bytes()).hexdigest())
             self.assertEqual(len(hashes), 4)
+
+    def test_motion_recipes_change_with_the_atmosphere(self):
+        filters = {}
+        recipes = {}
+        for profile in ("rain", "cozy", "cosmic", "focus"):
+            filters[profile], recipes[profile] = Pipeline.visual_motion(profile, 960, 540, 24)
+            self.assertIn("zoompan", filters[profile])
+            self.assertIn("sin(2*PI*on/288)", filters[profile])
+            self.assertEqual(recipes[profile]["source_policy"], "original_or_commercially_licensed")
+        self.assertEqual(len(set(filters.values())), 4)
+        self.assertEqual(recipes["cosmic"]["atmosphere"], "pulso cósmico")
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_narration_failure_falls_back_to_ambient(self):

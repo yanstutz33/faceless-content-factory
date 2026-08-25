@@ -97,7 +97,7 @@ class ContentCrew:
         visual = {
             "mood": mood,
             "palette": palette,
-            "motion": "slow_push_in",
+            "motion": "loop ambiente de 12 s com respiração de câmera, deslocamento suave e luz pulsante",
             "sound": sound_direction,
             "sound_profile": sound_profile,
             "asset_brief": f"Cena original de {topic_lower}, sem marcas, sem personagens identificáveis, composição cinematográfica",
