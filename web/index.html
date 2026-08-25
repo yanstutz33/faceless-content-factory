@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#09111f"><title>Faceless Factory</title>
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="Faceless Factory"><span class="brand-mark">F</span><span>FACELESS<br><b>FACTORY</b></span></a>
+    <nav aria-label="Navegação principal">
+      <a class="nav-item active" href="#overview"><span>◫</span> Visão geral</a>
+      <a class="nav-item" href="#production"><span>▶</span> Produções <i id="queue-badge">0</i></a>
+      <a class="nav-item" href="#agents"><span>✦</span> Agentes</a>
+      <a class="nav-item" href="#insights"><span>↗</span> Direcionamento</a>
+    </nav>
+    <div class="side-foot"><span class="pulse"></span><div><b>Operação local</b><small>Publicação manual segura</small></div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div><p class="kicker">ESTÚDIO AUTÔNOMO</p><h1>Bom trabalho começa<br>com uma direção clara.</h1></div>
+      <button class="primary" id="new-production">＋ Nova produção</button>
+    </header>
+
+    <section id="overview" class="section">
+      <div class="section-heading"><div><p class="kicker">HOJE</p><h2>Visão geral</h2></div><span id="last-sync">Sincronizando…</span></div>
+      <div class="stats" id="stats"></div>
+      <div class="overview-grid">
+        <article class="focus-card">
+          <div class="focus-top"><span class="orb">✦</span><span class="tag">PRÓXIMA MELHOR AÇÃO</span></div>
+          <h3 id="next-title">Preparando o direcionamento…</h3><p id="next-body">Os agentes estão analisando sua operação.</p>
+          <button class="text-button" id="next-action">Ver fila <span>→</span></button>
+        </article>
+        <article class="safety-card"><div class="shield">✓</div><div><span class="tag">MODO SEGURO</span><h3>Nada é publicado sem você.</h3><p>A fábrica gera, revisa e empacota. A decisão final continua humana.</p></div></article>
+      </div>
+    </section>
+
+    <section id="production" class="section">
+      <div class="section-heading"><div><p class="kicker">PIPELINE</p><h2>Produções</h2></div><div class="filters" id="filters"><button class="chip active" data-filter="all">Todas</button><button class="chip" data-filter="active">Em curso</button><button class="chip" data-filter="review">Revisar</button></div></div>
+      <div class="production-list" id="jobs"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </section>
+
+    <section id="agents" class="section">
+      <div class="section-heading"><div><p class="kicker">EQUIPE DIGITAL</p><h2>Agentes especializados</h2></div><p class="section-copy">Cada agente entrega uma parte auditável do pacote.</p></div>
+      <div class="agent-grid" id="agent-grid"></div>
+    </section>
+
+    <section id="insights" class="section">
+      <div class="section-heading"><div><p class="kicker">APRENDIZADO</p><h2>Direcionamento</h2></div></div>
+      <div class="insight-grid" id="recommendations"></div>
+    </section>
+  </main>
+
+  <dialog id="create-dialog" class="modal">
+    <form method="dialog" class="dialog-shell" id="generate-form">
+      <div class="dialog-head"><div><p class="kicker">NOVA PRODUÇÃO</p><h2>O que vamos criar?</h2></div><button class="icon-button" value="cancel" aria-label="Fechar">×</button></div>
+      <label class="field"><span>Tema e atmosfera</span><textarea name="topic" rows="3" placeholder="Ex.: biblioteca japonesa com chuva suave e lareira" required>Biblioteca chuvosa à noite</textarea><small>Descreva lugar, clima e intenção. Os agentes cuidam do restante.</small></label>
+      <button type="button" class="idea-button" id="suggest-idea">✦ Sugerir uma oportunidade</button>
+      <fieldset><legend>Formato de saída</legend><div class="profile-grid" id="profiles"></div></fieldset>
+      <div class="form-grid"><label class="field"><span>Duração em segundos</span><input name="duration" type="number" min="5" value="30" required></label><label class="field"><span>Prioridade</span><select name="priority"><option value="3">Alta</option><option value="2" selected>Normal</option><option value="1">Baixa</option></select></label></div>
+      <details><summary>Opções avançadas</summary><div class="advanced"><label class="toggle"><input name="subtitles" type="checkbox" checked><span></span> Criar legendas</label><label class="toggle"><input name="narration" type="checkbox"><span></span> Narração neural</label><label class="field"><span>Imagem própria (caminho local, opcional)</span><input name="source_asset" placeholder="C:\Assets\cena.jpg"></label></div></details>
+      <div id="form-error" class="form-error" role="alert"></div>
+      <div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" id="submit-production" value="default">Iniciar produção <span>→</span></button></div>
+    </form>
+  </dialog>
+
+  <dialog id="job-dialog" class="modal detail-modal"><div class="dialog-shell" id="job-detail"></div></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body></html>

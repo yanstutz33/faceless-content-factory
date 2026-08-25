@@ -1,0 +1,10 @@
+@media (max-width: 760px) {
+  .topbar .primary {
+    font-size: 12px;
+    padding: 12px 16px;
+  }
+
+  .topbar .primary:first-letter {
+    font-size: inherit;
+  }
+}
