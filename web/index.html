@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09111f"><title>Faceless Factory</title>
-  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css"><link rel="stylesheet" href="/phase4.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -16,7 +16,7 @@
       <a class="nav-item" href="#agents"><span>✦</span> Agentes</a>
       <a class="nav-item" href="#insights"><span>↗</span> Direcionamento</a>
     </nav>
-    <div class="side-foot"><span class="pulse"></span><div><b>Operação local</b><small>Publicação manual segura</small></div></div>
+    <div class="side-foot"><span class="pulse" id="operation-pulse"></span><div><b id="operation-title">Verificando estúdio</b><small id="operation-status">Publicação manual segura</small></div></div>
   </aside>
 
   <main>
@@ -34,7 +34,7 @@
           <h3 id="next-title">Preparando o direcionamento…</h3><p id="next-body">Os agentes estão analisando sua operação.</p>
           <button class="text-button" id="next-action">Ver fila <span>→</span></button>
         </article>
-        <article class="safety-card"><div class="shield">✓</div><div><span class="tag">MODO SEGURO</span><h3>Nada é publicado sem você.</h3><p>A fábrica gera, revisa e empacota. A decisão final continua humana.</p></div></article>
+        <article class="safety-card"><div class="shield" id="health-shield">✓</div><div><span class="tag">MODO SEGURO · DIAGNÓSTICO CONTÍNUO</span><h3 id="health-title">Nada é publicado sem você.</h3><p id="health-detail">A fábrica gera, verifica e empacota. A decisão final continua humana.</p></div></article>
       </div>
     </section>
 

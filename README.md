@@ -8,23 +8,38 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Sete agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade e crítica
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
 - Assets visuais e sonoros originais gerados localmente
+- Paisagens sonoras locais adaptadas ao tema: chuva, acolhedor, cósmico ou foco
 - Ingestão opcional de JPG/PNG/WebP próprio com enquadramento automático
 - Perfis YouTube longo (16:9), vertical (9:16) e prévia rápida
 - Renderização H.264/AAC com FFmpeg
 - Legenda SRT opcional e thumbnail JPG
 - Fila assíncrona persistente em SQLite: a interface não fica bloqueada durante a renderização
 - Progresso, prioridade, histórico, revisão, aprovação/rejeição, repetição e métricas
+- Retomada automática de produções interrompidas ao reiniciar o estúdio
+- Streaming de vídeo por partes, sem carregar arquivos longos inteiros na memória
+- Certificação técnica de duração, faixas de vídeo/áudio e decodificação de amostra
+- Manifesto SHA-256 para comprovar a integridade de cada pacote
+- Diagnóstico contínuo de ferramentas, fila e espaço em disco
 - Quatro templates de séries, geração em lote e calendário editorial
 - Biblioteca de assets com licença, confirmação de direitos e composição multicena
 - Thumbnails editoriais automáticas com identidade por série
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
-Narração é opcional. `--narration` usa voz neural em português e requer internet durante essa etapa; sem a opção, tudo funciona offline com a paisagem sonora. Outro provedor de TTS pode ser conectado depois sem alterar a fila ou o renderizador.
+Narração é opcional. `--narration` usa voz neural em português e requer internet durante essa etapa. Se a voz estiver indisponível, o padrão seguro conclui o vídeo com ambientação, registra o ocorrido e reduz o score para deixar a revisão explícita. Outro provedor de TTS pode ser conectado depois sem alterar a fila ou o renderizador.
 
 ## Início rápido (Windows / PowerShell)
 
-Requisitos: Python 3.11+ e FFmpeg. Este pacote já contém uma instalação portátil em `.tools/ffmpeg/bin`. Instale a dependência opcional de voz com `python -m pip install -r requirements.txt`.
+Requisitos: Python 3.11+ e FFmpeg. Esta cópia local contém uma instalação portátil em `.tools/ffmpeg/bin` (a pasta não vai para o GitHub). FFprobe é usado quando estiver disponível; sem ele, a fábrica valida metadados e decodifica uma amostra diretamente com FFmpeg. Instale a dependência opcional de voz com `python -m pip install -r requirements.txt`.
+
+Em um checkout novo, o caminho mais simples é:
+
+```powershell
+.\scripts\setup.ps1
+.\scripts\start.ps1
+```
+
+O setup cria um ambiente Python isolado, instala a voz opcional, procura FFmpeg e prepara `.env`. Se a execução de scripts estiver bloqueada no Windows, use os comandos manuais abaixo.
 
 ```powershell
 Copy-Item .env.example .env
@@ -37,6 +52,7 @@ Abra `http://127.0.0.1:8787`, clique em **Nova produção** e escolha o formato.
 python app.py generate --topic "Biblioteca chuvosa à noite" --duration 3600 --profile youtube_long
 python app.py generate --topic "Cabana na neve" --duration 45 --profile vertical_short --narration
 python app.py generate --topic "Café ao amanhecer" --duration 12 --profile preview --asset "C:\Assets\cafe.jpg"
+python app.py doctor
 ```
 
 O tempo e o espaço de renderização crescem com a duração. Faça uma prévia antes de iniciar vídeos de várias horas.
@@ -101,16 +117,18 @@ Um caminho avulso ainda pode ser informado para testes rápidos, mas a bibliotec
 python -m unittest discover -s tests -v
 ```
 
-A suíte cobre agentes, validação, migração/estado da fila, calendário, catálogo de licenças, API, renderização simples e composição multicena real com FFmpeg. A interface também foi validada em desktop e viewport móvel.
+A suíte cobre agentes, validação, migração/estado da fila, retomada após reinício, calendário, métricas por snapshot, catálogo de licenças, segurança da API, streaming por faixa, fallback de voz, renderização simples, checksums e composição multicena real com FFmpeg. A interface também é validada em desktop e viewport móvel.
+
+Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Esses relatórios não publicam nada; servem para detectar pacotes incompletos antes da sua aprovação.
 
 ## Próximas etapas
 
 1. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
-2. Transições e paisagens sonoras específicas por template.
+2. Transições visuais específicas por template e microvariações sonoras por cena.
 3. Variantes A/B de thumbnail com registro de CTR.
-4. Templates de séries, geração em lote e calendário editorial.
-5. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
-6. Coleta automática de retenção e priorização de temas com base no histórico.
+4. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
+5. Coleta automática de retenção e priorização de temas com base no histórico.
+6. Provedor local de voz opcional para operação totalmente offline.
 
 `ALLOW_PLATFORM_PUBLISH=false` é o padrão. Alterar essa variável sozinho não publica: um conector oficial ainda precisa ser implementado e testado.
 

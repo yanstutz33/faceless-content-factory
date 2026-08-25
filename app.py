@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from factory.config import Settings
@@ -33,6 +34,7 @@ def main() -> None:
     metrics.add_argument("--likes", type=int, default=0)
     metrics.add_argument("--watch-minutes", type=float, default=0)
     sub.add_parser("serve", help="Open the local operations dashboard")
+    sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
     args = parser.parse_args()
 
     settings = Settings.load(ROOT)
@@ -52,6 +54,11 @@ def main() -> None:
         print(f"Métricas registradas: {args.job_id}")
     elif args.command == "serve":
         serve(pipeline, store, settings.host, settings.port, ROOT / "web")
+    elif args.command == "doctor":
+        report = pipeline.diagnostics()
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        if not report["ok"]:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

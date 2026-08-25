@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -39,6 +41,161 @@ class Pipeline:
         proc = subprocess.run(args, cwd=self.settings.root, text=True, capture_output=True)
         if proc.returncode:
             raise RuntimeError(f"FFmpeg falhou ({proc.returncode}): {proc.stderr[-3000:]}")
+
+    def diagnostics(self) -> dict[str, Any]:
+        tools: dict[str, dict[str, Any]] = {}
+        for name, executable in (("ffmpeg", self.settings.ffmpeg), ("ffprobe", self.settings.ffprobe)):
+            try:
+                proc = subprocess.run([executable, "-version"], text=True, capture_output=True, timeout=10)
+                first_line = (proc.stdout or proc.stderr).splitlines()[0] if (proc.stdout or proc.stderr) else ""
+                tools[name] = {"ok": proc.returncode == 0, "version": first_line[:180]}
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                tools[name] = {"ok": False, "error": str(exc)}
+        usage = shutil.disk_usage(self.settings.data_dir)
+        return {
+            "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
+            "tools": tools,
+            "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
+            "data_dir": str(self.settings.data_dir),
+            "free_gb": round(usage.free / (1024 ** 3), 1),
+            "publish_mode": "manual-safe",
+            "narration_fallback": self.settings.narration_fallback,
+        }
+
+    def inspect_video(self, video: Path, expected_duration: int) -> dict[str, Any]:
+        try:
+            proc = subprocess.run(
+                [self.settings.ffprobe, "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
+                text=True,
+                capture_output=True,
+            )
+        except OSError:
+            return self.inspect_video_with_ffmpeg(video, expected_duration)
+        if proc.returncode:
+            return self.inspect_video_with_ffmpeg(video, expected_duration)
+        try:
+            probe = json.loads(proc.stdout)
+            duration = float(probe.get("format", {}).get("duration", 0))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise RuntimeError("FFprobe retornou um relatório inválido") from exc
+        streams = probe.get("streams", [])
+        video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+        audio_stream = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
+        tolerance = max(0.75, expected_duration * 0.02)
+        if not video_stream or not audio_stream or abs(duration - expected_duration) > tolerance:
+            raise RuntimeError(
+                f"Validação de mídia falhou: duração={duration:.2f}s, vídeo={bool(video_stream)}, áudio={bool(audio_stream)}"
+            )
+        return {
+            "passed": True,
+            "validation_engine": "ffprobe",
+            "duration_seconds": round(duration, 3),
+            "expected_duration_seconds": expected_duration,
+            "size_bytes": video.stat().st_size,
+            "video": {
+                "codec": video_stream.get("codec_name"),
+                "width": video_stream.get("width"),
+                "height": video_stream.get("height"),
+                "pixel_format": video_stream.get("pix_fmt"),
+            },
+            "audio": {
+                "codec": audio_stream.get("codec_name"),
+                "sample_rate": audio_stream.get("sample_rate"),
+                "channels": audio_stream.get("channels"),
+            },
+        }
+
+    def inspect_video_with_ffmpeg(self, video: Path, expected_duration: int) -> dict[str, Any]:
+        """Validate container metadata and decode a sample when ffprobe is unavailable."""
+        metadata = subprocess.run(
+            [self.settings.ffmpeg, "-hide_banner", "-i", str(video)],
+            text=True,
+            capture_output=True,
+        )
+        output = metadata.stderr or metadata.stdout
+        duration_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", output)
+        video_match = re.search(r"Video:\s*([^,\s]+).*?(\d{2,5})x(\d{2,5})", output)
+        audio_match = re.search(r"Audio:\s*([^,\s]+).*?(\d+)\s*Hz.*?\b(mono|stereo|5\.1|7\.1)\b", output)
+        if not duration_match or not video_match or not audio_match:
+            raise RuntimeError("FFmpeg não conseguiu identificar duração, vídeo e áudio no arquivo final")
+        hours, minutes, seconds = duration_match.groups()
+        duration = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+        tolerance = max(0.75, expected_duration * 0.02)
+        if abs(duration - expected_duration) > tolerance:
+            raise RuntimeError(f"Validação de mídia falhou: duração={duration:.2f}s")
+        sample = subprocess.run(
+            [self.settings.ffmpeg, "-v", "error", "-i", str(video), "-t", "1", "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
+            text=True,
+            capture_output=True,
+        )
+        if sample.returncode:
+            raise RuntimeError(f"FFmpeg não conseguiu decodificar a amostra do vídeo: {sample.stderr[-1200:]}")
+        channels = {"mono": 1, "stereo": 2, "5.1": 6, "7.1": 8}.get(audio_match.group(3))
+        return {
+            "passed": True,
+            "validation_engine": "ffmpeg-fallback",
+            "duration_seconds": round(duration, 3),
+            "expected_duration_seconds": expected_duration,
+            "size_bytes": video.stat().st_size,
+            "video": {"codec": video_match.group(1), "width": int(video_match.group(2)), "height": int(video_match.group(3)), "pixel_format": None},
+            "audio": {"codec": audio_match.group(1), "sample_rate": audio_match.group(2), "channels": channels},
+        }
+
+    @staticmethod
+    def artifact_manifest(out: Path, names: list[str]) -> dict[str, Any]:
+        files = []
+        for name in names:
+            path = out / name
+            if not path.is_file():
+                continue
+            digest = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            files.append({"name": name, "size_bytes": path.stat().st_size, "sha256": digest.hexdigest()})
+        return {"algorithm": "sha256", "files": files}
+
+    def synthesize_narration(self, script: Path, output: Path) -> None:
+        proc = subprocess.run(
+            [sys.executable, "-m", "edge_tts", "--voice", "pt-BR-AntonioNeural", "--file", str(script), "--write-media", str(output)],
+            text=True,
+            capture_output=True,
+            timeout=180,
+        )
+        if proc.returncode or not output.is_file() or output.stat().st_size == 0:
+            raise RuntimeError(f"TTS neural indisponível: {proc.stderr[-900:]}")
+
+    def create_ambient_audio(self, output: Path, duration: int, sound_profile: str) -> None:
+        fade = f"afade=t=in:st=0:d=2,afade=t=out:st={max(0, duration - 2)}:d=2"
+        if sound_profile == "rain":
+            inputs = [
+                "anoisesrc=color=brown:amplitude=0.030:sample_rate=44100",
+                "anoisesrc=color=white:amplitude=0.010:sample_rate=44100",
+                "sine=frequency=105:sample_rate=44100",
+            ]
+            mix = f"[1:a]highpass=f=800,lowpass=f=6200[rain];[2:a]volume=0.010[drone];[0:a][rain][drone]amix=inputs=3:normalize=0,{fade}[a]"
+        elif sound_profile == "cosmic":
+            inputs = [
+                "anoisesrc=color=pink:amplitude=0.020:sample_rate=44100",
+                "sine=frequency=55:sample_rate=44100",
+                "sine=frequency=82.4:sample_rate=44100",
+            ]
+            mix = f"[1:a]volume=0.020[low];[2:a]volume=0.008[harmonic];[0:a][low][harmonic]amix=inputs=3:normalize=0,{fade}[a]"
+        elif sound_profile == "cozy":
+            inputs = [
+                "anoisesrc=color=brown:amplitude=0.027:sample_rate=44100",
+                "anoisesrc=color=white:amplitude=0.003:sample_rate=44100",
+                "sine=frequency=92:sample_rate=44100",
+            ]
+            mix = f"[1:a]highpass=f=1800,lowpass=f=5000[room];[2:a]volume=0.009[drone];[0:a][room][drone]amix=inputs=3:normalize=0,{fade}[a]"
+        else:
+            inputs = ["anoisesrc=color=brown:amplitude=0.035:sample_rate=44100", "sine=frequency=110:sample_rate=44100"]
+            mix = f"[1:a]volume=0.012[drone];[0:a][drone]amix=inputs=2:normalize=0,{fade}[a]"
+        command = [self.settings.ffmpeg, "-y"]
+        for source in inputs:
+            command.extend(["-f", "lavfi", "-i", source])
+        command.extend(["-filter_complex", mix, "-map", "[a]", "-t", str(duration), "-c:a", "pcm_s16le", str(output)])
+        self.command(command)
 
     @staticmethod
     def filter_path(path: Path) -> str:
@@ -146,22 +303,27 @@ class Pipeline:
             self.store.update(job_id, "assets", metadata=metadata, progress=40)
             backgrounds = self._create_backgrounds(job, out, profile["width"], profile["height"])
             audio = out / "ambient.wav"
-            self.command([self.settings.ffmpeg, "-y", "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.035:sample_rate=44100",
-                          "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
-                          "-filter_complex", "[1:a]volume=0.012[t];[0:a][t]amix=inputs=2,afade=t=in:st=0:d=2,afade=t=out:st=" + str(max(0, job["duration"] - 2)) + ":d=2[a]",
-                          "-map", "[a]", "-t", str(job["duration"]), "-c:a", "pcm_s16le", str(audio)])
+            self.create_ambient_audio(audio, job["duration"], plan["visual"].get("sound_profile", "focus"))
+            metadata["sound_profile"] = plan["visual"].get("sound_profile", "focus")
+            self.store.event(job_id, "sound", f"Paisagem sonora '{metadata['sound_profile']}' gerada localmente")
             if job["narration"]:
                 narration = out / "narration.mp3"
-                proc = subprocess.run([sys.executable, "-m", "edge_tts", "--voice", "pt-BR-AntonioNeural",
-                                       "--file", str(out / "script.txt"), "--write-media", str(narration)], text=True, capture_output=True)
-                if proc.returncode:
-                    raise RuntimeError(f"TTS neural indisponível; gere sem narração ou verifique a conexão: {proc.stderr[-900:]}")
-                mixed = out / "ambient-with-narration.wav"
-                self.command([self.settings.ffmpeg, "-y", "-i", str(audio), "-i", str(narration),
-                              "-filter_complex", "[0:a]volume=0.52[bed];[1:a]adelay=1000:all=1[voice];[bed][voice]amix=inputs=2:duration=first:normalize=0[mix]",
-                              "-map", "[mix]", "-t", str(job["duration"]), "-c:a", "pcm_s16le", str(mixed)])
-                audio = mixed
-                self.store.event(job_id, "narration", "Narração neural gerada e mixada")
+                try:
+                    self.synthesize_narration(out / "script.txt", narration)
+                    mixed = out / "ambient-with-narration.wav"
+                    self.command([self.settings.ffmpeg, "-y", "-i", str(audio), "-i", str(narration),
+                                  "-filter_complex", "[0:a]volume=0.52[bed];[1:a]adelay=1000:all=1[voice];[bed][voice]amix=inputs=2:duration=first:normalize=0[mix]",
+                                  "-map", "[mix]", "-t", str(job["duration"]), "-c:a", "pcm_s16le", str(mixed)])
+                    audio = mixed
+                    metadata["narration_status"] = "rendered"
+                    self.store.event(job_id, "narration", "Narração neural gerada e mixada")
+                except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+                    if not self.settings.narration_fallback:
+                        raise
+                    metadata["narration_status"] = "ambient_fallback"
+                    plan["review"]["score"] = max(0, int(plan["review"]["score"]) - 6)
+                    plan["review"]["warnings"].append("A voz neural estava indisponível; o pacote foi concluído somente com ambientação.")
+                    self.store.event(job_id, "narration_fallback", "Voz neural indisponível; pacote concluído com ambientação")
             self.store.update(job_id, "rendering", metadata=metadata, progress=62)
 
             video = out / "video.mp4"
@@ -193,15 +355,29 @@ class Pipeline:
             self.create_thumbnail(backgrounds[0], thumbnail, job["topic"], width, height, plan["visual"]["thumbnail"])
             (out / "thumbnail-design.json").write_text(json.dumps(plan["visual"]["thumbnail"], ensure_ascii=False, indent=2), encoding="utf-8")
 
+            media_report = self.inspect_video(video, job["duration"])
+            (out / "render-report.json").write_text(json.dumps(media_report, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.store.event(job_id, "verification", f"Vídeo, áudio e duração validados com {media_report['validation_engine']}")
+
             self.store.update(job_id, "reviewing", metadata=metadata, progress=88)
             checklist = {
                 "mode": "manual-safe", "ready_for_review": True, "platform_upload_performed": False,
                 "quality_score": plan["review"]["score"], "compliance": plan["compliance"],
+                "media_validation": media_report,
+                "narration_requested": job["narration"],
+                "narration_status": metadata.get("narration_status", "not_requested"),
                 "steps": ["Assista aos 30 segundos iniciais", "Confira thumbnail, título e direitos", "Aprove no painel", "Envie manualmente ao YouTube Studio"],
             }
             (out / "publication-package.json").write_text(json.dumps(checklist, ensure_ascii=False, indent=2), encoding="utf-8")
             metadata["files"] = {"video": "video.mp4", "thumbnail": "thumbnail.jpg", "subtitles": "subtitles.srt" if job["subtitles"] else None,
-                                 "agents": "agents.json", "publication": "publication-package.json"}
+                                 "agents": "agents.json", "publication": "publication-package.json",
+                                 "render_report": "render-report.json", "manifest": "artifact-manifest.json"}
+            metadata["verification"] = media_report
+            metadata["quality"] = plan["review"]
+            (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+            (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+            manifest = self.artifact_manifest(out, ["video.mp4", "thumbnail.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
+            (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.update(job_id, "awaiting_approval", metadata=metadata, progress=100,
                               quality_score=plan["review"]["score"])
             self.store.event(job_id, "complete", "Pacote revisado e pronto; nenhum upload foi realizado")

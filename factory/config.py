@@ -25,6 +25,8 @@ class Settings:
     host: str
     port: int
     allow_publish: bool
+    narration_fallback: bool = True
+    workers: int = 1
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -44,5 +46,6 @@ class Settings:
             host=os.getenv("FACTORY_HOST", "127.0.0.1"),
             port=int(os.getenv("FACTORY_PORT", "8787")),
             allow_publish=os.getenv("ALLOW_PLATFORM_PUBLISH", "false").lower() == "true",
+            narration_fallback=os.getenv("NARRATION_FALLBACK_TO_AMBIENT", "true").lower() == "true",
+            workers=max(1, min(2, int(os.getenv("FACTORY_WORKERS", "1")))),
         )
-

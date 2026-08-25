@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from .agents import PROFILES
 from .pipeline import Pipeline
@@ -19,13 +23,50 @@ class JobRunner:
         self.pipeline = pipeline
         self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="factory-worker")
         self.active: set[str] = set()
+        self.lock = threading.RLock()
+        self._health_at = 0.0
+        self._health: dict = {}
 
     def submit(self, job_id: str) -> None:
-        if job_id in self.active:
-            return
-        self.active.add(job_id)
+        with self.lock:
+            if job_id in self.active:
+                return
+            self.active.add(job_id)
         future = self.executor.submit(self.pipeline.run, job_id)
-        future.add_done_callback(lambda _future: self.active.discard(job_id))
+        future.add_done_callback(lambda _future: self._finished(job_id))
+
+    def _finished(self, job_id: str) -> None:
+        with self.lock:
+            self.active.discard(job_id)
+
+    def snapshot(self) -> dict:
+        with self.lock:
+            return {"active": sorted(self.active), "worker_limit": self.executor._max_workers}
+
+    def health(self) -> dict:
+        with self.lock:
+            if time.monotonic() - self._health_at < 60 and self._health:
+                return {**self._health, "queue": self.snapshot()}
+        diagnostics = self.pipeline.diagnostics()
+        with self.lock:
+            self._health = diagnostics
+            self._health_at = time.monotonic()
+        return {**diagnostics, "queue": self.snapshot()}
+
+    def shutdown(self) -> None:
+        self.executor.shutdown(wait=False, cancel_futures=False)
+
+
+class FactoryServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, server_address, handler, runner: JobRunner):
+        self.runner = runner
+        super().__init__(server_address, handler)
+
+    def server_close(self) -> None:
+        self.runner.shutdown()
+        super().server_close()
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -38,14 +79,24 @@ class Handler(SimpleHTTPRequestHandler):
         return
 
     def translate_path(self, path: str) -> str:
-        clean = urlparse(path).path
+        clean = unquote(urlparse(path).path)
         if clean.startswith("/api/"):
             return str(self.static_dir / "missing")
-        target = "index.html" if clean == "/" else clean.lstrip("/")
-        return str(self.static_dir / target)
+        target = Path("index.html" if clean == "/" else clean.lstrip("/"))
+        static_root = self.static_dir.resolve()
+        candidate = (static_root / target).resolve()
+        try:
+            candidate.relative_to(static_root)
+        except ValueError:
+            return str(static_root / "missing")
+        return str(candidate)
 
     def end_headers(self) -> None:
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; media-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
@@ -59,30 +110,74 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
-        allowed = {"video.mp4", "thumbnail.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json"}
+        allowed = {"video.mp4", "thumbnail.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
+                   "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
         path = Path(job["output_dir"]) / name
         if not path.is_file():
             return self.send_json({"error": "Artefato ainda não foi gerado"}, 404)
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        self.send_response(200)
+        size = path.stat().st_size
+        start, end = 0, size - 1
+        status = HTTPStatus.OK
+        range_header = self.headers.get("Range")
+        if range_header:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+            if not match or (not match.group(1) and not match.group(2)):
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.end_headers()
+                return
+            if match.group(1):
+                start = int(match.group(1))
+                end = int(match.group(2)) if match.group(2) else size - 1
+            else:
+                suffix = int(match.group(2))
+                start = max(0, size - suffix)
+            end = min(end, size - 1)
+            if start > end or start >= size:
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.end_headers()
+                return
+            status = HTTPStatus.PARTIAL_CONTENT
+        length = end - start + 1
+        self.send_response(status)
         self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(path.stat().st_size))
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        if status == HTTPStatus.PARTIAL_CONTENT:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         self.send_header("Content-Disposition", f'inline; filename="{path.name}"')
         self.end_headers()
         with path.open("rb") as file:
-            self.wfile.write(file.read())
+            file.seek(start)
+            remaining = length
+            try:
+                while remaining:
+                    chunk = file.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
-        if length > 1_000_000:
+        if length < 0 or length > 1_000_000:
             raise ValueError("Requisição grande demais")
-        return json.loads(self.rfile.read(length) or b"{}")
+        value = json.loads(self.rfile.read(length) or b"{}")
+        if not isinstance(value, dict):
+            raise ValueError("O corpo da requisição precisa ser um objeto")
+        return value
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if path == "/api/health":
+            return self.send_json(self.runner.health())
         if path == "/api/dashboard":
             summary = self.store.summary()
             jobs = self.store.list_jobs(100)
@@ -92,7 +187,8 @@ class Handler(SimpleHTTPRequestHandler):
             if not summary["views"]:
                 recommendations.append({"tone": "info", "title": "Feche o ciclo de aprendizado", "body": "Após publicar manualmente, registre views e tempo assistido para orientar os próximos temas."})
             recommendations.append({"tone": "safe", "title": "Publicação protegida", "body": "O sistema prepara os arquivos, mas não envia nada automaticamente."})
-            return self.send_json({"summary": summary, "jobs": jobs, "recommendations": recommendations})
+            return self.send_json({"summary": summary, "jobs": jobs, "recommendations": recommendations,
+                                   "operation": self.runner.health()})
         if path == "/api/jobs":
             limit = int(parse_qs(parsed.query).get("limit", ["100"])[0])
             return self.send_json(self.store.list_jobs(max(1, min(limit, 500))))
@@ -150,9 +246,17 @@ class Handler(SimpleHTTPRequestHandler):
                     created.append(job_id)
                 return self.send_json({"created": created, "count": len(created)}, HTTPStatus.ACCEPTED)
             if path == "/api/calendar":
+                profile = str(data.get("profile", "youtube_long"))
+                if profile not in PROFILES:
+                    raise ValueError("Perfil de saída inválido")
+                scheduled_for = str(data.get("scheduled_for", ""))
+                try:
+                    datetime.fromisoformat(scheduled_for)
+                except ValueError as exc:
+                    raise ValueError("Data e hora inválidas") from exc
                 item_id = self.store.add_calendar_item(str(data.get("topic", "")), data.get("series_id"),
-                                                       data.get("profile", "youtube_long"), int(data.get("duration", 1800)),
-                                                       str(data.get("scheduled_for", "")))
+                                                       profile, max(5, min(int(data.get("duration", 1800)), PROFILES[profile]["max_duration"])),
+                                                       scheduled_for)
                 return self.send_json({"id": item_id}, HTTPStatus.CREATED)
             if path == "/api/assets":
                 asset_path = Path(str(data.get("path", ""))).expanduser().resolve()
@@ -201,9 +305,13 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
-    runner = JobRunner(pipeline)
+    runner = JobRunner(pipeline, pipeline.settings.workers)
     handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner, "static_dir": static_dir})
-    return ThreadingHTTPServer((host, port), handler)
+    server = FactoryServer((host, port), handler, runner)
+    store.recover_interrupted()
+    for job_id in store.queued_jobs():
+        runner.submit(job_id)
+    return server
 
 
 def serve(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> None:

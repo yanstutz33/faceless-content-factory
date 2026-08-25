@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 
+ACTIVE_STATUSES = ("queued", "planning", "assets", "rendering", "reviewing")
+
+
 def now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -22,6 +25,8 @@ class Store:
     def connect(self):
         db = sqlite3.connect(self.db_path, timeout=15)
         db.row_factory = sqlite3.Row
+        db.execute("PRAGMA foreign_keys=ON")
+        db.execute("PRAGMA busy_timeout=15000")
         try:
             yield db
             db.commit()
@@ -31,6 +36,7 @@ class Store:
     def init(self) -> None:
         with self.connect() as db:
             db.executescript("""
+                PRAGMA journal_mode=WAL;
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY, topic TEXT NOT NULL, status TEXT NOT NULL,
                     duration INTEGER NOT NULL, narration INTEGER NOT NULL,
@@ -103,7 +109,9 @@ class Store:
             values.append(quality_score)
         values.append(job_id)
         with self.connect() as db:
-            db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id=?", values)
+            cursor = db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id=?", values)
+            if not cursor.rowcount:
+                raise ValueError("Produção não encontrada")
 
     def event(self, job_id: str, stage: str, message: str) -> None:
         with self.connect() as db:
@@ -112,11 +120,48 @@ class Store:
     @staticmethod
     def _job(row: sqlite3.Row) -> dict[str, Any]:
         item = dict(row)
-        item["metadata"] = json.loads(item.get("metadata") or "{}")
+        try:
+            item["metadata"] = json.loads(item.get("metadata") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            item["metadata"] = {"recovery_warning": "Metadados antigos estavam corrompidos"}
         item["narration"] = bool(item["narration"])
         item["subtitles"] = bool(item["subtitles"])
-        item["source_assets"] = json.loads(item.get("source_assets") or "[]")
+        try:
+            item["source_assets"] = json.loads(item.get("source_assets") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            item["source_assets"] = []
         return item
+
+    def recover_interrupted(self) -> list[str]:
+        """Put unfinished work back in the queue after an unclean shutdown."""
+        interrupted = ACTIVE_STATUSES[1:]
+        placeholders = ",".join("?" for _ in interrupted)
+        with self.connect() as db:
+            rows = db.execute(
+                f"SELECT id FROM jobs WHERE status IN ({placeholders}) ORDER BY priority DESC, created_at",
+                interrupted,
+            ).fetchall()
+            ids = [str(row[0]) for row in rows]
+            if ids:
+                id_placeholders = ",".join("?" for _ in ids)
+                db.execute(
+                    f"UPDATE jobs SET status='queued', progress=0, error=NULL, updated_at=? WHERE id IN ({id_placeholders})",
+                    (now(), *ids),
+                )
+                db.executemany(
+                    "INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)",
+                    [(job_id, "recovery", "Produção retomada após reinício do estúdio", now()) for job_id in ids],
+                )
+        return ids
+
+    def queued_jobs(self) -> list[str]:
+        with self.connect() as db:
+            return [
+                str(row[0])
+                for row in db.execute(
+                    "SELECT id FROM jobs WHERE status='queued' ORDER BY priority DESC, created_at"
+                )
+            ]
 
     def list_jobs(self, limit: int = 100) -> list[dict[str, Any]]:
         with self.connect() as db:
@@ -136,6 +181,9 @@ class Store:
     def add_metrics(self, job_id: str, platform: str, views: int, likes: int, watch_minutes: float) -> None:
         if not self.get_job(job_id):
             raise ValueError("Produção não encontrada")
+        platform = platform.strip().lower()
+        if platform not in {"youtube", "shorts", "tiktok", "reels", "shopee"}:
+            raise ValueError("Plataforma de métricas inválida")
         with self.connect() as db:
             db.execute("INSERT INTO metrics(job_id,platform,views,likes,watch_minutes,recorded_at) VALUES(?,?,?,?,?,?)",
                        (job_id, platform, max(0, views), max(0, likes), max(0, watch_minutes), now()))
@@ -147,7 +195,13 @@ class Store:
         for job in jobs:
             status_counts[job["status"]] = status_counts.get(job["status"], 0) + 1
         with self.connect() as db:
-            totals = db.execute("SELECT COALESCE(SUM(views),0), COALESCE(SUM(watch_minutes),0), COALESCE(SUM(likes),0) FROM metrics").fetchone()
+            totals = db.execute("""
+                WITH latest AS (
+                    SELECT MAX(id) AS id FROM metrics GROUP BY job_id, platform
+                )
+                SELECT COALESCE(SUM(views),0), COALESCE(SUM(watch_minutes),0), COALESCE(SUM(likes),0)
+                FROM metrics WHERE id IN (SELECT id FROM latest)
+            """).fetchone()
         scored = [j["quality_score"] for j in jobs if j.get("quality_score") is not None]
         return {
             "total": len(jobs), "status": status_counts,
@@ -171,7 +225,9 @@ class Store:
 
     def link_calendar_job(self, item_id: int, job_id: str) -> None:
         with self.connect() as db:
-            db.execute("UPDATE calendar SET status='producing', job_id=? WHERE id=?", (job_id, item_id))
+            cursor = db.execute("UPDATE calendar SET status='producing', job_id=? WHERE id=?", (job_id, item_id))
+            if not cursor.rowcount:
+                raise ValueError("Item do calendário não encontrado")
 
     def add_asset(self, name: str, path: str, license_type: str, source_url: str | None,
                   notes: str | None, approved: bool) -> int:

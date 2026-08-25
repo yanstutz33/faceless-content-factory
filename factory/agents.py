@@ -81,22 +81,36 @@ class ContentCrew:
             minutes, seconds = divmod(rest, 60)
             chapters.append({"time": f"{hours:02}:{minutes:02}:{seconds:02}", "label": "Imersão" if second else "Entrada no ambiente"})
         script = {"intro": intro, "spoken": intro if narration else "", "chapters": chapters, "on_screen": [strategy["hook"]]}
-        palette = ["#071426", "#153A4F", "#D8A96C"] if "chuva" in topic_lower else ["#0B1628", "#2A3750", "#CF9A62"]
+        palette = ["#071426", "#153A4F", "#D8A96C"] if "chuv" in topic_lower else ["#0B1628", "#2A3750", "#CF9A62"]
+        if any(x in topic_lower for x in ("chuv", "tempestade", "rain")):
+            sound_profile = "rain"
+            sound_direction = "chuva filtrada, ruído marrom suave e drone quente, com fade de 2s"
+        elif any(x in topic_lower for x in ("nave", "espaço", "espacial", "júpiter", "nebulosa", "orbital", "lunar")):
+            sound_profile = "cosmic"
+            sound_direction = "ruído rosa amplo e dois drones graves, com fade de 2s"
+        elif any(x in topic_lower for x in ("cabana", "lareira", "café", "quarto", "casa")):
+            sound_profile = "cozy"
+            sound_direction = "ruído marrom aveludado, presença de sala e drone baixo, com fade de 2s"
+        else:
+            sound_profile = "focus"
+            sound_direction = "ruído marrom equilibrado e drone discreto, com fade de 2s"
         visual = {
             "mood": mood,
             "palette": palette,
             "motion": "slow_push_in",
-            "sound": "brown noise, low warm drone, 2s fade",
+            "sound": sound_direction,
+            "sound_profile": sound_profile,
             "asset_brief": f"Cena original de {topic_lower}, sem marcas, sem personagens identificáveis, composição cinematográfica",
             "thumbnail": {"eyebrow": "AMBIENTE IMERSIVO", "headline": topic, "composition": "cena ampla, faixa escura inferior e tipografia editorial"},
         }
         minutes = max(1, math.ceil(duration / 60))
+        duration_label = f"{duration} s" if duration < 60 else f"{minutes} min"
         title = f"{topic} — Ambiente para {use_case}"
         seo = {
             "title": title[:96],
             "description": (
                 f"Entre em uma atmosfera de {topic_lower} criada para {use_case}.\n\n"
-                f"Duração: {minutes} min · experiência original · use fones.\n\n"
+                f"Duração: {duration_label} · experiência original · use fones.\n\n"
                 "#ambience #focus #relax"
             ),
             "tags": ["ambience", "focus", "relax", "study", slug(topic), profile["label"].lower()],
