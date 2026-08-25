@@ -14,6 +14,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Legenda SRT opcional e thumbnail JPG
 - Fila assíncrona persistente em SQLite: a interface não fica bloqueada durante a renderização
 - Progresso, prioridade, histórico, revisão, aprovação/rejeição, repetição e métricas
+- Quatro templates de séries, geração em lote e calendário editorial
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
@@ -51,6 +52,13 @@ Cada produção salva `agents.json` com entregas auditáveis:
 7. **Crítica** gera score, alertas e próxima ação.
 
 Hoje eles funcionam localmente com regras reproduzíveis. As interfaces estão separadas para permitir substituir um agente por LLM ou outro provedor sem reescrever fila e renderização.
+
+## Séries, lotes e calendário
+
+- **Lugares sob chuva**, **Mundos acolhedores**, **Foco cósmico** e **Momentos verticais** vêm prontos como pontos de partida.
+- **Gerar lote** aceita até 20 temas e coloca tudo em uma fila serial para preservar a responsividade do computador.
+- O calendário guarda tema, formato, duração e data. Um item planejado pode ser iniciado imediatamente sem redigitação.
+- Os templates ficam em `factory/templates.py` e podem ser adaptados sem alterar o pipeline.
 
 ## Operação de baixo esforço
 
@@ -93,8 +101,8 @@ A suíte cobre agentes, validação, migração/estado da fila, API e uma render
 
 ## Próximas etapas
 
-1. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
-2. Catálogo de assets licenciados com manifesto de origem e múltiplas cenas por vídeo.
+1. Catálogo de assets licenciados com manifesto de origem e múltiplas cenas por vídeo.
+2. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
 3. Thumbnails com composição e tipografia específicas por série.
 4. Templates de séries, geração em lote e calendário editorial.
 5. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.

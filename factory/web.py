@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from .agents import PROFILES
 from .pipeline import Pipeline
 from .store import Store
+from .templates import SERIES, series_catalog
 
 
 class JobRunner:
@@ -101,6 +102,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.pipeline.crew.ideas())
         if path == "/api/profiles":
             return self.send_json(PROFILES)
+        if path == "/api/series":
+            return self.send_json(series_catalog())
+        if path == "/api/calendar":
+            return self.send_json(self.store.list_calendar())
         parts = path.strip("/").split("/")
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
@@ -121,6 +126,36 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 self.runner.submit(job_id)
                 return self.send_json(self.store.get_job(job_id), HTTPStatus.ACCEPTED)
+            if path == "/api/batches":
+                series = SERIES.get(data.get("series_id", ""), {})
+                topics = data.get("topics") or series.get("topics") or []
+                if not isinstance(topics, list) or not topics:
+                    raise ValueError("Informe ao menos um tema para o lote")
+                if len(topics) > 20:
+                    raise ValueError("O lote aceita até 20 produções")
+                created = []
+                for topic in topics:
+                    job_id = self.pipeline.create(str(topic), int(data.get("duration") or series.get("duration", 30)),
+                                                  bool(data.get("narration", series.get("narration", False))),
+                                                  bool(data.get("subtitles", True)), data.get("profile") or series.get("profile", "youtube_long"),
+                                                  None, int(data.get("priority", 1)))
+                    self.runner.submit(job_id)
+                    created.append(job_id)
+                return self.send_json({"created": created, "count": len(created)}, HTTPStatus.ACCEPTED)
+            if path == "/api/calendar":
+                item_id = self.store.add_calendar_item(str(data.get("topic", "")), data.get("series_id"),
+                                                       data.get("profile", "youtube_long"), int(data.get("duration", 1800)),
+                                                       str(data.get("scheduled_for", "")))
+                return self.send_json({"id": item_id}, HTTPStatus.CREATED)
+            if path.startswith("/api/calendar/") and path.endswith("/produce"):
+                item_id = int(path.split("/")[-2])
+                item = next((x for x in self.store.list_calendar() if x["id"] == item_id), None)
+                if not item:
+                    raise ValueError("Item do calendário não encontrado")
+                job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"])
+                self.store.link_calendar_job(item_id, job_id)
+                self.runner.submit(job_id)
+                return self.send_json({"job_id": job_id}, HTTPStatus.ACCEPTED)
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "jobs"]:
                 job_id, action = parts[2], parts[3]

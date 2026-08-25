@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09111f"><title>Faceless Factory</title>
-  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -11,6 +11,7 @@
     <nav aria-label="Navegação principal">
       <a class="nav-item active" href="#overview"><span>◫</span> Visão geral</a>
       <a class="nav-item" href="#production"><span>▶</span> Produções <i id="queue-badge">0</i></a>
+      <a class="nav-item" href="#calendar"><span>▦</span> Calendário</a>
       <a class="nav-item" href="#agents"><span>✦</span> Agentes</a>
       <a class="nav-item" href="#insights"><span>↗</span> Direcionamento</a>
     </nav>
@@ -20,7 +21,7 @@
   <main>
     <header class="topbar">
       <div><p class="kicker">ESTÚDIO AUTÔNOMO</p><h1>Bom trabalho começa<br>com uma direção clara.</h1></div>
-      <button class="primary" id="new-production">＋ Nova produção</button>
+      <div class="top-actions"><button class="secondary" id="new-batch">＋ Gerar lote</button><button class="primary" id="new-production">＋ Nova produção</button></div>
     </header>
 
     <section id="overview" class="section">
@@ -34,6 +35,11 @@
         </article>
         <article class="safety-card"><div class="shield">✓</div><div><span class="tag">MODO SEGURO</span><h3>Nada é publicado sem você.</h3><p>A fábrica gera, revisa e empacota. A decisão final continua humana.</p></div></article>
       </div>
+    </section>
+
+    <section id="calendar" class="section">
+      <div class="section-heading"><div><p class="kicker">RITMO EDITORIAL</p><h2>Calendário</h2></div><button class="secondary" id="new-calendar-item">＋ Planejar conteúdo</button></div>
+      <div class="calendar-layout"><div class="series-grid" id="series-grid"></div><div class="calendar-list" id="calendar-list"></div></div>
     </section>
 
     <section id="production" class="section">
@@ -66,6 +72,8 @@
   </dialog>
 
   <dialog id="job-dialog" class="modal detail-modal"><div class="dialog-shell" id="job-detail"></div></dialog>
+  <dialog id="batch-dialog" class="modal"><form method="dialog" class="dialog-shell" id="batch-form"><div class="dialog-head"><div><p class="kicker">PRODUÇÃO EM LOTE</p><h2>Crie uma série de uma vez.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar lote">×</button></div><label class="field"><span>Template de série</span><select name="series_id" id="batch-series"></select></label><label class="field"><span>Temas — um por linha</span><textarea name="topics" rows="6" placeholder="Deixe vazio para usar os temas sugeridos da série"></textarea></label><p class="batch-note">Os trabalhos entram na fila e são renderizados um por vez para manter o computador responsivo.</p><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="default">Adicionar lote à fila</button></div></form></dialog>
+  <dialog id="calendar-dialog" class="modal"><form method="dialog" class="dialog-shell" id="calendar-form"><div class="dialog-head"><div><p class="kicker">PLANEJAMENTO</p><h2>Agende uma ideia.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar calendário">×</button></div><label class="field"><span>Tema</span><input name="topic" required placeholder="Ex.: café com chuva ao amanhecer"></label><div class="form-grid"><label class="field"><span>Data e hora</span><input name="scheduled_for" type="datetime-local" required></label><label class="field"><span>Formato</span><select name="profile"><option value="youtube_long">YouTube longo</option><option value="vertical_short">Vertical</option><option value="preview">Prévia</option></select></label></div><label class="field"><span>Duração em segundos</span><input name="duration" type="number" min="5" value="1800"></label><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="default">Adicionar ao calendário</button></div></form></dialog>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/app.js"></script>
+  <script src="/app.js"></script><script src="/phase2.js"></script>
 </body></html>

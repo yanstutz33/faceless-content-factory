@@ -48,6 +48,12 @@ class Store:
                     likes INTEGER NOT NULL DEFAULT 0, watch_minutes REAL NOT NULL DEFAULT 0,
                     recorded_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS calendar (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT NOT NULL,
+                    series_id TEXT, profile TEXT NOT NULL, duration INTEGER NOT NULL,
+                    scheduled_for TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'planned',
+                    job_id TEXT, created_at TEXT NOT NULL
+                );
             """)
             existing = {row[1] for row in db.execute("PRAGMA table_info(jobs)")}
             additions = {
@@ -141,3 +147,19 @@ class Store:
             "views": totals[0], "watch_minutes": round(totals[1], 1), "likes": totals[2],
             "average_quality": round(sum(scored) / len(scored)) if scored else None,
         }
+
+    def add_calendar_item(self, topic: str, series_id: str | None, profile: str, duration: int, scheduled_for: str) -> int:
+        if not topic.strip() or not scheduled_for:
+            raise ValueError("Tema e data são obrigatórios")
+        with self.connect() as db:
+            cursor = db.execute("INSERT INTO calendar(topic,series_id,profile,duration,scheduled_for,created_at) VALUES(?,?,?,?,?,?)",
+                                (topic.strip(), series_id, profile, duration, scheduled_for, now()))
+            return int(cursor.lastrowid)
+
+    def list_calendar(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            return [dict(row) for row in db.execute("SELECT * FROM calendar ORDER BY scheduled_for, id")]
+
+    def link_calendar_job(self, item_id: int, job_id: str) -> None:
+        with self.connect() as db:
+            db.execute("UPDATE calendar SET status='producing', job_id=? WHERE id=?", (job_id, item_id))

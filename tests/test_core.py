@@ -32,6 +32,16 @@ class CoreTests(unittest.TestCase):
         self.assertGreaterEqual(plan["review"]["score"], 80)
         self.assertIn("Biblioteca", plan["seo"]["title"])
         self.assertEqual(plan["compliance"]["publish_mode"], "manual_safe")
+        self.assertGreaterEqual(len(ContentCrew().ideas()), 5)
+
+    def test_editorial_calendar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "factory.db")
+            item_id = store.add_calendar_item("Rainy cafe", "rainy_places", "youtube_long", 1800, "2026-09-01T19:00")
+            self.assertGreater(item_id, 0)
+            self.assertEqual(store.list_calendar()[0]["status"], "planned")
+            store.link_calendar_job(item_id, "job-123")
+            self.assertEqual(store.list_calendar()[0]["job_id"], "job-123")
 
     def test_queue_profile_summary_and_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,6 +88,8 @@ class CoreTests(unittest.TestCase):
             try:
                 dashboard = json.load(urllib.request.urlopen(base + "/api/dashboard"))
                 self.assertEqual(dashboard["summary"]["total"], 0)
+                series = json.load(urllib.request.urlopen(base + "/api/series"))
+                self.assertGreaterEqual(len(series), 4)
                 request = urllib.request.Request(base + "/api/jobs", data=b'{"topic":"x"}', headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(request)
