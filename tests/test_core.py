@@ -43,6 +43,16 @@ class CoreTests(unittest.TestCase):
             store.link_calendar_job(item_id, "job-123")
             self.assertEqual(store.list_calendar()[0]["job_id"], "job-123")
 
+    def test_asset_catalog_requires_traceable_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image = root / "owned.jpg"
+            image.write_bytes(b"placeholder")
+            store = Store(root / "factory.db")
+            asset_id = store.add_asset("Owned scene", str(image), "original", None, "Created in-house", True)
+            self.assertGreater(asset_id, 0)
+            self.assertTrue(store.list_assets(approved_only=True)[0]["approved"])
+
     def test_queue_profile_summary_and_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -75,6 +85,24 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["progress"], 100)
             self.assertTrue((Path(job["output_dir"]) / "video.mp4").exists())
             self.assertTrue((Path(job["output_dir"]) / "agents.json").exists())
+
+    @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
+    def test_multiscene_render_and_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            scenes = []
+            for index, color in enumerate(("#102030", "#304050")):
+                path = root / f"scene-{index}.jpg"
+                pipeline.command([str(FFMPEG), "-y", "-f", "lavfi", "-i", f"color=c={color}:s=960x540", "-frames:v", "1", str(path)])
+                scenes.append({"name": f"Scene {index}", "path": str(path), "license_type": "original", "approved": True})
+            job_id = pipeline.create("Two scene test", 6, profile="preview", source_assets=scenes)
+            job = pipeline.run(job_id)
+            output = Path(job["output_dir"])
+            self.assertEqual(job["status"], "awaiting_approval")
+            self.assertTrue((output / "asset-manifest.json").exists())
+            self.assertEqual(len(json.loads((output / "asset-manifest.json").read_text(encoding="utf-8"))), 2)
 
     def test_dashboard_api_and_validation(self):
         with tempfile.TemporaryDirectory() as tmp:

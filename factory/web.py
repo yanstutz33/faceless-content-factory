@@ -106,6 +106,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(series_catalog())
         if path == "/api/calendar":
             return self.send_json(self.store.list_calendar())
+        if path == "/api/assets":
+            return self.send_json(self.store.list_assets())
         parts = path.strip("/").split("/")
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
@@ -119,10 +121,15 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             data = self.read_json()
             if path == "/api/jobs":
+                asset_ids = [int(value) for value in data.get("asset_ids", [])]
+                selected_assets = self.store.get_assets(asset_ids)
+                if len(selected_assets) != len(set(asset_ids)):
+                    raise ValueError("Um ou mais assets não estão aprovados")
                 job_id = self.pipeline.create(
                     data.get("topic", "Biblioteca chuvosa à noite"), int(data.get("duration", 30)),
                     bool(data.get("narration", False)), bool(data.get("subtitles", True)),
                     data.get("profile", "youtube_long"), data.get("source_asset") or None, int(data.get("priority", 2)),
+                    selected_assets,
                 )
                 self.runner.submit(job_id)
                 return self.send_json(self.store.get_job(job_id), HTTPStatus.ACCEPTED)
@@ -147,6 +154,16 @@ class Handler(SimpleHTTPRequestHandler):
                                                        data.get("profile", "youtube_long"), int(data.get("duration", 1800)),
                                                        str(data.get("scheduled_for", "")))
                 return self.send_json({"id": item_id}, HTTPStatus.CREATED)
+            if path == "/api/assets":
+                asset_path = Path(str(data.get("path", ""))).expanduser().resolve()
+                if not asset_path.is_file() or asset_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+                    raise ValueError("Selecione uma imagem JPG, PNG ou WebP existente")
+                if not bool(data.get("rights_confirmed", False)):
+                    raise ValueError("Confirme os direitos de uso antes de aprovar o asset")
+                asset_id = self.store.add_asset(str(data.get("name", asset_path.stem)), str(asset_path),
+                                                str(data.get("license_type", "")), data.get("source_url"),
+                                                data.get("notes"), True)
+                return self.send_json({"id": asset_id}, HTTPStatus.CREATED)
             if path.startswith("/api/calendar/") and path.endswith("/produce"):
                 item_id = int(path.split("/")[-2])
                 item = next((x for x in self.store.list_calendar() if x["id"] == item_id), None)

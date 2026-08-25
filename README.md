@@ -15,6 +15,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Fila assíncrona persistente em SQLite: a interface não fica bloqueada durante a renderização
 - Progresso, prioridade, histórico, revisão, aprovação/rejeição, repetição e métricas
 - Quatro templates de séries, geração em lote e calendário editorial
+- Biblioteca de assets com licença, confirmação de direitos e composição multicena
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
@@ -89,7 +90,9 @@ data/jobs/             pacotes gerados (ignorado pelo Git)
 
 ## Assets próprios
 
-O fluxo gera placeholders originais por padrão. Em **Opções avançadas**, informe o caminho de uma imagem licenciada; ela será enquadrada automaticamente. O pacote registra o briefing e alerta para confirmar direitos. Não reutilize vídeos de outros canais sem permissão.
+O fluxo gera placeholders originais por padrão. Em **Biblioteca de assets**, registre nome, arquivo, licença, origem e observações e confirme os direitos comerciais. Em **Opções avançadas**, selecione até 12 imagens aprovadas; a fábrica divide o vídeo entre elas, aplica movimento suave e salva `asset-manifest.json` no pacote.
+
+Um caminho avulso ainda pode ser informado para testes rápidos, mas a biblioteca é o fluxo recomendado porque mantém a rastreabilidade. Não reutilize vídeos de outros canais sem permissão.
 
 ## Testes
 
@@ -97,13 +100,13 @@ O fluxo gera placeholders originais por padrão. Em **Opções avançadas**, inf
 python -m unittest discover -s tests -v
 ```
 
-A suíte cobre agentes, validação, migração/estado da fila, API e uma renderização real de 5 segundos com FFmpeg. A interface também foi validada em desktop e viewport móvel.
+A suíte cobre agentes, validação, migração/estado da fila, calendário, catálogo de licenças, API, renderização simples e composição multicena real com FFmpeg. A interface também foi validada em desktop e viewport móvel.
 
 ## Próximas etapas
 
-1. Catálogo de assets licenciados com manifesto de origem e múltiplas cenas por vídeo.
+1. Thumbnails com composição e tipografia específicas por série.
 2. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
-3. Thumbnails com composição e tipografia específicas por série.
+3. Transições e paisagens sonoras específicas por template.
 4. Templates de séries, geração em lote e calendário editorial.
 5. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
 6. Coleta automática de retenção e priorização de temas com base no histórico.

@@ -40,40 +40,56 @@ class Pipeline:
             raise RuntimeError(f"FFmpeg falhou ({proc.returncode}): {proc.stderr[-3000:]}")
 
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
-               profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2) -> str:
+               profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
+               source_assets: list[dict[str, Any]] | None = None) -> str:
         topic = " ".join(topic.split()).strip()
         if len(topic) < 3:
             raise ValueError("Descreva um tema com pelo menos 3 caracteres")
         if profile not in PROFILES:
             raise ValueError("Perfil de saída inválido")
         duration = max(5, min(int(duration), PROFILES[profile]["max_duration"]))
-        source = Path(source_asset).expanduser().resolve() if source_asset else None
-        if source and (not source.is_file() or source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}):
-            raise ValueError("O asset precisa ser uma imagem JPG, PNG ou WebP existente")
+        assets = list(source_assets or [])
+        if source_asset:
+            assets.append({"name": Path(source_asset).stem, "path": source_asset, "license_type": "fornecido pelo usuário",
+                           "source_url": None, "approved": True})
+        normalized_assets = []
+        for asset in assets[:12]:
+            source = Path(str(asset.get("path", ""))).expanduser().resolve()
+            if not source.is_file() or source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+                raise ValueError(f"Asset inválido: {source}")
+            normalized_assets.append({**asset, "path": str(source)})
         job_id = f"{safe_slug(topic)}-{uuid.uuid4().hex[:8]}"
         output_dir = self.settings.data_dir / "jobs" / job_id
         output_dir.mkdir(parents=True)
         self.store.create_job({"id": job_id, "topic": topic, "duration": duration, "narration": narration,
                                "subtitles": subtitles, "profile": profile, "priority": priority,
-                               "source_asset": str(source) if source else None, "output_dir": str(output_dir)})
+                               "source_asset": normalized_assets[0]["path"] if normalized_assets else None,
+                               "source_assets": normalized_assets, "output_dir": str(output_dir)})
         return job_id
 
     def generate_plan(self, topic: str, duration: int, profile: str = "youtube_long", narration: bool = False) -> dict[str, Any]:
         return self.crew.run(topic, duration, profile, narration)
 
-    def _create_background(self, job: dict[str, Any], out: Path, width: int, height: int) -> Path:
-        background = out / "background.jpg"
-        if job.get("source_asset"):
-            self.command([self.settings.ffmpeg, "-y", "-i", job["source_asset"], "-vf",
-                          f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}",
-                          "-frames:v", "1", str(background)])
-            self.store.event(job["id"], "assets", "Asset fornecido foi enquadrado para o perfil")
+    def _create_backgrounds(self, job: dict[str, Any], out: Path, width: int, height: int) -> list[Path]:
+        assets = job.get("source_assets") or []
+        backgrounds: list[Path] = []
+        if assets:
+            for index, asset in enumerate(assets):
+                background = out / f"scene-{index + 1:02}.jpg"
+                self.command([self.settings.ffmpeg, "-y", "-i", asset["path"], "-vf",
+                              f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}",
+                              "-frames:v", "1", str(background)])
+                backgrounds.append(background)
+            (out / "asset-manifest.json").write_text(json.dumps(assets, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.store.event(job["id"], "assets", f"{len(backgrounds)} asset(s) licenciado(s) enquadrado(s)")
         else:
+            background = out / "background.jpg"
             self.command([self.settings.ffmpeg, "-y", "-f", "lavfi", "-i",
                           f"color=c=#071426:s={width}x{height},geq=r='8+18*Y/H':g='18+36*Y/H':b='38+50*Y/H',noise=alls=7:allf=t+u",
                           "-frames:v", "1", str(background)])
+            backgrounds.append(background)
             self.store.event(job["id"], "assets", "Cena visual original gerada localmente")
-        return background
+        return backgrounds
 
     def run(self, job_id: str) -> dict[str, Any]:
         job = self.store.get_job(job_id)
@@ -102,7 +118,7 @@ class Pipeline:
                 self.store.event(job_id, "subtitles", "Legenda SRT criada")
 
             self.store.update(job_id, "assets", metadata=metadata, progress=40)
-            background = self._create_background(job, out, profile["width"], profile["height"])
+            backgrounds = self._create_backgrounds(job, out, profile["width"], profile["height"])
             audio = out / "ambient.wav"
             self.command([self.settings.ffmpeg, "-y", "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.035:sample_rate=44100",
                           "-f", "lavfi", "-i", "sine=frequency=110:sample_rate=44100",
@@ -126,9 +142,27 @@ class Pipeline:
             width, height, fps = profile["width"], profile["height"], profile["fps"]
             scaled_w, scaled_h = int(width * 1.05), int(height * 1.05)
             vf = f"scale={scaled_w}:{scaled_h},zoompan=z='min(zoom+0.00008,1.05)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},format=yuv420p"
-            self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background), "-i", str(audio),
-                          "-vf", vf, "-t", str(job["duration"]), "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-                          "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(video)])
+            if len(backgrounds) == 1:
+                self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(backgrounds[0]), "-i", str(audio),
+                              "-vf", vf, "-t", str(job["duration"]), "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+                              "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(video)])
+            else:
+                scene_dir = out / "render-scenes"
+                scene_dir.mkdir(exist_ok=True)
+                clips = []
+                base_duration = job["duration"] / len(backgrounds)
+                for index, background in enumerate(backgrounds):
+                    clip = scene_dir / f"clip-{index + 1:02}.mp4"
+                    clips.append(clip)
+                    self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background), "-vf", vf,
+                                  "-t", f"{base_duration:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
+                                  "-crf", "22", "-pix_fmt", "yuv420p", str(clip)])
+                concat_file = scene_dir / "concat.txt"
+                concat_file.write_text("\n".join(f"file '{clip.as_posix()}'" for clip in clips), encoding="utf-8")
+                self.command([self.settings.ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+                              "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", str(job["duration"]),
+                              "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(video)])
+                self.store.event(job_id, "rendering", f"Composição multicena concluída com {len(backgrounds)} cenas")
             thumbnail = out / "thumbnail.jpg"
             self.command([self.settings.ffmpeg, "-y", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(thumbnail)])
 

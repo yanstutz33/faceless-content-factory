@@ -54,6 +54,12 @@ class Store:
                     scheduled_for TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'planned',
                     job_id TEXT, created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS assets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+                    path TEXT NOT NULL UNIQUE, license_type TEXT NOT NULL,
+                    source_url TEXT, notes TEXT, approved INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
             """)
             existing = {row[1] for row in db.execute("PRAGMA table_info(jobs)")}
             additions = {
@@ -62,6 +68,7 @@ class Store:
                 "progress": "INTEGER NOT NULL DEFAULT 0",
                 "source_asset": "TEXT",
                 "quality_score": "INTEGER",
+                "source_assets": "TEXT NOT NULL DEFAULT '[]'",
             }
             for column, definition in additions.items():
                 if column not in existing:
@@ -72,11 +79,12 @@ class Store:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO jobs(id,topic,status,duration,narration,subtitles,output_dir,metadata,
-                   profile,priority,progress,source_asset,created_at,updated_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   profile,priority,progress,source_asset,source_assets,created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (job["id"], job["topic"], "queued", job["duration"], int(job["narration"]),
                  int(job["subtitles"]), job["output_dir"], "{}", job.get("profile", "youtube_long"),
-                 int(job.get("priority", 2)), 0, job.get("source_asset"), timestamp, timestamp),
+                 int(job.get("priority", 2)), 0, job.get("source_asset"),
+                 json.dumps(job.get("source_assets", []), ensure_ascii=False), timestamp, timestamp),
             )
         self.event(job["id"], "queued", "Produção adicionada à fila")
 
@@ -107,6 +115,7 @@ class Store:
         item["metadata"] = json.loads(item.get("metadata") or "{}")
         item["narration"] = bool(item["narration"])
         item["subtitles"] = bool(item["subtitles"])
+        item["source_assets"] = json.loads(item.get("source_assets") or "[]")
         return item
 
     def list_jobs(self, limit: int = 100) -> list[dict[str, Any]]:
@@ -163,3 +172,34 @@ class Store:
     def link_calendar_job(self, item_id: int, job_id: str) -> None:
         with self.connect() as db:
             db.execute("UPDATE calendar SET status='producing', job_id=? WHERE id=?", (job_id, item_id))
+
+    def add_asset(self, name: str, path: str, license_type: str, source_url: str | None,
+                  notes: str | None, approved: bool) -> int:
+        if not name.strip() or not path.strip() or not license_type.strip():
+            raise ValueError("Nome, caminho e licença são obrigatórios")
+        with self.connect() as db:
+            cursor = db.execute("""INSERT INTO assets(name,path,license_type,source_url,notes,approved,created_at)
+                                 VALUES(?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET name=excluded.name,
+                                 license_type=excluded.license_type,source_url=excluded.source_url,notes=excluded.notes,
+                                 approved=excluded.approved""",
+                                (name.strip(), path.strip(), license_type.strip(), source_url, notes, int(approved), now()))
+            if cursor.lastrowid:
+                return int(cursor.lastrowid)
+            row = db.execute("SELECT id FROM assets WHERE path=?", (path.strip(),)).fetchone()
+            return int(row[0])
+
+    def list_assets(self, approved_only: bool = False) -> list[dict[str, Any]]:
+        query = "SELECT * FROM assets" + (" WHERE approved=1" if approved_only else "") + " ORDER BY created_at DESC"
+        with self.connect() as db:
+            items = [dict(row) for row in db.execute(query)]
+            for item in items:
+                item["approved"] = bool(item["approved"])
+            return items
+
+    def get_assets(self, asset_ids: list[int]) -> list[dict[str, Any]]:
+        if not asset_ids:
+            return []
+        placeholders = ",".join("?" for _ in asset_ids)
+        with self.connect() as db:
+            rows = db.execute(f"SELECT * FROM assets WHERE id IN ({placeholders}) AND approved=1", asset_ids).fetchall()
+            return [dict(row) for row in rows]

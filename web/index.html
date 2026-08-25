@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09111f"><title>Faceless Factory</title>
-  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -12,6 +12,7 @@
       <a class="nav-item active" href="#overview"><span>◫</span> Visão geral</a>
       <a class="nav-item" href="#production"><span>▶</span> Produções <i id="queue-badge">0</i></a>
       <a class="nav-item" href="#calendar"><span>▦</span> Calendário</a>
+      <a class="nav-item" href="#library"><span>▤</span> Biblioteca</a>
       <a class="nav-item" href="#agents"><span>✦</span> Agentes</a>
       <a class="nav-item" href="#insights"><span>↗</span> Direcionamento</a>
     </nav>
@@ -52,6 +53,12 @@
       <div class="agent-grid" id="agent-grid"></div>
     </section>
 
+    <section id="library" class="section">
+      <div class="section-heading"><div><p class="kicker">DIREITOS ORGANIZADOS</p><h2>Biblioteca de assets</h2></div><button class="secondary" id="new-asset">＋ Registrar asset</button></div>
+      <div class="library-intro"><div><b>Use apenas mídia que você pode comprovar.</b><p>A fábrica guarda caminho, origem e licença no manifesto de cada vídeo.</p></div><span>✓ aprovação obrigatória</span></div>
+      <div class="asset-grid" id="asset-grid"></div>
+    </section>
+
     <section id="insights" class="section">
       <div class="section-heading"><div><p class="kicker">APRENDIZADO</p><h2>Direcionamento</h2></div></div>
       <div class="insight-grid" id="recommendations"></div>
@@ -65,7 +72,7 @@
       <button type="button" class="idea-button" id="suggest-idea">✦ Sugerir uma oportunidade</button>
       <fieldset><legend>Formato de saída</legend><div class="profile-grid" id="profiles"></div></fieldset>
       <div class="form-grid"><label class="field"><span>Duração em segundos</span><input name="duration" type="number" min="5" value="30" required></label><label class="field"><span>Prioridade</span><select name="priority"><option value="3">Alta</option><option value="2" selected>Normal</option><option value="1">Baixa</option></select></label></div>
-      <details><summary>Opções avançadas</summary><div class="advanced"><label class="toggle"><input name="subtitles" type="checkbox" checked><span></span> Criar legendas</label><label class="toggle"><input name="narration" type="checkbox"><span></span> Narração neural</label><label class="field"><span>Imagem própria (caminho local, opcional)</span><input name="source_asset" placeholder="C:\Assets\cena.jpg"></label></div></details>
+      <details><summary>Opções avançadas</summary><div class="advanced"><label class="toggle"><input name="subtitles" type="checkbox" checked><span></span> Criar legendas</label><label class="toggle"><input name="narration" type="checkbox"><span></span> Narração neural</label><label class="field"><span>Cenas aprovadas da biblioteca</span><select name="asset_ids" id="production-assets" multiple size="4"></select><small>Selecione várias cenas com Ctrl/Cmd para criar uma composição multicena.</small></label><label class="field"><span>Imagem avulsa (caminho local, opcional)</span><input name="source_asset" placeholder="C:\Assets\cena.jpg"></label></div></details>
       <div id="form-error" class="form-error" role="alert"></div>
       <div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" id="submit-production" value="default">Iniciar produção <span>→</span></button></div>
     </form>
@@ -74,6 +81,7 @@
   <dialog id="job-dialog" class="modal detail-modal"><div class="dialog-shell" id="job-detail"></div></dialog>
   <dialog id="batch-dialog" class="modal"><form method="dialog" class="dialog-shell" id="batch-form"><div class="dialog-head"><div><p class="kicker">PRODUÇÃO EM LOTE</p><h2>Crie uma série de uma vez.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar lote">×</button></div><label class="field"><span>Template de série</span><select name="series_id" id="batch-series"></select></label><label class="field"><span>Temas — um por linha</span><textarea name="topics" rows="6" placeholder="Deixe vazio para usar os temas sugeridos da série"></textarea></label><p class="batch-note">Os trabalhos entram na fila e são renderizados um por vez para manter o computador responsivo.</p><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="default">Adicionar lote à fila</button></div></form></dialog>
   <dialog id="calendar-dialog" class="modal"><form method="dialog" class="dialog-shell" id="calendar-form"><div class="dialog-head"><div><p class="kicker">PLANEJAMENTO</p><h2>Agende uma ideia.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar calendário">×</button></div><label class="field"><span>Tema</span><input name="topic" required placeholder="Ex.: café com chuva ao amanhecer"></label><div class="form-grid"><label class="field"><span>Data e hora</span><input name="scheduled_for" type="datetime-local" required></label><label class="field"><span>Formato</span><select name="profile"><option value="youtube_long">YouTube longo</option><option value="vertical_short">Vertical</option><option value="preview">Prévia</option></select></label></div><label class="field"><span>Duração em segundos</span><input name="duration" type="number" min="5" value="1800"></label><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="default">Adicionar ao calendário</button></div></form></dialog>
+  <dialog id="asset-dialog" class="modal"><form method="dialog" class="dialog-shell" id="asset-form"><div class="dialog-head"><div><p class="kicker">NOVO ASSET</p><h2>Registre a origem antes de usar.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar asset">×</button></div><div class="form-grid"><label class="field"><span>Nome</span><input name="name" required placeholder="Biblioteca — cena 01"></label><label class="field"><span>Tipo de licença</span><select name="license_type"><option value="original">Original — criado por mim</option><option value="commercial_license">Licença comercial</option><option value="public_domain">Domínio público</option><option value="cc0">CC0</option><option value="provider_generated">Gerado por provedor com uso comercial</option></select></label></div><label class="field"><span>Caminho da imagem</span><input name="path" required placeholder="C:\Assets\biblioteca.jpg"></label><label class="field"><span>URL ou referência de origem</span><input name="source_url" placeholder="https://... ou número da licença"></label><label class="field"><span>Observações</span><textarea name="notes" rows="2" placeholder="Compra, autor, data, restrições..."></textarea></label><label class="rights-check"><input name="rights_confirmed" type="checkbox" required> Confirmo que tenho direito de usar este asset comercialmente.</label><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="default">Aprovar e registrar</button></div></form></dialog>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/app.js"></script><script src="/phase2.js"></script>
+  <script src="/app.js"></script><script src="/phase2.js"></script><script src="/phase3.js"></script>
 </body></html>
