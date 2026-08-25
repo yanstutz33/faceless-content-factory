@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 0.3
+# Faceless Content Factory — Studio MVP 0.4
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -25,6 +25,9 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Biblioteca de assets com licença, confirmação de direitos e composição multicena
 - Duas thumbnails editoriais por vídeo, comparação A/B e seleção persistente da capa final
 - Direcionamento editorial alimentado pelas métricas mais recentes de cada plataforma
+- Piloto automático semanal com séries, cadência, horário e duração configuráveis
+- Reposição inteligente do calendário sem repetir temas já produzidos ou planejados
+- Pausa automática por fila de revisão, trabalhos ativos ou pouco espaço em disco
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
@@ -79,7 +82,13 @@ Hoje eles funcionam localmente com regras reproduzíveis. As interfaces estão s
 - **Gerar lote** aceita até 20 temas e coloca tudo em uma fila serial para preservar a responsividade do computador.
 - O calendário guarda tema, formato, duração e data. Na hora marcada, o item entra automaticamente na fila; também pode ser iniciado antes sem redigitação.
 - O agendador verifica os itens a cada 15 segundos por padrão (`CALENDAR_POLL_SECONDS`) e sobrevive a falhas temporárias sem liberar publicação automática.
+- O cartão **Piloto automático** permite escolher séries, ritmo semanal, horário e duração. Ativado, ele mantém sete dias de conteúdo planejados e repõe os próximos itens conforme os anteriores avançam.
+- **Só planejar esta semana** cria o calendário sem deixar a reposição contínua ligada.
 - Os templates ficam em `factory/templates.py` e podem ser adaptados sem alterar o pipeline.
+
+### Limites do piloto automático
+
+Por padrão, o piloto pausa somente os itens automáticos quando existem 12 pacotes aguardando revisão, dois trabalhos ativos ou menos de 3 GB livres. Conteúdos manuais continuam disponíveis. Os limites podem ser ajustados com `AUTOPILOT_MAX_REVIEW`, `AUTOPILOT_MAX_ACTIVE` e `AUTOPILOT_MIN_FREE_GB` no `.env`.
 
 ## Operação de baixo esforço
 
@@ -127,7 +136,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 ## Próximas etapas
 
 1. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
-2. Transições visuais específicas por template e microvariações sonoras por cena.
+2. Microvariações sonoras por tema sem exigir transições visuais.
 3. Registro de CTR por variante de thumbnail e rotação de vencedoras por série.
 4. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
 5. Coleta automática de retenção e priorização de temas com base no histórico.

@@ -66,6 +66,13 @@ class Store:
                     source_url TEXT, notes TEXT, approved INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS autopilot (
+                    id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
+                    series_ids TEXT NOT NULL DEFAULT '["rainy_places","cozy_worlds","cosmic_focus"]',
+                    cadence INTEGER NOT NULL DEFAULT 3, publish_hour TEXT NOT NULL DEFAULT '19:00',
+                    duration INTEGER NOT NULL DEFAULT 1800, horizon_days INTEGER NOT NULL DEFAULT 7,
+                    updated_at TEXT NOT NULL
+                );
             """)
             existing = {row[1] for row in db.execute("PRAGMA table_info(jobs)")}
             additions = {
@@ -84,9 +91,15 @@ class Store:
             for column, definition in {
                 "error": "TEXT",
                 "updated_at": "TEXT",
+                "origin": "TEXT NOT NULL DEFAULT 'manual'",
             }.items():
                 if column not in calendar_existing:
                     db.execute(f"ALTER TABLE calendar ADD COLUMN {column} {definition}")
+            db.execute(
+                """INSERT OR IGNORE INTO autopilot(id,enabled,series_ids,cadence,publish_hour,duration,horizon_days,updated_at)
+                   VALUES(1,0,?,3,'19:00',1800,7,?)""",
+                (json.dumps(["rainy_places", "cozy_worlds", "cosmic_focus"]), now()),
+            )
 
     def create_job(self, job: dict[str, Any]) -> None:
         timestamp = now()
@@ -247,25 +260,27 @@ class Store:
             """).fetchall()
             return [dict(row) for row in rows]
 
-    def add_calendar_item(self, topic: str, series_id: str | None, profile: str, duration: int, scheduled_for: str) -> int:
+    def add_calendar_item(self, topic: str, series_id: str | None, profile: str, duration: int,
+                          scheduled_for: str, origin: str = "manual") -> int:
         if not topic.strip() or not scheduled_for:
             raise ValueError("Tema e data são obrigatórios")
         with self.connect() as db:
-            cursor = db.execute("INSERT INTO calendar(topic,series_id,profile,duration,scheduled_for,created_at) VALUES(?,?,?,?,?,?)",
-                                (topic.strip(), series_id, profile, duration, scheduled_for, now()))
+            cursor = db.execute("INSERT INTO calendar(topic,series_id,profile,duration,scheduled_for,origin,created_at) VALUES(?,?,?,?,?,?,?)",
+                                (topic.strip(), series_id, profile, duration, scheduled_for, origin, now()))
             return int(cursor.lastrowid)
 
     def list_calendar(self) -> list[dict[str, Any]]:
         with self.connect() as db:
             return [dict(row) for row in db.execute("SELECT * FROM calendar ORDER BY scheduled_for, id")]
 
-    def claim_due_calendar(self, at: datetime | None = None) -> dict[str, Any] | None:
+    def claim_due_calendar(self, at: datetime | None = None, allow_autopilot: bool = True) -> dict[str, Any] | None:
         local_now = (at or datetime.now().astimezone()).replace(tzinfo=None).isoformat(timespec="minutes")
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
-                "SELECT * FROM calendar WHERE status='planned' AND scheduled_for<=? ORDER BY scheduled_for,id LIMIT 1",
-                (local_now,),
+                """SELECT * FROM calendar WHERE status='planned' AND scheduled_for<=?
+                   AND (? OR origin!='autopilot') ORDER BY scheduled_for,id LIMIT 1""",
+                (local_now, int(allow_autopilot)),
             ).fetchone()
             if not row:
                 return None
@@ -310,6 +325,27 @@ class Store:
             cursor = db.execute("UPDATE jobs SET thumbnail_variant=?,updated_at=? WHERE id=?", (variant, now(), job_id))
             if not cursor.rowcount:
                 raise ValueError("Produção não encontrada")
+
+    def get_autopilot(self) -> dict[str, Any]:
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM autopilot WHERE id=1").fetchone()
+        item = dict(row) if row else {}
+        item["enabled"] = bool(item.get("enabled"))
+        try:
+            item["series_ids"] = json.loads(item.get("series_ids") or "[]")
+        except json.JSONDecodeError:
+            item["series_ids"] = []
+        return item
+
+    def update_autopilot(self, enabled: bool, series_ids: list[str], cadence: int,
+                         publish_hour: str, duration: int, horizon_days: int = 7) -> dict[str, Any]:
+        with self.connect() as db:
+            db.execute(
+                """UPDATE autopilot SET enabled=?,series_ids=?,cadence=?,publish_hour=?,duration=?,
+                   horizon_days=?,updated_at=? WHERE id=1""",
+                (int(enabled), json.dumps(series_ids), cadence, publish_hour, duration, horizon_days, now()),
+            )
+        return self.get_autopilot()
 
     def add_asset(self, name: str, path: str, license_type: str, source_url: str | None,
                   notes: str | None, approved: bool) -> int:

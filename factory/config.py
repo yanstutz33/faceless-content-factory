@@ -28,6 +28,9 @@ class Settings:
     narration_fallback: bool = True
     workers: int = 1
     calendar_poll_seconds: int = 15
+    autopilot_max_review: int = 12
+    autopilot_max_active: int = 2
+    autopilot_min_free_gb: float = 3.0
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -50,4 +53,7 @@ class Settings:
             narration_fallback=os.getenv("NARRATION_FALLBACK_TO_AMBIENT", "true").lower() == "true",
             workers=max(1, min(2, int(os.getenv("FACTORY_WORKERS", "1")))),
             calendar_poll_seconds=max(5, min(300, int(os.getenv("CALENDAR_POLL_SECONDS", "15")))),
+            autopilot_max_review=max(1, min(50, int(os.getenv("AUTOPILOT_MAX_REVIEW", "12")))),
+            autopilot_max_active=max(1, min(5, int(os.getenv("AUTOPILOT_MAX_ACTIVE", "2")))),
+            autopilot_min_free_gb=max(0.5, float(os.getenv("AUTOPILOT_MIN_FREE_GB", "3"))),
         )

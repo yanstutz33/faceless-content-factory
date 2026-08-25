@@ -5,10 +5,12 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 from factory.agents import ContentCrew, PROFILES
+from factory.autopilot import Autopilot
 from factory.config import Settings
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
 from factory.store import Store
@@ -64,7 +66,8 @@ class CoreTests(unittest.TestCase):
             due_id = store.add_calendar_item("Due ambience", None, "preview", 5, "2020-01-01T10:00")
             future_id = store.add_calendar_item("Future ambience", None, "preview", 5, "2099-01-01T10:00")
             runner = CapturingRunner()
-            created = CalendarScheduler(pipeline, store, runner).run_once()
+            autopilot = Autopilot(self.settings(root), store)
+            created = CalendarScheduler(pipeline, store, runner, autopilot).run_once()
             calendar = {item["id"]: item for item in store.list_calendar()}
             self.assertEqual(len(created), 1)
             self.assertEqual(runner.submitted, created)
@@ -75,6 +78,34 @@ class CoreTests(unittest.TestCase):
             self.assertIsNone(store.claim_calendar_item(due_id))
             store.update(created[0], "awaiting_approval", {}, progress=100)
             self.assertEqual({item["id"]: item for item in store.list_calendar()}[due_id]["status"], "ready")
+
+    def test_autopilot_plans_week_without_duplicate_topics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            autopilot = Autopilot(self.settings(root), store)
+            status = autopilot.configure({
+                "enabled": True, "series_ids": ["rainy_places", "cozy_worlds"],
+                "cadence": 3, "publish_hour": "18:30", "duration": 1200,
+            })
+            self.assertTrue(status["enabled"])
+            first = autopilot.ensure_plan(datetime(2026, 8, 25, 10, 0))
+            second = autopilot.ensure_plan(datetime(2026, 8, 25, 10, 0))
+            self.assertEqual(len(first), 3)
+            self.assertEqual(second, [])
+            calendar = store.list_calendar()
+            self.assertEqual({item["origin"] for item in calendar}, {"autopilot"})
+            self.assertEqual({item["series_id"] for item in calendar}, {"rainy_places", "cozy_worlds"})
+            self.assertEqual(len({item["topic"] for item in calendar}), 3)
+            self.assertTrue(all(item["duration"] == 1200 for item in calendar))
+
+    def test_manual_calendar_bypasses_autopilot_pause(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "factory.db")
+            store.add_calendar_item("Automatic", None, "preview", 5, "2020-01-01T09:00", "autopilot")
+            manual_id = store.add_calendar_item("Manual", None, "preview", 5, "2020-01-01T10:00")
+            claimed = store.claim_due_calendar(datetime(2026, 8, 25, 10, 0), allow_autopilot=False)
+            self.assertEqual(claimed["id"], manual_id)
 
     def test_asset_catalog_requires_traceable_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -229,6 +260,17 @@ class CoreTests(unittest.TestCase):
                 self.assertGreaterEqual(len(series), 4)
                 insights = json.load(urllib.request.urlopen(base + "/api/insights"))
                 self.assertEqual(insights, [])
+                autopilot = json.load(urllib.request.urlopen(base + "/api/autopilot"))
+                self.assertEqual(autopilot["mode"], "off")
+                autopilot_request = urllib.request.Request(
+                    base + "/api/autopilot",
+                    data=json.dumps({"enabled": True, "series_ids": ["rainy_places"], "cadence": 2,
+                                     "publish_hour": "19:00", "duration": 1200}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                configured = json.load(urllib.request.urlopen(autopilot_request))
+                self.assertTrue(configured["enabled"])
+                self.assertEqual(configured["planned"], 2)
                 request = urllib.request.Request(base + "/api/jobs", data=b'{"topic":"x"}', headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(request)

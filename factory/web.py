@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+import socket
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -13,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .agents import PROFILES
+from .autopilot import Autopilot
 from .pipeline import Pipeline
 from .store import Store
 from .templates import SERIES, series_catalog
@@ -60,10 +62,11 @@ class JobRunner:
 class CalendarScheduler:
     """Turn due calendar plans into queued jobs without publishing them."""
 
-    def __init__(self, pipeline: Pipeline, store: Store, runner: JobRunner, interval: int = 15):
+    def __init__(self, pipeline: Pipeline, store: Store, runner: JobRunner, autopilot: Autopilot, interval: int = 15):
         self.pipeline = pipeline
         self.store = store
         self.runner = runner
+        self.autopilot = autopilot
         self.interval = max(5, interval)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, name="calendar-scheduler", daemon=True)
@@ -87,8 +90,11 @@ class CalendarScheduler:
 
     def run_once(self) -> list[str]:
         created: list[str] = []
+        self.autopilot.ensure_plan()
+        autopilot_status = self.autopilot.status()
+        allow_autopilot = bool(autopilot_status["enabled"]) and not autopilot_status["blocked"]
         for _ in range(5):
-            item = self.store.claim_due_calendar()
+            item = self.store.claim_due_calendar(allow_autopilot=allow_autopilot)
             if not item:
                 break
             try:
@@ -122,6 +128,7 @@ class Handler(SimpleHTTPRequestHandler):
     pipeline: Pipeline
     store: Store
     runner: JobRunner
+    autopilot: Autopilot
     static_dir: Path
 
     def log_message(self, format: str, *args) -> None:
@@ -231,6 +238,7 @@ class Handler(SimpleHTTPRequestHandler):
             summary = self.store.summary()
             jobs = self.store.list_jobs(100)
             insights = self.store.performance_insights()
+            autopilot = self.autopilot.status()
             recommendations = []
             if summary["awaiting_approval"]:
                 recommendations.append({"tone": "action", "title": "Revise os pacotes prontos", "body": f"{summary['awaiting_approval']} produção(ões) aguardando sua decisão."})
@@ -242,6 +250,10 @@ class Handler(SimpleHTTPRequestHandler):
                     "tone": "info", "title": "Repita o padrão que já atraiu público",
                     "body": f"{leader['topic']} lidera com {leader['views']} views em {leader['platform']}. Crie uma variação do mesmo clima e formato.",
                 })
+            if autopilot["mode"] == "paused":
+                recommendations.append({"tone": "action", "title": "Piloto pausado para proteger a operação", "body": autopilot["blockers"][0]})
+            elif autopilot["mode"] == "active":
+                recommendations.append({"tone": "safe", "title": "Semana sendo cuidada automaticamente", "body": f"{autopilot['planned']} conteúdo(s) já estão planejados e serão repostos pelo piloto."})
             recommendations.append({"tone": "safe", "title": "Publicação protegida", "body": "O sistema prepara os arquivos, mas não envia nada automaticamente."})
             return self.send_json({"summary": summary, "jobs": jobs, "recommendations": recommendations,
                                    "operation": self.runner.health()})
@@ -258,6 +270,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(PROFILES)
         if path == "/api/series":
             return self.send_json(series_catalog())
+        if path == "/api/autopilot":
+            return self.send_json(self.autopilot.status())
         if path == "/api/calendar":
             return self.send_json(self.store.list_calendar())
         if path == "/api/assets":
@@ -316,6 +330,13 @@ class Handler(SimpleHTTPRequestHandler):
                                                        profile, max(5, min(int(data.get("duration", 1800)), PROFILES[profile]["max_duration"])),
                                                        scheduled_for)
                 return self.send_json({"id": item_id}, HTTPStatus.CREATED)
+            if path == "/api/autopilot":
+                status = self.autopilot.configure(data)
+                created = self.autopilot.ensure_plan(force=bool(status["enabled"]))
+                return self.send_json({**self.autopilot.status(), "created": created})
+            if path == "/api/autopilot/plan":
+                created = self.autopilot.ensure_plan(force=True)
+                return self.send_json({"created": created, "count": len(created), "status": self.autopilot.status()})
             if path == "/api/assets":
                 asset_path = Path(str(data.get("path", ""))).expanduser().resolve()
                 if not asset_path.is_file() or asset_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
@@ -370,8 +391,10 @@ class Handler(SimpleHTTPRequestHandler):
 
 def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
     runner = JobRunner(pipeline, pipeline.settings.workers)
-    scheduler = CalendarScheduler(pipeline, store, runner, pipeline.settings.calendar_poll_seconds)
-    handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner, "static_dir": static_dir})
+    autopilot = Autopilot(pipeline.settings, store)
+    scheduler = CalendarScheduler(pipeline, store, runner, autopilot, pipeline.settings.calendar_poll_seconds)
+    handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner,
+                                                   "autopilot": autopilot, "static_dir": static_dir})
     server = FactoryServer((host, port), handler, runner, scheduler)
     store.recover_interrupted()
     for job_id in store.queued_jobs():
@@ -381,6 +404,12 @@ def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static
 
 
 def serve(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> None:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            print(f"Faceless Factory já está ativo em http://{host}:{port}")
+            return
+    except OSError:
+        pass
     server = create_server(pipeline, store, host, port, static_dir)
     print(f"Faceless Factory: http://{host}:{port}")
     print("Publicação automática: DESATIVADA")
