@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 0.4
+# Faceless Content Factory — Studio MVP 0.5
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -7,8 +7,10 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Tema digitado, sugerido pelos agentes ou recebido pela linha de comando
 - Sete agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade e crítica
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
-- Assets visuais e sonoros originais gerados localmente
-- Paisagens sonoras locais adaptadas ao tema: chuva, acolhedor, cósmico ou foco
+- Três cenas-mestre lo-fi originais incluídas: café chuvoso, estúdio acolhedor e lounge cósmico
+- Seleção automática da cena conforme o tema quando nenhum asset próprio é informado
+- Música chill/lo-fi original gerada localmente com acordes, beat, BPM e variação determinística por tema
+- Chuva apenas como camada discreta nos temas correspondentes; cozy, cosmic e focus não recebem chuva
 - Ingestão opcional de JPG/PNG/WebP próprio com enquadramento automático
 - Perfis YouTube longo (16:9), vertical (9:16) e prévia rápida
 - Renderização H.264/AAC com FFmpeg
@@ -31,7 +33,13 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
-Narração é opcional. `--narration` usa voz neural em português e requer internet durante essa etapa. Se a voz estiver indisponível, o padrão seguro conclui o vídeo com ambientação, registra o ocorrido e reduz o score para deixar a revisão explícita. Outro provedor de TTS pode ser conectado depois sem alterar a fila ou o renderizador.
+Narração é opcional. `--narration` usa voz neural em português e requer internet durante essa etapa. Se a voz estiver indisponível, o padrão seguro conclui o vídeo com música lo-fi, registra o ocorrido e reduz o score para deixar a revisão explícita. Outro provedor de TTS pode ser conectado depois sem alterar a fila ou o renderizador.
+
+## Imagem e música automáticas
+
+Produções antigas não são modificadas retroativamente. Os primeiros testes sem asset usavam apenas um fundo procedural escuro e ruídos ambientais; por isso pareciam não ter imagem e soavam semelhantes. Todo pacote novo agora recebe uma cena ilustrada real do starter pack e uma trilha lo-fi original. O perfil `rain` adiciona chuva baixa atrás da música, enquanto `cozy`, `cosmic` e `focus` usam somente variações musicais e textura leve.
+
+O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, progressão, BPM e melodia. Os detalhes ficam em `metadata.json` no campo `music`.
 
 ## Início rápido (Windows / PowerShell)
 

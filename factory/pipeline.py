@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
+import random
 import re
 import shutil
 import subprocess
@@ -9,6 +11,8 @@ import sys
 import textwrap
 import unicodedata
 import uuid
+import wave
+from array import array
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +58,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "0.4",
+            "studio_version": "0.5",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -166,37 +170,86 @@ class Pipeline:
         if proc.returncode or not output.is_file() or output.stat().st_size == 0:
             raise RuntimeError(f"TTS neural indisponível: {proc.stderr[-900:]}")
 
-    def create_ambient_audio(self, output: Path, duration: int, sound_profile: str) -> None:
-        fade = f"afade=t=in:st=0:d=2,afade=t=out:st={max(0, duration - 2)}:d=2"
+    @staticmethod
+    def _midi_frequency(note: int) -> float:
+        return 440.0 * (2.0 ** ((note - 69) / 12.0))
+
+    def create_lofi_loop(self, output: Path, sound_profile: str, seed_text: str = "") -> dict[str, Any]:
+        """Create a deterministic original music loop without copyrighted source audio."""
+        sample_rate, loop_seconds = 22_050, 12
+        seed = int(hashlib.sha256(f"{sound_profile}:{seed_text}".encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        progressions = {
+            "rain": ((53, 57, 60, 64), (52, 55, 59, 62), (57, 60, 64, 67), (55, 59, 62, 65)),
+            "cozy": ((48, 52, 55, 59), (45, 48, 52, 55), (50, 53, 57, 60), (43, 47, 50, 53)),
+            "cosmic": ((50, 53, 57, 60), (46, 50, 53, 57), (53, 57, 60, 64), (48, 52, 55, 59)),
+            "focus": ((52, 55, 59, 62), (48, 52, 55, 59), (43, 47, 50, 52), (50, 52, 57, 62)),
+        }
+        chords = progressions.get(sound_profile, progressions["focus"])
+        transpose = (-2, 0, 2)[seed % 3]
+        bpm = 70 + seed % 13
+        beat = 60.0 / bpm
+        phase_offsets = [rng.random() * math.tau for _ in range(4)]
+        samples = array("h")
+        noise_state = seed or 1
+        total = sample_rate * loop_seconds
+        for index in range(total):
+            t = index / sample_rate
+            chord_index = min(3, int(t / (loop_seconds / 4)))
+            chord_time = t % (loop_seconds / 4)
+            chord_span = loop_seconds / 4
+            pad_envelope = min(1.0, chord_time / 0.35, max(0.0, (chord_span - chord_time) / 0.45))
+            chord = chords[chord_index]
+            music = 0.0
+            for tone_index, midi in enumerate(chord):
+                frequency = self._midi_frequency(midi + transpose)
+                wobble = 1.0 + 0.0025 * math.sin(math.tau * 0.18 * t + tone_index)
+                music += math.sin(math.tau * frequency * wobble * t + phase_offsets[tone_index]) * 0.055
+                music += math.sin(math.tau * frequency * 2 * t) * 0.009
+            music *= pad_envelope
+
+            beat_index = int(t / beat)
+            beat_time = t % beat
+            melody_note = chord[(beat_index + seed) % len(chord)] + 12
+            pluck = math.sin(math.tau * self._midi_frequency(melody_note + transpose) * beat_time)
+            music += pluck * math.exp(-beat_time * 4.8) * 0.085
+            if beat_index % 4 in {0, 2}:
+                music += math.sin(math.tau * (52 + 38 * math.exp(-beat_time * 16)) * beat_time) * math.exp(-beat_time * 12) * 0.20
+
+            noise_state = (1_664_525 * noise_state + 1_013_904_223) & 0xFFFFFFFF
+            noise = (noise_state / 0xFFFFFFFF) * 2 - 1
+            if beat_index % 4 in {1, 3}:
+                music += noise * math.exp(-beat_time * 18) * 0.075
+            half_beat_time = t % (beat / 2)
+            music += noise * math.exp(-half_beat_time * 42) * 0.012
+            music += noise * 0.0035
+            music *= 0.92 + 0.08 * math.sin(math.tau * 0.11 * t)
+            samples.append(max(-32767, min(32767, int(music * 32767))))
+
+        with wave.open(str(output), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sample_rate)
+            wav.writeframes(samples.tobytes())
+        return {"style": "original_lofi_chill", "bpm": bpm, "loop_seconds": loop_seconds, "seed": seed}
+
+    def create_ambient_audio(self, output: Path, duration: int, sound_profile: str, seed_text: str = "") -> dict[str, Any]:
+        loop = output.with_name("lofi-original-loop.wav")
+        music = self.create_lofi_loop(loop, sound_profile, seed_text)
+        fade_duration = min(2, max(0.25, duration / 2))
+        fade = f"afade=t=in:st=0:d={fade_duration},afade=t=out:st={max(0, duration - fade_duration)}:d={fade_duration}"
+        command = [self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(loop)]
         if sound_profile == "rain":
-            inputs = [
-                "anoisesrc=color=brown:amplitude=0.030:sample_rate=44100",
-                "anoisesrc=color=white:amplitude=0.010:sample_rate=44100",
-                "sine=frequency=105:sample_rate=44100",
-            ]
-            mix = f"[1:a]highpass=f=800,lowpass=f=6200[rain];[2:a]volume=0.010[drone];[0:a][rain][drone]amix=inputs=3:normalize=0,{fade}[a]"
-        elif sound_profile == "cosmic":
-            inputs = [
-                "anoisesrc=color=pink:amplitude=0.020:sample_rate=44100",
-                "sine=frequency=55:sample_rate=44100",
-                "sine=frequency=82.4:sample_rate=44100",
-            ]
-            mix = f"[1:a]volume=0.020[low];[2:a]volume=0.008[harmonic];[0:a][low][harmonic]amix=inputs=3:normalize=0,{fade}[a]"
-        elif sound_profile == "cozy":
-            inputs = [
-                "anoisesrc=color=brown:amplitude=0.027:sample_rate=44100",
-                "anoisesrc=color=white:amplitude=0.003:sample_rate=44100",
-                "sine=frequency=92:sample_rate=44100",
-            ]
-            mix = f"[1:a]highpass=f=1800,lowpass=f=5000[room];[2:a]volume=0.009[drone];[0:a][room][drone]amix=inputs=3:normalize=0,{fade}[a]"
+            command.extend(["-f", "lavfi", "-i", "anoisesrc=color=white:amplitude=0.010:sample_rate=22050"])
+            filters = f"[1:a]highpass=f=900,lowpass=f=6500,volume=0.26[rain];[0:a]volume=0.88[music];[music][rain]amix=inputs=2:normalize=0,{fade}[a]"
+            command.extend(["-filter_complex", filters, "-map", "[a]"])
+            music["ambient_layer"] = "subtle_rain"
         else:
-            inputs = ["anoisesrc=color=brown:amplitude=0.035:sample_rate=44100", "sine=frequency=110:sample_rate=44100"]
-            mix = f"[1:a]volume=0.012[drone];[0:a][drone]amix=inputs=2:normalize=0,{fade}[a]"
-        command = [self.settings.ffmpeg, "-y"]
-        for source in inputs:
-            command.extend(["-f", "lavfi", "-i", source])
-        command.extend(["-filter_complex", mix, "-map", "[a]", "-t", str(duration), "-c:a", "pcm_s16le", str(output)])
+            command.extend(["-af", fade])
+            music["ambient_layer"] = "none"
+        command.extend(["-t", str(duration), "-ar", "22050", "-ac", "1", "-c:a", "pcm_s16le", str(output)])
         self.command(command)
+        return music
 
     @staticmethod
     def filter_path(path: Path) -> str:
@@ -263,7 +316,8 @@ class Pipeline:
     def generate_plan(self, topic: str, duration: int, profile: str = "youtube_long", narration: bool = False) -> dict[str, Any]:
         return self.crew.run(topic, duration, profile, narration)
 
-    def _create_backgrounds(self, job: dict[str, Any], out: Path, width: int, height: int) -> list[Path]:
+    def _create_backgrounds(self, job: dict[str, Any], out: Path, width: int, height: int,
+                            sound_profile: str = "focus") -> list[Path]:
         assets = job.get("source_assets") or []
         backgrounds: list[Path] = []
         if assets:
@@ -277,11 +331,23 @@ class Pipeline:
             self.store.event(job["id"], "assets", f"{len(backgrounds)} asset(s) licenciado(s) enquadrado(s)")
         else:
             background = out / "background.jpg"
-            self.command([self.settings.ffmpeg, "-y", "-f", "lavfi", "-i",
-                          f"color=c=#071426:s={width}x{height},geq=r='8+18*Y/H':g='18+36*Y/H':b='38+50*Y/H',noise=alls=7:allf=t+u",
-                          "-frames:v", "1", str(background)])
+            starter_name = {"rain": "lofi-rainy-cafe.jpg", "cosmic": "lofi-cosmic-lounge.jpg",
+                            "cozy": "lofi-cozy-study.jpg", "focus": "lofi-cozy-study.jpg"}.get(sound_profile, "lofi-cozy-study.jpg")
+            starter = self.settings.root / "assets" / "starter" / starter_name
+            if starter.is_file():
+                self.command([self.settings.ffmpeg, "-y", "-i", str(starter), "-vf",
+                              f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}",
+                              "-frames:v", "1", str(background)])
+                (out / "asset-manifest.json").write_text(json.dumps([{
+                    "name": starter.stem, "path": str(starter), "license_type": "original_ai_generated",
+                    "source_url": None, "approved": True,
+                }], ensure_ascii=False, indent=2), encoding="utf-8")
+            else:
+                self.command([self.settings.ffmpeg, "-y", "-f", "lavfi", "-i",
+                              f"color=c=#071426:s={width}x{height},geq=r='8+18*Y/H':g='18+36*Y/H':b='38+50*Y/H',noise=alls=7:allf=t+u",
+                              "-frames:v", "1", str(background)])
             backgrounds.append(background)
-            self.store.event(job["id"], "assets", "Cena visual original gerada localmente")
+            self.store.event(job["id"], "assets", f"Cena visual original '{starter_name}' aplicada automaticamente")
         return backgrounds
 
     def run(self, job_id: str) -> dict[str, Any]:
@@ -311,11 +377,13 @@ class Pipeline:
                 self.store.event(job_id, "subtitles", "Legenda SRT criada")
 
             self.store.update(job_id, "assets", metadata=metadata, progress=40)
-            backgrounds = self._create_backgrounds(job, out, profile["width"], profile["height"])
+            sound_profile = plan["visual"].get("sound_profile", "focus")
+            backgrounds = self._create_backgrounds(job, out, profile["width"], profile["height"], sound_profile)
             audio = out / "ambient.wav"
-            self.create_ambient_audio(audio, job["duration"], plan["visual"].get("sound_profile", "focus"))
-            metadata["sound_profile"] = plan["visual"].get("sound_profile", "focus")
-            self.store.event(job_id, "sound", f"Paisagem sonora '{metadata['sound_profile']}' gerada localmente")
+            music = self.create_ambient_audio(audio, job["duration"], sound_profile, job["topic"])
+            metadata["sound_profile"] = sound_profile
+            metadata["music"] = music
+            self.store.event(job_id, "sound", f"Trilha lo-fi original gerada a {music['bpm']} BPM; perfil '{sound_profile}'")
             if job["narration"]:
                 narration = out / "narration.mp3"
                 try:

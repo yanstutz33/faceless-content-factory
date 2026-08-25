@@ -1,4 +1,5 @@
 import json
+import hashlib
 import shutil
 import tempfile
 import threading
@@ -40,6 +41,8 @@ class CoreTests(unittest.TestCase):
         self.assertIn("Biblioteca", plan["seo"]["title"])
         self.assertEqual(plan["compliance"]["publish_mode"], "manual_safe")
         self.assertEqual(plan["visual"]["sound_profile"], "rain")
+        self.assertIn("lo-fi", plan["visual"]["sound"].lower())
+        self.assertIn("Lo-fi", plan["seo"]["title"])
         self.assertGreaterEqual(len(ContentCrew().ideas()), 5)
 
     def test_editorial_calendar(self):
@@ -171,6 +174,7 @@ class CoreTests(unittest.TestCase):
     def test_preview_render_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            shutil.copytree(ROOT / "assets" / "starter", root / "assets" / "starter")
             store = Store(root / "data" / "factory.db")
             pipeline = Pipeline(self.settings(root), store)
             job_id = pipeline.create("Render smoke test", 5, profile="preview")
@@ -183,6 +187,10 @@ class CoreTests(unittest.TestCase):
             self.assertTrue((Path(job["output_dir"]) / "thumbnail-a.jpg").exists())
             self.assertTrue((Path(job["output_dir"]) / "thumbnail-b.jpg").exists())
             self.assertEqual(job["metadata"]["selected_thumbnail"], "a")
+            self.assertEqual(job["metadata"]["music"]["style"], "original_lofi_chill")
+            self.assertGreaterEqual(job["metadata"]["music"]["bpm"], 70)
+            assets = json.loads((Path(job["output_dir"]) / "asset-manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(assets[0]["license_type"], "original_ai_generated")
             report = json.loads((Path(job["output_dir"]) / "render-report.json").read_text(encoding="utf-8"))
             manifest = json.loads((Path(job["output_dir"]) / "artifact-manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(report["passed"])
@@ -206,11 +214,15 @@ class CoreTests(unittest.TestCase):
             root = Path(tmp)
             store = Store(root / "data" / "factory.db")
             pipeline = Pipeline(self.settings(root), store)
+            hashes = set()
             for profile in ("rain", "cozy", "cosmic", "focus"):
                 output = root / f"{profile}.wav"
-                pipeline.create_ambient_audio(output, 2, profile)
+                music = pipeline.create_ambient_audio(output, 2, profile, f"unique {profile}")
                 self.assertTrue(output.is_file())
                 self.assertGreater(output.stat().st_size, 10_000)
+                self.assertEqual(music["style"], "original_lofi_chill")
+                hashes.add(hashlib.sha256(output.read_bytes()).hexdigest())
+            self.assertEqual(len(hashes), 4)
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_narration_failure_falls_back_to_ambient(self):

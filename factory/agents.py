@@ -84,16 +84,16 @@ class ContentCrew:
         palette = ["#071426", "#153A4F", "#D8A96C"] if "chuv" in topic_lower else ["#0B1628", "#2A3750", "#CF9A62"]
         if any(x in topic_lower for x in ("chuv", "tempestade", "rain")):
             sound_profile = "rain"
-            sound_direction = "chuva filtrada, ruído marrom suave e drone quente, com fade de 2s"
+            sound_direction = "beat lo-fi original com acordes suaves e chuva discreta ao fundo"
         elif any(x in topic_lower for x in ("nave", "espaço", "espacial", "júpiter", "nebulosa", "orbital", "lunar")):
             sound_profile = "cosmic"
-            sound_direction = "ruído rosa amplo e dois drones graves, com fade de 2s"
+            sound_direction = "lo-fi espacial original, acordes aéreos e beat relaxado"
         elif any(x in topic_lower for x in ("cabana", "lareira", "café", "quarto", "casa")):
             sound_profile = "cozy"
-            sound_direction = "ruído marrom aveludado, presença de sala e drone baixo, com fade de 2s"
+            sound_direction = "lo-fi acolhedor original, piano elétrico suave e beat quente"
         else:
             sound_profile = "focus"
-            sound_direction = "ruído marrom equilibrado e drone discreto, com fade de 2s"
+            sound_direction = "música chill/lo-fi original para foco, com beat e acordes suaves"
         visual = {
             "mood": mood,
             "palette": palette,
@@ -105,15 +105,15 @@ class ContentCrew:
         }
         minutes = max(1, math.ceil(duration / 60))
         duration_label = f"{duration} s" if duration < 60 else f"{minutes} min"
-        title = f"{topic} — Ambiente para {use_case}"
+        title = f"{topic} — Música Lo-fi Chill para {use_case}"
         seo = {
             "title": title[:96],
             "description": (
                 f"Entre em uma atmosfera de {topic_lower} criada para {use_case}.\n\n"
                 f"Duração: {duration_label} · experiência original · use fones.\n\n"
-                "#ambience #focus #relax"
+                "#lofi #chill #focus #relax"
             ),
-            "tags": ["ambience", "focus", "relax", "study", slug(topic), profile["label"].lower()],
+            "tags": ["lofi", "chill", "focus", "relax", "study", slug(topic), profile["label"].lower()],
         }
         compliance = {
             "publish_mode": "manual_safe",
