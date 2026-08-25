@@ -1,4 +1,5 @@
 import json
+import shutil
 import tempfile
 import threading
 import unittest
@@ -14,7 +15,8 @@ from factory.web import create_server
 
 
 ROOT = Path(__file__).parents[1]
-FFMPEG = ROOT / ".tools" / "ffmpeg" / "bin" / "ffmpeg.exe"
+LOCAL_FFMPEG = ROOT / ".tools" / "ffmpeg" / "bin" / "ffmpeg.exe"
+FFMPEG = LOCAL_FFMPEG if LOCAL_FFMPEG.exists() else Path(shutil.which("ffmpeg") or LOCAL_FFMPEG)
 
 
 class CoreTests(unittest.TestCase):

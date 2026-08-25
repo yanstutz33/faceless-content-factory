@@ -113,3 +113,7 @@ A suíte cobre agentes, validação, migração/estado da fila, calendário, cat
 6. Coleta automática de retenção e priorização de temas com base no histórico.
 
 `ALLOW_PLATFORM_PUBLISH=false` é o padrão. Alterar essa variável sozinho não publica: um conector oficial ainda precisa ser implementado e testado.
+
+## Frente futura de afiliados
+
+O planejamento para Shopee está documentado em `docs/commerce-video-roadmap.md`. Pinterest será tratado como referência de pesquisa, não como fonte automática de vídeos sem autorização. O módulo comercial só deverá aceitar mídia própria, licenciada ou fornecida oficialmente para afiliados.
