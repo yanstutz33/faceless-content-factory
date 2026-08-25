@@ -75,10 +75,18 @@ class Store:
                 "source_asset": "TEXT",
                 "quality_score": "INTEGER",
                 "source_assets": "TEXT NOT NULL DEFAULT '[]'",
+                "thumbnail_variant": "TEXT NOT NULL DEFAULT 'a'",
             }
             for column, definition in additions.items():
                 if column not in existing:
                     db.execute(f"ALTER TABLE jobs ADD COLUMN {column} {definition}")
+            calendar_existing = {row[1] for row in db.execute("PRAGMA table_info(calendar)")}
+            for column, definition in {
+                "error": "TEXT",
+                "updated_at": "TEXT",
+            }.items():
+                if column not in calendar_existing:
+                    db.execute(f"ALTER TABLE calendar ADD COLUMN {column} {definition}")
 
     def create_job(self, job: dict[str, Any]) -> None:
         timestamp = now()
@@ -112,6 +120,17 @@ class Store:
             cursor = db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id=?", values)
             if not cursor.rowcount:
                 raise ValueError("Produção não encontrada")
+            calendar_status = {
+                "queued": "producing", "planning": "producing", "assets": "producing",
+                "rendering": "producing", "reviewing": "producing",
+                "awaiting_approval": "ready", "approved": "approved",
+                "failed": "failed", "rejected": "revision",
+            }.get(status)
+            if calendar_status:
+                db.execute(
+                    "UPDATE calendar SET status=?,error=?,updated_at=? WHERE job_id=?",
+                    (calendar_status, error, now(), job_id),
+                )
 
     def event(self, job_id: str, stage: str, message: str) -> None:
         with self.connect() as db:
@@ -211,6 +230,23 @@ class Store:
             "average_quality": round(sum(scored) / len(scored)) if scored else None,
         }
 
+    def performance_insights(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("""
+                WITH latest AS (
+                    SELECT MAX(id) AS id FROM metrics GROUP BY job_id, platform
+                )
+                SELECT j.id, j.topic, j.profile, m.platform, m.views, m.likes, m.watch_minutes,
+                       CASE WHEN m.views > 0 THEN ROUND(100.0 * m.likes / m.views, 2) ELSE 0 END AS engagement_rate,
+                       CASE WHEN m.views > 0 THEN ROUND(m.watch_minutes / m.views, 2) ELSE 0 END AS watch_minutes_per_view
+                FROM metrics m
+                JOIN latest l ON l.id=m.id
+                JOIN jobs j ON j.id=m.job_id
+                ORDER BY m.views DESC, engagement_rate DESC
+                LIMIT 10
+            """).fetchall()
+            return [dict(row) for row in rows]
+
     def add_calendar_item(self, topic: str, series_id: str | None, profile: str, duration: int, scheduled_for: str) -> int:
         if not topic.strip() or not scheduled_for:
             raise ValueError("Tema e data são obrigatórios")
@@ -223,11 +259,57 @@ class Store:
         with self.connect() as db:
             return [dict(row) for row in db.execute("SELECT * FROM calendar ORDER BY scheduled_for, id")]
 
+    def claim_due_calendar(self, at: datetime | None = None) -> dict[str, Any] | None:
+        local_now = (at or datetime.now().astimezone()).replace(tzinfo=None).isoformat(timespec="minutes")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM calendar WHERE status='planned' AND scheduled_for<=? ORDER BY scheduled_for,id LIMIT 1",
+                (local_now,),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = db.execute(
+                "UPDATE calendar SET status='starting',error=NULL,updated_at=? WHERE id=? AND status='planned'",
+                (now(), row["id"]),
+            )
+            return dict(row) if cursor.rowcount else None
+
+    def claim_calendar_item(self, item_id: int) -> dict[str, Any] | None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM calendar WHERE id=? AND status IN ('planned','failed') AND job_id IS NULL",
+                (item_id,),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = db.execute(
+                "UPDATE calendar SET status='starting',error=NULL,updated_at=? WHERE id=? AND status IN ('planned','failed') AND job_id IS NULL",
+                (now(), item_id),
+            )
+            return dict(row) if cursor.rowcount else None
+
+    def fail_calendar_item(self, item_id: int, error: str) -> None:
+        with self.connect() as db:
+            db.execute(
+                "UPDATE calendar SET status='failed',error=?,updated_at=? WHERE id=?",
+                (error[:500], now(), item_id),
+            )
+
     def link_calendar_job(self, item_id: int, job_id: str) -> None:
         with self.connect() as db:
-            cursor = db.execute("UPDATE calendar SET status='producing', job_id=? WHERE id=?", (job_id, item_id))
+            cursor = db.execute("UPDATE calendar SET status='producing',job_id=?,error=NULL,updated_at=? WHERE id=?", (job_id, now(), item_id))
             if not cursor.rowcount:
                 raise ValueError("Item do calendário não encontrado")
+
+    def set_thumbnail_variant(self, job_id: str, variant: str) -> None:
+        if variant not in {"a", "b"}:
+            raise ValueError("Variante de thumbnail inválida")
+        with self.connect() as db:
+            cursor = db.execute("UPDATE jobs SET thumbnail_variant=?,updated_at=? WHERE id=?", (variant, now(), job_id))
+            if not cursor.rowcount:
+                raise ValueError("Produção não encontrada")
 
     def add_asset(self, name: str, path: str, license_type: str, source_url: str | None,
                   notes: str | None, approved: bool) -> int:

@@ -57,14 +57,63 @@ class JobRunner:
         self.executor.shutdown(wait=False, cancel_futures=False)
 
 
+class CalendarScheduler:
+    """Turn due calendar plans into queued jobs without publishing them."""
+
+    def __init__(self, pipeline: Pipeline, store: Store, runner: JobRunner, interval: int = 15):
+        self.pipeline = pipeline
+        self.store = store
+        self.runner = runner
+        self.interval = max(5, interval)
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._loop, name="calendar-scheduler", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=2)
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self.run_once()
+            except Exception:
+                # A temporary database/tooling issue must not kill future checks.
+                pass
+            self._stop.wait(self.interval)
+
+    def run_once(self) -> list[str]:
+        created: list[str] = []
+        for _ in range(5):
+            item = self.store.claim_due_calendar()
+            if not item:
+                break
+            try:
+                job_id = self.pipeline.create(
+                    item["topic"], item["duration"], False, True, item["profile"], priority=2
+                )
+                self.store.link_calendar_job(item["id"], job_id)
+                self.store.event(job_id, "calendar", "Produção iniciada automaticamente pelo calendário")
+                self.runner.submit(job_id)
+                created.append(job_id)
+            except Exception as exc:
+                self.store.fail_calendar_item(item["id"], str(exc))
+        return created
+
+
 class FactoryServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, server_address, handler, runner: JobRunner):
+    def __init__(self, server_address, handler, runner: JobRunner, scheduler: CalendarScheduler):
         self.runner = runner
+        self.scheduler = scheduler
         super().__init__(server_address, handler)
 
     def server_close(self) -> None:
+        self.scheduler.stop()
         self.runner.shutdown()
         super().server_close()
 
@@ -110,7 +159,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
-        allowed = {"video.mp4", "thumbnail.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
+        allowed = {"video.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
                    "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
@@ -181,14 +230,23 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/dashboard":
             summary = self.store.summary()
             jobs = self.store.list_jobs(100)
+            insights = self.store.performance_insights()
             recommendations = []
             if summary["awaiting_approval"]:
                 recommendations.append({"tone": "action", "title": "Revise os pacotes prontos", "body": f"{summary['awaiting_approval']} produção(ões) aguardando sua decisão."})
             if not summary["views"]:
                 recommendations.append({"tone": "info", "title": "Feche o ciclo de aprendizado", "body": "Após publicar manualmente, registre views e tempo assistido para orientar os próximos temas."})
+            elif insights:
+                leader = insights[0]
+                recommendations.append({
+                    "tone": "info", "title": "Repita o padrão que já atraiu público",
+                    "body": f"{leader['topic']} lidera com {leader['views']} views em {leader['platform']}. Crie uma variação do mesmo clima e formato.",
+                })
             recommendations.append({"tone": "safe", "title": "Publicação protegida", "body": "O sistema prepara os arquivos, mas não envia nada automaticamente."})
             return self.send_json({"summary": summary, "jobs": jobs, "recommendations": recommendations,
                                    "operation": self.runner.health()})
+        if path == "/api/insights":
+            return self.send_json(self.store.performance_insights())
         if path == "/api/jobs":
             limit = int(parse_qs(parsed.query).get("limit", ["100"])[0])
             return self.send_json(self.store.list_jobs(max(1, min(limit, 500))))
@@ -270,13 +328,17 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"id": asset_id}, HTTPStatus.CREATED)
             if path.startswith("/api/calendar/") and path.endswith("/produce"):
                 item_id = int(path.split("/")[-2])
-                item = next((x for x in self.store.list_calendar() if x["id"] == item_id), None)
+                item = self.store.claim_calendar_item(item_id)
                 if not item:
-                    raise ValueError("Item do calendário não encontrado")
-                job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"])
-                self.store.link_calendar_job(item_id, job_id)
-                self.runner.submit(job_id)
-                return self.send_json({"job_id": job_id}, HTTPStatus.ACCEPTED)
+                    raise ValueError("Item já iniciado ou não encontrado")
+                try:
+                    job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"])
+                    self.store.link_calendar_job(item_id, job_id)
+                    self.runner.submit(job_id)
+                    return self.send_json({"job_id": job_id}, HTTPStatus.ACCEPTED)
+                except Exception as exc:
+                    self.store.fail_calendar_item(item_id, str(exc))
+                    raise
             parts = path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["api", "jobs"]:
                 job_id, action = parts[2], parts[3]
@@ -294,6 +356,8 @@ class Handler(SimpleHTTPRequestHandler):
                 elif action == "metrics":
                     self.store.add_metrics(job_id, data.get("platform", "youtube"), int(data.get("views", 0)),
                                            int(data.get("likes", 0)), float(data.get("watch_minutes", 0)))
+                elif action == "thumbnail":
+                    self.pipeline.select_thumbnail(job_id, str(data.get("variant", "")))
                 else:
                     return self.send_json({"error": "Ação não encontrada"}, 404)
                 return self.send_json(self.store.get_job(job_id))
@@ -306,11 +370,13 @@ class Handler(SimpleHTTPRequestHandler):
 
 def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
     runner = JobRunner(pipeline, pipeline.settings.workers)
+    scheduler = CalendarScheduler(pipeline, store, runner, pipeline.settings.calendar_poll_seconds)
     handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner, "static_dir": static_dir})
-    server = FactoryServer((host, port), handler, runner)
+    server = FactoryServer((host, port), handler, runner, scheduler)
     store.recover_interrupted()
     for job_id in store.queued_jobs():
         runner.submit(job_id)
+    scheduler.start()
     return server
 
 

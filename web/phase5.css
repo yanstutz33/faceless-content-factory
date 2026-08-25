@@ -1,0 +1,13 @@
+.thumbnail-test{margin:20px 0;padding:18px;border:1px solid rgba(255,255,255,.09);border-radius:18px;background:rgba(10,18,31,.72)}
+.thumbnail-test>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.thumbnail-test h4{margin:0;font-size:.77rem;letter-spacing:.12em;color:#a9bad0}
+.thumbnail-test small{color:#7e91a9}
+.thumbnail-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.thumbnail-choice{position:relative;padding:7px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:#101a29;color:#dfe9f6;text-align:left;cursor:pointer;transition:.18s ease}
+.thumbnail-choice:hover{transform:translateY(-2px);border-color:#77e0bd}
+.thumbnail-choice.selected{border-color:#77e0bd;box-shadow:0 0 0 2px rgba(119,224,189,.14)}
+.thumbnail-choice img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#07101c}
+.thumbnail-choice span{display:flex;justify-content:space-between;align-items:center;padding:8px 3px 2px;font-weight:700}
+.thumbnail-choice.selected span::after{content:'SELECIONADA';font-size:.58rem;letter-spacing:.1em;color:#77e0bd}
+.calendar-item .calendar-error{color:#ff9a9a}
+@media(max-width:640px){.thumbnail-choices{grid-template-columns:1fr}.thumbnail-test>div:first-child{align-items:flex-start;flex-direction:column}}

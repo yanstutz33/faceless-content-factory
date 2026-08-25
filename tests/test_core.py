@@ -12,7 +12,7 @@ from factory.agents import ContentCrew, PROFILES
 from factory.config import Settings
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
 from factory.store import Store
-from factory.web import create_server
+from factory.web import CalendarScheduler, create_server
 
 
 ROOT = Path(__file__).parents[1]
@@ -48,6 +48,33 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(store.list_calendar()[0]["status"], "planned")
             store.link_calendar_job(item_id, "job-123")
             self.assertEqual(store.list_calendar()[0]["job_id"], "job-123")
+
+    def test_due_calendar_item_enters_queue_automatically(self):
+        class CapturingRunner:
+            def __init__(self):
+                self.submitted = []
+
+            def submit(self, job_id):
+                self.submitted.append(job_id)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            due_id = store.add_calendar_item("Due ambience", None, "preview", 5, "2020-01-01T10:00")
+            future_id = store.add_calendar_item("Future ambience", None, "preview", 5, "2099-01-01T10:00")
+            runner = CapturingRunner()
+            created = CalendarScheduler(pipeline, store, runner).run_once()
+            calendar = {item["id"]: item for item in store.list_calendar()}
+            self.assertEqual(len(created), 1)
+            self.assertEqual(runner.submitted, created)
+            self.assertEqual(calendar[due_id]["status"], "producing")
+            self.assertEqual(calendar[due_id]["job_id"], created[0])
+            self.assertEqual(calendar[future_id]["status"], "planned")
+            self.assertEqual(store.get_job(created[0])["events"][-1]["stage"], "calendar")
+            self.assertIsNone(store.claim_calendar_item(due_id))
+            store.update(created[0], "awaiting_approval", {}, progress=100)
+            self.assertEqual({item["id"]: item for item in store.list_calendar()}[due_id]["status"], "ready")
 
     def test_asset_catalog_requires_traceable_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,6 +124,9 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(summary["views"], 225)
             self.assertEqual(summary["likes"], 21)
             self.assertEqual(summary["watch_minutes"], 39)
+            insights = store.performance_insights()
+            self.assertEqual(insights[0]["views"], 175)
+            self.assertEqual(insights[0]["engagement_rate"], 8.0)
 
     def test_profile_duration_is_safely_capped(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,12 +149,25 @@ class CoreTests(unittest.TestCase):
             self.assertTrue((Path(job["output_dir"]) / "video.mp4").exists())
             self.assertTrue((Path(job["output_dir"]) / "agents.json").exists())
             self.assertTrue((Path(job["output_dir"]) / "thumbnail-design.json").exists())
+            self.assertTrue((Path(job["output_dir"]) / "thumbnail-a.jpg").exists())
+            self.assertTrue((Path(job["output_dir"]) / "thumbnail-b.jpg").exists())
+            self.assertEqual(job["metadata"]["selected_thumbnail"], "a")
             report = json.loads((Path(job["output_dir"]) / "render-report.json").read_text(encoding="utf-8"))
             manifest = json.loads((Path(job["output_dir"]) / "artifact-manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(report["passed"])
             self.assertTrue(report["video"]["codec"])
             self.assertTrue(report["audio"]["codec"])
             self.assertIn("video.mp4", {item["name"] for item in manifest["files"]})
+            pipeline.select_thumbnail(job_id, "b")
+            selected = store.get_job(job_id)
+            self.assertEqual(selected["thumbnail_variant"], "b")
+            self.assertEqual(selected["metadata"]["selected_thumbnail"], "b")
+            design = json.loads((Path(job["output_dir"]) / "thumbnail-design.json").read_text(encoding="utf-8"))
+            self.assertEqual(design["selected"], "b")
+            self.assertEqual(
+                (Path(job["output_dir"]) / "thumbnail.jpg").read_bytes(),
+                (Path(job["output_dir"]) / "thumbnail-b.jpg").read_bytes(),
+            )
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_theme_sound_profiles_render(self):
@@ -184,6 +227,8 @@ class CoreTests(unittest.TestCase):
                 self.assertTrue(dashboard["operation"]["ok"])
                 series = json.load(urllib.request.urlopen(base + "/api/series"))
                 self.assertGreaterEqual(len(series), 4)
+                insights = json.load(urllib.request.urlopen(base + "/api/insights"))
+                self.assertEqual(insights, [])
                 request = urllib.request.Request(base + "/api/jobs", data=b'{"topic":"x"}', headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(request)

@@ -201,10 +201,10 @@ class Pipeline:
     def filter_path(path: Path) -> str:
         return str(path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
 
-    def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any]) -> None:
+    def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any], variant: str = "a") -> None:
         title_file = output.parent / "thumbnail-title.txt"
         eyebrow_file = output.parent / "thumbnail-eyebrow.txt"
-        wrapped = "\n".join(textwrap.wrap(title.upper(), width=30, max_lines=3, placeholder="…"))
+        wrapped = "\n".join(textwrap.wrap(title.upper(), width=26 if variant == "b" else 30, max_lines=3, placeholder="…"))
         title_file.write_text(wrapped, encoding="utf-8")
         eyebrow_file.write_text(str(design.get("eyebrow", "AMBIENTE IMERSIVO")), encoding="utf-8")
         font_bold = self.filter_path(Path("C:/Windows/Fonts/georgiab.ttf"))
@@ -213,13 +213,22 @@ class Pipeline:
         eyebrow_path = self.filter_path(eyebrow_file)
         font_size = max(30, round(height / 15))
         eyebrow_size = max(14, round(height / 42))
-        vf = (
-            f"scale={width}:{height},drawbox=x=0:y=0:w=iw:h=ih:color=black@0.12:t=fill,"
-            f"drawbox=x=0:y=ih*0.48:w=iw:h=ih*0.52:color=#07101e@0.78:t=fill,"
-            f"drawbox=x=iw*0.06:y=ih*0.58:w=iw*0.08:h=5:color=#77e0bd:t=fill,"
-            f"drawtext=fontfile='{font_ui}':textfile='{eyebrow_path}':fontcolor=#77e0bd:fontsize={eyebrow_size}:x=w*0.06:y=h*0.52,"
-            f"drawtext=fontfile='{font_bold}':textfile='{title_path}':fontcolor=white:fontsize={font_size}:x=w*0.06:y=h*0.64:line_spacing=10"
-        )
+        if variant == "b":
+            vf = (
+                f"scale={width}:{height},drawbox=x=0:y=0:w=iw:h=ih:color=black@0.20:t=fill,"
+                f"drawbox=x=iw*0.045:y=ih*0.08:w=iw*0.62:h=ih*0.52:color=#07101e@0.82:t=fill,"
+                f"drawbox=x=iw*0.075:y=ih*0.18:w=iw*0.11:h=5:color=#ffb36a:t=fill,"
+                f"drawtext=fontfile='{font_ui}':textfile='{eyebrow_path}':fontcolor=#ffb36a:fontsize={eyebrow_size}:x=w*0.075:y=h*0.12,"
+                f"drawtext=fontfile='{font_bold}':textfile='{title_path}':fontcolor=white:fontsize={font_size}:x=w*0.075:y=h*0.25:line_spacing=10"
+            )
+        else:
+            vf = (
+                f"scale={width}:{height},drawbox=x=0:y=0:w=iw:h=ih:color=black@0.12:t=fill,"
+                f"drawbox=x=0:y=ih*0.48:w=iw:h=ih*0.52:color=#07101e@0.78:t=fill,"
+                f"drawbox=x=iw*0.06:y=ih*0.58:w=iw*0.08:h=5:color=#77e0bd:t=fill,"
+                f"drawtext=fontfile='{font_ui}':textfile='{eyebrow_path}':fontcolor=#77e0bd:fontsize={eyebrow_size}:x=w*0.06:y=h*0.52,"
+                f"drawtext=fontfile='{font_bold}':textfile='{title_path}':fontcolor=white:fontsize={font_size}:x=w*0.06:y=h*0.64:line_spacing=10"
+            )
         self.command([self.settings.ffmpeg, "-y", "-i", str(source), "-vf", vf, "-frames:v", "1", "-q:v", "2", str(output)])
 
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
@@ -351,9 +360,21 @@ class Pipeline:
                               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", str(job["duration"]),
                               "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(video)])
                 self.store.event(job_id, "rendering", f"Composição multicena concluída com {len(backgrounds)} cenas")
+            thumbnail_a = out / "thumbnail-a.jpg"
+            thumbnail_b = out / "thumbnail-b.jpg"
             thumbnail = out / "thumbnail.jpg"
-            self.create_thumbnail(backgrounds[0], thumbnail, job["topic"], width, height, plan["visual"]["thumbnail"])
-            (out / "thumbnail-design.json").write_text(json.dumps(plan["visual"]["thumbnail"], ensure_ascii=False, indent=2), encoding="utf-8")
+            self.create_thumbnail(backgrounds[0], thumbnail_a, job["topic"], width, height, plan["visual"]["thumbnail"], "a")
+            self.create_thumbnail(backgrounds[0], thumbnail_b, job["topic"], width, height, plan["visual"]["thumbnail"], "b")
+            shutil.copy2(thumbnail_a, thumbnail)
+            thumbnail_design = {
+                "selected": "a",
+                "variants": [
+                    {"id": "a", "file": "thumbnail-a.jpg", "style": "editorial inferior", "accent": "#77e0bd"},
+                    {"id": "b", "file": "thumbnail-b.jpg", "style": "cartaz superior", "accent": "#ffb36a"},
+                ],
+                "brief": plan["visual"]["thumbnail"],
+            }
+            (out / "thumbnail-design.json").write_text(json.dumps(thumbnail_design, ensure_ascii=False, indent=2), encoding="utf-8")
 
             media_report = self.inspect_video(video, job["duration"])
             (out / "render-report.json").write_text(json.dumps(media_report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -372,11 +393,13 @@ class Pipeline:
             metadata["files"] = {"video": "video.mp4", "thumbnail": "thumbnail.jpg", "subtitles": "subtitles.srt" if job["subtitles"] else None,
                                  "agents": "agents.json", "publication": "publication-package.json",
                                  "render_report": "render-report.json", "manifest": "artifact-manifest.json"}
+            metadata["thumbnail_variants"] = thumbnail_design["variants"]
+            metadata["selected_thumbnail"] = "a"
             metadata["verification"] = media_report
             metadata["quality"] = plan["review"]
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-            manifest = self.artifact_manifest(out, ["video.mp4", "thumbnail.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
+            manifest = self.artifact_manifest(out, ["video.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
             (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.update(job_id, "awaiting_approval", metadata=metadata, progress=100,
                               quality_score=plan["review"]["score"])
@@ -401,3 +424,29 @@ class Pipeline:
         self.store.update(job_id, "rejected", job["metadata"], error=reason or "Revisão solicitada", progress=100,
                           quality_score=job.get("quality_score"))
         self.store.event(job_id, "rejected", reason or "Revisão solicitada")
+
+    def select_thumbnail(self, job_id: str, variant: str) -> None:
+        variant = variant.lower()
+        if variant not in {"a", "b"}:
+            raise ValueError("Variante de thumbnail inválida")
+        job = self.store.get_job(job_id)
+        if not job or job["status"] not in {"awaiting_approval", "approved", "rejected"}:
+            raise ValueError("A produção ainda não tem thumbnails disponíveis")
+        out = Path(job["output_dir"])
+        source = out / f"thumbnail-{variant}.jpg"
+        if not source.is_file():
+            raise ValueError("Variante de thumbnail não encontrada")
+        shutil.copy2(source, out / "thumbnail.jpg")
+        metadata = dict(job["metadata"])
+        metadata["selected_thumbnail"] = variant
+        (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        design_path = out / "thumbnail-design.json"
+        if design_path.is_file():
+            design = json.loads(design_path.read_text(encoding="utf-8"))
+            design["selected"] = variant
+            design_path.write_text(json.dumps(design, ensure_ascii=False, indent=2), encoding="utf-8")
+        manifest = self.artifact_manifest(out, ["video.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
+        (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.store.set_thumbnail_variant(job_id, variant)
+        self.store.update(job_id, job["status"], metadata, progress=job["progress"], quality_score=job.get("quality_score"))
+        self.store.event(job_id, "thumbnail", f"Thumbnail {variant.upper()} selecionada para publicação manual")

@@ -27,6 +27,7 @@ class Settings:
     allow_publish: bool
     narration_fallback: bool = True
     workers: int = 1
+    calendar_poll_seconds: int = 15
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -48,4 +49,5 @@ class Settings:
             allow_publish=os.getenv("ALLOW_PLATFORM_PUBLISH", "false").lower() == "true",
             narration_fallback=os.getenv("NARRATION_FALLBACK_TO_AMBIENT", "true").lower() == "true",
             workers=max(1, min(2, int(os.getenv("FACTORY_WORKERS", "1")))),
+            calendar_poll_seconds=max(5, min(300, int(os.getenv("CALENDAR_POLL_SECONDS", "15")))),
         )

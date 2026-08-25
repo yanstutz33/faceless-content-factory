@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 0.2
+# Faceless Content Factory — Studio MVP 0.3
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -21,8 +21,10 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Manifesto SHA-256 para comprovar a integridade de cada pacote
 - Diagnóstico contínuo de ferramentas, fila e espaço em disco
 - Quatro templates de séries, geração em lote e calendário editorial
+- Início automático dos itens vencidos do calendário, com fila resiliente e publicação ainda manual
 - Biblioteca de assets com licença, confirmação de direitos e composição multicena
-- Thumbnails editoriais automáticas com identidade por série
+- Duas thumbnails editoriais por vídeo, comparação A/B e seleção persistente da capa final
+- Direcionamento editorial alimentado pelas métricas mais recentes de cada plataforma
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
@@ -75,14 +77,15 @@ Hoje eles funcionam localmente com regras reproduzíveis. As interfaces estão s
 
 - **Lugares sob chuva**, **Mundos acolhedores**, **Foco cósmico** e **Momentos verticais** vêm prontos como pontos de partida.
 - **Gerar lote** aceita até 20 temas e coloca tudo em uma fila serial para preservar a responsividade do computador.
-- O calendário guarda tema, formato, duração e data. Um item planejado pode ser iniciado imediatamente sem redigitação.
+- O calendário guarda tema, formato, duração e data. Na hora marcada, o item entra automaticamente na fila; também pode ser iniciado antes sem redigitação.
+- O agendador verifica os itens a cada 15 segundos por padrão (`CALENDAR_POLL_SECONDS`) e sobrevive a falhas temporárias sem liberar publicação automática.
 - Os templates ficam em `factory/templates.py` e podem ser adaptados sem alterar o pipeline.
 
 ## Operação de baixo esforço
 
 1. Escolha uma oportunidade sugerida ou informe tema, perfil e duração.
 2. Continue usando o painel enquanto a fila renderiza em segundo plano.
-3. Abra a produção, assista à prévia e confira direção, score e metadados.
+3. Abra a produção, assista à prévia, compare as capas A/B e confira direção, score e metadados.
 4. Aprove ou peça ajustes; falhas e revisões podem ser executadas novamente.
 5. Faça o upload manual pelo YouTube Studio enquanto a API não estiver configurada.
 6. Registre resultados para formar histórico de aprendizado:
@@ -117,7 +120,7 @@ Um caminho avulso ainda pode ser informado para testes rápidos, mas a bibliotec
 python -m unittest discover -s tests -v
 ```
 
-A suíte cobre agentes, validação, migração/estado da fila, retomada após reinício, calendário, métricas por snapshot, catálogo de licenças, segurança da API, streaming por faixa, fallback de voz, renderização simples, checksums e composição multicena real com FFmpeg. A interface também é validada em desktop e viewport móvel.
+A suíte cobre agentes, validação, migração/estado da fila, retomada após reinício, calendário automático, insights por snapshot, catálogo de licenças, segurança da API, streaming por faixa, fallback de voz, thumbnails A/B, renderização simples, checksums e composição multicena real com FFmpeg. A interface também é validada em desktop e viewport móvel.
 
 Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Esses relatórios não publicam nada; servem para detectar pacotes incompletos antes da sua aprovação.
 
@@ -125,7 +128,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 
 1. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
 2. Transições visuais específicas por template e microvariações sonoras por cena.
-3. Variantes A/B de thumbnail com registro de CTR.
+3. Registro de CTR por variante de thumbnail e rotação de vencedoras por série.
 4. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
 5. Coleta automática de retenção e priorização de temas com base no histórico.
 6. Provedor local de voz opcional para operação totalmente offline.
