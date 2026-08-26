@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 0.6
+# Faceless Content Factory — Studio MVP 0.7
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -9,8 +9,8 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
 - Três cenas-mestre lo-fi originais incluídas: café chuvoso, estúdio acolhedor e lounge cósmico
 - Seleção automática da cena conforme o tema quando nenhum asset próprio é informado
-- Loop visual ambiente de 12 segundos com respiração de câmera, movimento lateral e luz pulsante
-- Direção de movimento própria para chuva, cozy, cosmic e focus, codificada no MP4 em vez de GIF pesado
+- Loop visual ambiente de 12 segundos com câmera fixa e efeitos atmosféricos localizados
+- Fumaça sobre a xícara, chuva ou estrelas pulsantes conforme o perfil, codificadas no MP4 em vez de GIF pesado
 - Música chill/lo-fi original gerada localmente com acordes, beat, BPM e variação determinística por tema
 - Chuva apenas como camada discreta nos temas correspondentes; cozy, cosmic e focus não recebem chuva
 - Ingestão opcional de JPG/PNG/WebP próprio com enquadramento automático
@@ -29,19 +29,24 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Biblioteca de assets com licença, confirmação de direitos e composição multicena
 - Duas thumbnails editoriais por vídeo, comparação A/B e seleção persistente da capa final
 - Direcionamento editorial alimentado pelas métricas mais recentes de cada plataforma
+- CTR por capa, retenção média, impressões, cliques, conversões e receita por snapshot
+- Recomendação da capa vencedora por série sem troca automática arriscada
+- Agentes enriquecíveis pela OpenAI Responses API, sempre com fallback local reproduzível
+- Pacote `youtube-upload.json` privado e revisável, sem executar upload
+- Validador comercial que bloqueia produto divergente, publicidade oculta e mídia sem direitos
 - Piloto automático semanal com séries, cadência, horário e duração configuráveis
 - Reposição inteligente do calendário sem repetir temas já produzidos ou planejados
 - Pausa automática por fila de revisão, trabalhos ativos ou pouco espaço em disco
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
-Narração é opcional. `--narration` usa voz neural em português e requer internet durante essa etapa. Se a voz estiver indisponível, o padrão seguro conclui o vídeo com música lo-fi, registra o ocorrido e reduz o score para deixar a revisão explícita. Outro provedor de TTS pode ser conectado depois sem alterar a fila ou o renderizador.
+Narração é opcional. `--narration` usa voz neural em português e tenta a voz local do Windows como fallback quando ela estiver realmente instalada. Neste computador nenhuma voz SAPI está disponível; por isso o diagnóstico informa essa ausência e o padrão seguro conclui o vídeo com música lo-fi.
 
 ## Imagem e música automáticas
 
 Produções antigas não são modificadas retroativamente. Os primeiros testes sem asset usavam apenas um fundo procedural escuro e ruídos ambientais; por isso pareciam não ter imagem e soavam semelhantes. Todo pacote novo agora recebe uma cena ilustrada real do starter pack e uma trilha lo-fi original. O perfil `rain` adiciona chuva baixa atrás da música, enquanto `cozy`, `cosmic` e `focus` usam somente variações musicais e textura leve.
 
-A imagem também não fica mais parada. O renderizador cria um ciclo visual suave de 12 segundos que volta ao ponto inicial e se repete ao longo de toda a produção. É o efeito de um GIF ambiente, mas entregue diretamente no vídeo MP4/H.264 para preservar qualidade e evitar arquivos intermediários gigantes. Perfil, atmosfera e efeitos usados ficam registrados no campo `motion` de `metadata.json`.
+A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva no perfil rain e pontos de luz no cosmic. É o efeito de um GIF ambiente, mas entregue diretamente no vídeo MP4/H.264 para preservar qualidade. Perfil, atmosfera e efeitos usados ficam registrados no campo `motion` de `metadata.json`.
 
 O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, progressão, BPM e melodia. Os detalhes ficam em `metadata.json` no campo `music`.
 
@@ -145,16 +150,16 @@ A suíte cobre agentes, validação, migração/estado da fila, retomada após r
 
 Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Esses relatórios não publicam nada; servem para detectar pacotes incompletos antes da sua aprovação.
 
-## Próximas etapas
+## Estado do roadmap
 
-1. Conector opcional de LLM para enriquecer Radar/Roteirista, mantendo o modo local como fallback.
-2. Microvariações sonoras por tema sem exigir transições visuais.
-3. Registro de CTR por variante de thumbnail e rotação de vencedoras por série.
-4. Integração oficial com YouTube Data API, primeiro em modo privado e sempre com confirmação humana.
-5. Coleta automática de retenção e priorização de temas com base no histórico.
-6. Provedor local de voz opcional para operação totalmente offline.
+1. **Conector opcional de LLM:** implementado com Responses API, Structured Outputs, `store=false` e fallback local. Só ativa com `OPENAI_API_KEY`.
+2. **Microvariações sonoras:** implementadas por seed, BPM, progressão, melodia e perfil.
+3. **CTR e capas:** implementados no banco, API e painel; a fábrica recomenda vencedoras por série sem fazer trocas cegas.
+4. **YouTube:** pacote privado oficial preparado após aprovação. O upload real depende do arquivo OAuth da conta e continuará exigindo confirmação humana.
+5. **Retenção:** captura e ranking implementados. A coleta automática depende da autorização da conta/plataforma.
+6. **Voz offline:** fallback implementado e diagnosticado, mas este Windows não possui uma voz SAPI instalada. A ambientação segura continua funcionando.
 
-`ALLOW_PLATFORM_PUBLISH=false` é o padrão. Alterar essa variável sozinho não publica: um conector oficial ainda precisa ser implementado e testado.
+`ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação.
 
 ## Frente futura de afiliados
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import math
+import os
 import random
 import re
 import shutil
@@ -18,6 +19,7 @@ from typing import Any
 
 from .agents import ContentCrew, PROFILES
 from .config import Settings
+from .llm import OpenAIPlanEnhancer
 from .store import Store
 
 
@@ -38,7 +40,7 @@ class Pipeline:
     def __init__(self, settings: Settings, store: Store, crew: ContentCrew | None = None):
         self.settings = settings
         self.store = store
-        self.crew = crew or ContentCrew()
+        self.crew = crew or ContentCrew(OpenAIPlanEnhancer(settings.openai_api_key, settings.openai_model))
         (settings.data_dir / "jobs").mkdir(parents=True, exist_ok=True)
 
     def command(self, args: list[str]) -> None:
@@ -58,14 +60,32 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "0.6",
+            "studio_version": "0.7",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
             "free_gb": round(usage.free / (1024 ** 3), 1),
             "publish_mode": "manual-safe",
             "narration_fallback": self.settings.narration_fallback,
+            "llm_provider": {"configured": bool(self.settings.openai_api_key), "model": self.settings.openai_model},
+            "youtube_connector": {"configured": bool(self.settings.youtube_client_secrets_file), "mode": "manual-safe"},
+            "local_voice_fallback": {"enabled": self.settings.local_tts_fallback,
+                                     "available": self.local_voice_available()},
         }
+
+    def local_voice_available(self) -> bool:
+        if not self.settings.local_tts_fallback or os.name != "nt":
+            return False
+        check = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+             "Add-Type -AssemblyName System.Speech;$v=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+             "$n=$v.GetInstalledVoices().Count;$v.Dispose();Write-Output $n"],
+            text=True, capture_output=True, timeout=15,
+        )
+        try:
+            return check.returncode == 0 and int(check.stdout.strip().splitlines()[-1]) > 0
+        except (ValueError, IndexError):
+            return False
 
     def inspect_video(self, video: Path, expected_duration: int) -> dict[str, Any]:
         try:
@@ -167,8 +187,25 @@ class Pipeline:
             capture_output=True,
             timeout=180,
         )
-        if proc.returncode or not output.is_file() or output.stat().st_size == 0:
+        if not proc.returncode and output.is_file() and output.stat().st_size > 0:
+            return
+        if not self.settings.local_tts_fallback or os.name != "nt":
             raise RuntimeError(f"TTS neural indisponível: {proc.stderr[-900:]}")
+        wav_output = output.with_name("narration-local.wav")
+        text = script.read_text(encoding="utf-8").replace("'", "''")
+        destination = str(wav_output.resolve()).replace("'", "''")
+        powershell = (
+            "Add-Type -AssemblyName System.Speech;"
+            "$voice=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+            "$voice.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Male,"
+            "[System.Speech.Synthesis.VoiceAge]::Adult,0,[Globalization.CultureInfo]'pt-BR');"
+            f"$voice.SetOutputToWaveFile('{destination}');$voice.Speak('{text}');$voice.Dispose()"
+        )
+        local = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", powershell],
+                               text=True, capture_output=True, timeout=180)
+        if local.returncode or not wav_output.is_file() or wav_output.stat().st_size == 0:
+            raise RuntimeError(f"TTS neural e voz local indisponíveis: {(local.stderr or proc.stderr)[-900:]}")
+        self.command([self.settings.ffmpeg, "-y", "-i", str(wav_output), "-c:a", "libmp3lame", "-b:a", "96k", str(output)])
 
     @staticmethod
     def _midi_frequency(note: int) -> float:
@@ -257,41 +294,88 @@ class Pipeline:
 
     @staticmethod
     def visual_motion(sound_profile: str, width: int, height: int, fps: int) -> tuple[str, dict[str, Any]]:
-        """Build a repeating ambient camera cycle instead of holding a still frame."""
+        """Describe a fixed-camera scene with a localized atmospheric overlay."""
         cycle_seconds = 12
         styles = {
-            "rain": {"name": "chuva cinematográfica", "brightness": 0.006, "saturation": 0.82,
-                     "contrast": 1.08, "zoom": 0.020, "pan_x": 12, "pan_y": 7},
-            "cosmic": {"name": "pulso cósmico", "brightness": 0.012, "saturation": 1.08,
-                       "contrast": 1.05, "zoom": 0.024, "pan_x": 14, "pan_y": 8},
-            "cozy": {"name": "luz aconchegante", "brightness": 0.009, "saturation": 1.03,
-                     "contrast": 1.03, "zoom": 0.018, "pan_x": 10, "pan_y": 6},
-            "focus": {"name": "respiração de câmera", "brightness": 0.006, "saturation": 0.94,
-                      "contrast": 1.04, "zoom": 0.016, "pan_x": 9, "pan_y": 5},
+            "rain": {"name": "chuva localizada", "effect": "localized_rain", "opacity": 0.34},
+            "cosmic": {"name": "estrelas pulsantes", "effect": "localized_star_twinkle", "opacity": 0.42},
+            "cozy": {"name": "fumaça suave da xícara", "effect": "localized_cup_steam", "opacity": 0.30},
+            "focus": {"name": "fumaça suave da xícara", "effect": "localized_cup_steam", "opacity": 0.26},
         }
         style = styles.get(sound_profile, styles["focus"])
-        base_zoom = 1.035
-        cycle = fps * cycle_seconds
-        vf = (
-            f"scale={int(width * 1.06)}:{int(height * 1.06)},"
-            f"zoompan=z='{base_zoom}+{style['zoom']}*sin(2*PI*on/{cycle})':d=1:"
-            f"x='iw/2-(iw/zoom/2)+{style['pan_x']}*sin(2*PI*on/{cycle})':"
-            f"y='ih/2-(ih/zoom/2)+{style['pan_y']}*cos(2*PI*on/{cycle})':"
-            f"s={width}x{height}:fps={fps},"
-            f"eq=brightness='{style['brightness']}*sin(2*PI*t/{cycle_seconds})':"
-            f"saturation={style['saturation']}:contrast={style['contrast']}:eval=frame,"
-            "vignette=PI/5,format=yuv420p"
-        )
+        vf = f"scale={width}:{height},format=gbrp"
         recipe = {
-            "style": "ambient_seamless_loop",
+            "style": "localized_atmospheric_loop",
             "format": "mp4_h264",
             "cycle_seconds": cycle_seconds,
             "profile": sound_profile,
             "atmosphere": style["name"],
-            "effects": ["camera_breathing", "slow_pan", "light_pulse", "soft_vignette"],
+            "effects": [style["effect"]],
+            "overlay_opacity": style["opacity"],
+            "camera_motion": "none",
             "source_policy": "original_or_commercially_licensed",
         }
         return vf, recipe
+
+    def create_motion_overlay(self, output: Path, sound_profile: str, fps: int) -> None:
+        """Render a small seamless effects plate; black pixels disappear with screen blending."""
+        width, height, seconds = 320, 180, 12
+        seed = int(hashlib.sha256(sound_profile.encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        raindrops = [(rng.randrange(width), rng.randrange(height), rng.randrange(2, 6), rng.randrange(6, 15)) for _ in range(70)]
+        stars = [(rng.randrange(8, width - 8), rng.randrange(6, int(height * 0.68)), rng.random() * math.tau) for _ in range(54)]
+
+        command = [self.settings.ffmpeg, "-y", "-f", "rawvideo", "-pixel_format", "gray",
+                   "-video_size", f"{width}x{height}", "-framerate", str(fps), "-i", "-", "-an",
+                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", str(output)]
+        proc = subprocess.Popen(command, cwd=self.settings.root, stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+        def glow(frame: bytearray, cx: float, cy: float, rx: float, ry: float, strength: float) -> None:
+            left, right = max(0, int(cx - rx)), min(width, int(cx + rx + 1))
+            top, bottom = max(0, int(cy - ry)), min(height, int(cy + ry + 1))
+            for y in range(top, bottom):
+                for x in range(left, right):
+                    distance = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+                    if distance < 1:
+                        index = y * width + x
+                        value = int(strength * (1 - distance) ** 2)
+                        frame[index] = min(255, frame[index] + value)
+
+        try:
+            assert proc.stdin is not None
+            for frame_number in range(fps * seconds):
+                frame = bytearray(width * height)
+                t = frame_number / fps
+                if sound_profile == "rain":
+                    for x0, y0, speed, length in raindrops:
+                        y = int((y0 + frame_number * speed / 2) % (height + length)) - length
+                        x = int((x0 - frame_number * speed / 10) % width)
+                        for step in range(length):
+                            px, py = (x + step // 4) % width, y + step
+                            if 0 <= py < height:
+                                frame[py * width + px] = max(frame[py * width + px], 75 - step * 3)
+                elif sound_profile == "cosmic":
+                    for x, y, phase in stars:
+                        strength = max(0, math.sin(math.tau * t / seconds + phase)) ** 3 * 170
+                        glow(frame, x, y, 1.8, 1.8, strength)
+                else:
+                    for wisp in range(4):
+                        progress = (t / seconds + wisp / 4) % 1
+                        cx = width * 0.545 + math.sin(math.tau * progress * 1.7 + wisp) * (3 + 5 * progress)
+                        cy = height * (0.72 - 0.27 * progress)
+                        strength = math.sin(math.pi * progress) ** 1.4 * 125
+                        glow(frame, cx, cy, 4 + 5 * progress, 7 + 12 * progress, strength)
+                proc.stdin.write(frame)
+            proc.stdin.close()
+            stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+            if proc.wait() or not output.is_file():
+                raise RuntimeError(f"FFmpeg não conseguiu gerar o overlay visual: {stderr[-1200:]}")
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            if proc.stderr:
+                proc.stderr.close()
 
     def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any], variant: str = "a") -> None:
         title_file = output.parent / "thumbnail-title.txt"
@@ -445,11 +529,17 @@ class Pipeline:
             video = out / "video.mp4"
             width, height, fps = profile["width"], profile["height"], profile["fps"]
             vf, motion = self.visual_motion(sound_profile, width, height, fps)
+            motion_overlay = out / "motion-overlay.mp4"
+            self.create_motion_overlay(motion_overlay, sound_profile, fps)
             metadata["motion"] = motion
             self.store.event(job_id, "motion", f"Loop visual de {motion['cycle_seconds']} s aplicado: {motion['atmosphere']}")
+            blend = (f"[0:v]{vf}[base];[1:v]scale={width}:{height},format=gbrp[fx];"
+                     f"[base][fx]blend=all_mode=screen:all_opacity={motion['overlay_opacity']},format=yuv420p[v]")
             if len(backgrounds) == 1:
-                self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(backgrounds[0]), "-i", str(audio),
-                              "-vf", vf, "-t", str(job["duration"]), "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+                self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(backgrounds[0]),
+                              "-stream_loop", "-1", "-i", str(motion_overlay), "-i", str(audio),
+                              "-filter_complex", blend, "-map", "[v]", "-map", "2:a:0", "-t", str(job["duration"]),
+                              "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
                               "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(video)])
             else:
                 scene_dir = out / "render-scenes"
@@ -459,7 +549,8 @@ class Pipeline:
                 for index, background in enumerate(backgrounds):
                     clip = scene_dir / f"clip-{index + 1:02}.mp4"
                     clips.append(clip)
-                    self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background), "-vf", vf,
+                    self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background),
+                                  "-stream_loop", "-1", "-i", str(motion_overlay), "-filter_complex", blend, "-map", "[v]",
                                   "-t", f"{base_duration:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
                                   "-crf", "22", "-pix_fmt", "yuv420p", str(clip)])
                 concat_file = scene_dir / "concat.txt"
@@ -500,14 +591,15 @@ class Pipeline:
             (out / "publication-package.json").write_text(json.dumps(checklist, ensure_ascii=False, indent=2), encoding="utf-8")
             metadata["files"] = {"video": "video.mp4", "thumbnail": "thumbnail.jpg", "subtitles": "subtitles.srt" if job["subtitles"] else None,
                                  "agents": "agents.json", "publication": "publication-package.json",
-                                 "render_report": "render-report.json", "manifest": "artifact-manifest.json"}
+                                 "render_report": "render-report.json", "manifest": "artifact-manifest.json",
+                                 "motion_overlay": "motion-overlay.mp4"}
             metadata["thumbnail_variants"] = thumbnail_design["variants"]
             metadata["selected_thumbnail"] = "a"
             metadata["verification"] = media_report
             metadata["quality"] = plan["review"]
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-            manifest = self.artifact_manifest(out, ["video.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
+            manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
             (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.update(job_id, "awaiting_approval", metadata=metadata, progress=100,
                               quality_score=plan["review"]["score"])
@@ -524,6 +616,39 @@ class Pipeline:
             raise ValueError("A produção ainda não está pronta para aprovação")
         self.store.update(job_id, "approved", job["metadata"], progress=100, quality_score=job.get("quality_score"))
         self.store.event(job_id, "approved", "Aprovado para publicação manual")
+
+    def prepare_youtube_package(self, job_id: str) -> dict[str, Any]:
+        job = self.store.get_job(job_id)
+        if not job or job["status"] != "approved":
+            raise ValueError("A produção precisa estar aprovada antes de preparar o YouTube")
+        metadata = job.get("metadata") or {}
+        if not metadata.get("verification", {}).get("passed"):
+            raise ValueError("O arquivo ainda não passou pela validação técnica")
+        out = Path(job["output_dir"])
+        payload = {
+            "mode": "prepared_not_uploaded",
+            "api": "youtube_data_api_v3",
+            "operation": "videos.insert",
+            "parts": ["snippet", "status"],
+            "snippet": {"title": metadata.get("title", job["topic"]),
+                        "description": metadata.get("description", ""),
+                        "tags": metadata.get("tags", []), "categoryId": "10"},
+            "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False},
+            "media_file": "video.mp4",
+            "thumbnail_file": "thumbnail.jpg",
+            "captions_file": metadata.get("files", {}).get("subtitles"),
+            "oauth_configured": bool(self.settings.youtube_client_secrets_file),
+            "automatic_upload_allowed": False,
+            "next_step": "Configurar OAuth, revisar este JSON e confirmar um upload privado.",
+        }
+        package = out / "youtube-upload.json"
+        package.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg",
+                                           "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json",
+                                           "publication-package.json", "render-report.json", "youtube-upload.json"])
+        (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.store.event(job_id, "youtube", "Pacote privado do YouTube preparado; nenhum upload foi realizado")
+        return payload
 
     def reject(self, job_id: str, reason: str) -> None:
         job = self.store.get_job(job_id)

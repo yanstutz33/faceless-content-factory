@@ -31,6 +31,10 @@ class Settings:
     autopilot_max_review: int = 12
     autopilot_max_active: int = 2
     autopilot_min_free_gb: float = 3.0
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5.4"
+    youtube_client_secrets_file: str = ""
+    local_tts_fallback: bool = True
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -56,4 +60,8 @@ class Settings:
             autopilot_max_review=max(1, min(50, int(os.getenv("AUTOPILOT_MAX_REVIEW", "12")))),
             autopilot_max_active=max(1, min(5, int(os.getenv("AUTOPILOT_MAX_ACTIVE", "2")))),
             autopilot_min_free_gb=max(0.5, float(os.getenv("AUTOPILOT_MIN_FREE_GB", "3"))),
+            openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+            openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
+            youtube_client_secrets_file=os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", ""),
+            local_tts_fallback=os.getenv("LOCAL_TTS_FALLBACK", "true").lower() == "true",
         )

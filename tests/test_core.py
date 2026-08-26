@@ -13,6 +13,8 @@ from unittest.mock import patch
 from factory.agents import ContentCrew, PROFILES
 from factory.autopilot import Autopilot
 from factory.config import Settings
+from factory.commerce import validate_commerce_brief
+from factory.llm import OpenAIPlanEnhancer
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
 from factory.store import Store
 from factory.web import CalendarScheduler, create_server
@@ -44,6 +46,26 @@ class CoreTests(unittest.TestCase):
         self.assertIn("lo-fi", plan["visual"]["sound"].lower())
         self.assertIn("Lo-fi", plan["seo"]["title"])
         self.assertGreaterEqual(len(ContentCrew().ideas()), 5)
+
+    def test_optional_llm_keeps_local_plan_without_api_key(self):
+        enhancer = OpenAIPlanEnhancer("")
+        plan = ContentCrew(enhancer).run("Café silencioso", 1800, "youtube_long", False)
+        self.assertFalse(enhancer.configured)
+        self.assertNotIn("provider", plan)
+
+    def test_commerce_brief_fails_closed_without_media_rights(self):
+        result = validate_commerce_brief({"product_id": "123", "title": "Produto", "product_url": "https://shopee.com.br/item/123",
+                                          "exact_product_confirmed": True, "affiliate_disclosure": True,
+                                          "assets": [{"name": "Pin", "license_type": "unknown", "approved": False}]})
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["pinterest_policy"], "research_only_not_media_source")
+
+    def test_commerce_brief_accepts_traceable_original_media(self):
+        result = validate_commerce_brief({"product_id": "123", "title": "Produto", "product_url": "https://shopee.com.br/item/123",
+                                          "exact_product_confirmed": True, "affiliate_disclosure": True,
+                                          "assets": [{"name": "Demo própria", "license_type": "original", "approved": True}],
+                                          "claims": [{"text": "Material informado", "source": "página oficial"}]})
+        self.assertTrue(result["passed"])
 
     def test_editorial_calendar(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -154,13 +176,35 @@ class CoreTests(unittest.TestCase):
             store.add_metrics(job_id, "youtube", 100, 10, 20)
             store.add_metrics(job_id, "youtube", 175, 14, 31)
             store.add_metrics(job_id, "tiktok", 50, 7, 8)
+            store.add_metrics(job_id, "shorts", 200, 20, 40, impressions=1000, clicks=80,
+                              average_view_seconds=4, thumbnail_variant="b")
             summary = store.summary()
-            self.assertEqual(summary["views"], 225)
-            self.assertEqual(summary["likes"], 21)
-            self.assertEqual(summary["watch_minutes"], 39)
+            self.assertEqual(summary["views"], 425)
+            self.assertEqual(summary["likes"], 41)
+            self.assertEqual(summary["watch_minutes"], 79)
             insights = store.performance_insights()
-            self.assertEqual(insights[0]["views"], 175)
-            self.assertEqual(insights[0]["engagement_rate"], 8.0)
+            self.assertEqual(insights[0]["views"], 200)
+            self.assertEqual(insights[0]["ctr"], 8.0)
+            self.assertEqual(store.thumbnail_insights()[0]["thumbnail_variant"], "b")
+
+    def test_youtube_package_is_private_and_never_uploads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Private upload package", 5, profile="preview")
+            job = store.get_job(job_id)
+            output = Path(job["output_dir"])
+            (output / "video.mp4").write_bytes(b"video")
+            metadata = {"title": "Private", "description": "Review first", "tags": ["lofi"],
+                        "verification": {"passed": True}, "files": {"subtitles": None}}
+            store.update(job_id, "awaiting_approval", metadata, progress=100)
+            pipeline.approve(job_id)
+            package = pipeline.prepare_youtube_package(job_id)
+            self.assertEqual(package["status"]["privacyStatus"], "private")
+            self.assertEqual(package["mode"], "prepared_not_uploaded")
+            self.assertFalse(package["automatic_upload_allowed"])
+            self.assertTrue((output / "youtube-upload.json").exists())
 
     def test_profile_duration_is_safely_capped(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -189,9 +233,10 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["metadata"]["selected_thumbnail"], "a")
             self.assertEqual(job["metadata"]["music"]["style"], "original_lofi_chill")
             self.assertGreaterEqual(job["metadata"]["music"]["bpm"], 70)
-            self.assertEqual(job["metadata"]["motion"]["style"], "ambient_seamless_loop")
+            self.assertEqual(job["metadata"]["motion"]["style"], "localized_atmospheric_loop")
             self.assertEqual(job["metadata"]["motion"]["cycle_seconds"], 12)
-            self.assertIn("camera_breathing", job["metadata"]["motion"]["effects"])
+            self.assertEqual(job["metadata"]["motion"]["camera_motion"], "none")
+            self.assertTrue((Path(job["output_dir"]) / "motion-overlay.mp4").exists())
             assets = json.loads((Path(job["output_dir"]) / "asset-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(assets[0]["license_type"], "original_ai_generated")
             report = json.loads((Path(job["output_dir"]) / "render-report.json").read_text(encoding="utf-8"))
@@ -232,11 +277,11 @@ class CoreTests(unittest.TestCase):
         recipes = {}
         for profile in ("rain", "cozy", "cosmic", "focus"):
             filters[profile], recipes[profile] = Pipeline.visual_motion(profile, 960, 540, 24)
-            self.assertIn("zoompan", filters[profile])
-            self.assertIn("sin(2*PI*on/288)", filters[profile])
+            self.assertNotIn("zoompan", filters[profile])
+            self.assertEqual(recipes[profile]["camera_motion"], "none")
             self.assertEqual(recipes[profile]["source_policy"], "original_or_commercially_licensed")
-        self.assertEqual(len(set(filters.values())), 4)
-        self.assertEqual(recipes["cosmic"]["atmosphere"], "pulso cósmico")
+        self.assertEqual(len(set(recipe["effects"][0] for recipe in recipes.values())), 3)
+        self.assertEqual(recipes["cosmic"]["atmosphere"], "estrelas pulsantes")
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_narration_failure_falls_back_to_ambient(self):

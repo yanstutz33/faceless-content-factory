@@ -166,8 +166,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
-        allowed = {"video.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
-                   "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json"}
+        allowed = {"video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
+                   "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json", "youtube-upload.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
         path = Path(job["output_dir"]) / name
@@ -259,6 +259,8 @@ class Handler(SimpleHTTPRequestHandler):
                                    "operation": self.runner.health()})
         if path == "/api/insights":
             return self.send_json(self.store.performance_insights())
+        if path == "/api/thumbnail-insights":
+            return self.send_json(self.store.thumbnail_insights())
         if path == "/api/jobs":
             limit = int(parse_qs(parsed.query).get("limit", ["100"])[0])
             return self.send_json(self.store.list_jobs(max(1, min(limit, 500))))
@@ -376,9 +378,14 @@ class Handler(SimpleHTTPRequestHandler):
                     self.runner.submit(job_id)
                 elif action == "metrics":
                     self.store.add_metrics(job_id, data.get("platform", "youtube"), int(data.get("views", 0)),
-                                           int(data.get("likes", 0)), float(data.get("watch_minutes", 0)))
+                                           int(data.get("likes", 0)), float(data.get("watch_minutes", 0)),
+                                           int(data.get("impressions", 0)), int(data.get("clicks", 0)),
+                                           float(data.get("average_view_seconds", 0)), str(data.get("thumbnail_variant", "a")),
+                                           int(data.get("conversions", 0)), float(data.get("revenue", 0)))
                 elif action == "thumbnail":
                     self.pipeline.select_thumbnail(job_id, str(data.get("variant", "")))
+                elif action == "youtube-package":
+                    return self.send_json(self.pipeline.prepare_youtube_package(job_id))
                 else:
                     return self.send_json({"error": "Ação não encontrada"}, 404)
                 return self.send_json(self.store.get_job(job_id))

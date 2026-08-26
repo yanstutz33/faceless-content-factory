@@ -30,11 +30,20 @@ Fontes aceitas para uma futura automação:
 7. Publicar manualmente ou por API oficial quando disponível.
 8. Registrar cliques, conversões e comissão sem armazenar dados pessoais do comprador.
 
-## Itens a verificar antes da implementação
+## Regras oficiais verificadas em 26/08/2026
 
-- termos atuais do programa de afiliados da Shopee para o país da conta;
+- Na Shopee Video, o produto precisa ser adicionado diretamente ao vídeo; link na descrição ou comentários não substitui esse vínculo.
+- O conteúdo precisa representar o mesmo produto vinculado, sem discrepância que possa induzir a compra errada.
+- Conteúdo que gera comissão deve ser identificado claramente como publicidade; o projeto usa `#publicidade` como padrão brasileiro.
+- No YouTube integrado à Shopee, o produto deve estar visível ou mencionado e relacionado de forma autêntica ao conteúdo.
+
+Fontes: [adicionar produtos na Shopee Video](https://help.shopee.com.br/portal/10/article/165032), [diretrizes da comunidade](https://help.shopee.com.br/portal/10/article/165433-Diretrizes-da-comunidade-Shopee-Video), [identificação de publicidade](https://help.shopee.com.br/portal/10/article/196794) e [marcação no YouTube](https://help.shopee.com.br/portal/10/article/189593).
+
+O comando `python app.py commerce-check produto.json` agora valida um briefing e bloqueia produto incorreto, ausência de divulgação, alegações sem fonte e mídia sem direitos. Pinterest permanece exclusivamente como pesquisa de tendência.
+
+## Itens ainda dependentes da conta
+
 - acesso a catálogo/API ou exportação oficial;
-- regras de divulgação de publicidade e comissão;
 - permissão específica para reutilizar mídia de cada vendedor;
 - canais e APIs de publicação aceitos.
 

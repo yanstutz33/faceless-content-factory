@@ -87,6 +87,17 @@ class Store:
             for column, definition in additions.items():
                 if column not in existing:
                     db.execute(f"ALTER TABLE jobs ADD COLUMN {column} {definition}")
+            metrics_existing = {row[1] for row in db.execute("PRAGMA table_info(metrics)")}
+            for column, definition in {
+                "impressions": "INTEGER NOT NULL DEFAULT 0",
+                "clicks": "INTEGER NOT NULL DEFAULT 0",
+                "average_view_seconds": "REAL NOT NULL DEFAULT 0",
+                "thumbnail_variant": "TEXT NOT NULL DEFAULT 'a'",
+                "conversions": "INTEGER NOT NULL DEFAULT 0",
+                "revenue": "REAL NOT NULL DEFAULT 0",
+            }.items():
+                if column not in metrics_existing:
+                    db.execute(f"ALTER TABLE metrics ADD COLUMN {column} {definition}")
             calendar_existing = {row[1] for row in db.execute("PRAGMA table_info(calendar)")}
             for column, definition in {
                 "error": "TEXT",
@@ -210,15 +221,24 @@ class Store:
             item["metrics"] = [dict(x) for x in db.execute("SELECT * FROM metrics WHERE job_id=? ORDER BY id DESC", (job_id,))]
             return item
 
-    def add_metrics(self, job_id: str, platform: str, views: int, likes: int, watch_minutes: float) -> None:
+    def add_metrics(self, job_id: str, platform: str, views: int, likes: int, watch_minutes: float,
+                    impressions: int = 0, clicks: int = 0, average_view_seconds: float = 0,
+                    thumbnail_variant: str = "a", conversions: int = 0, revenue: float = 0) -> None:
         if not self.get_job(job_id):
             raise ValueError("Produção não encontrada")
         platform = platform.strip().lower()
         if platform not in {"youtube", "shorts", "tiktok", "reels", "shopee"}:
             raise ValueError("Plataforma de métricas inválida")
+        thumbnail_variant = thumbnail_variant.lower()
+        if thumbnail_variant not in {"a", "b"}:
+            raise ValueError("Variante de thumbnail inválida")
         with self.connect() as db:
-            db.execute("INSERT INTO metrics(job_id,platform,views,likes,watch_minutes,recorded_at) VALUES(?,?,?,?,?,?)",
-                       (job_id, platform, max(0, views), max(0, likes), max(0, watch_minutes), now()))
+            db.execute("""INSERT INTO metrics(job_id,platform,views,likes,watch_minutes,impressions,clicks,
+                       average_view_seconds,thumbnail_variant,conversions,revenue,recorded_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       (job_id, platform, max(0, views), max(0, likes), max(0, watch_minutes),
+                        max(0, impressions), max(0, clicks), max(0, average_view_seconds), thumbnail_variant,
+                        max(0, conversions), max(0, revenue), now()))
         self.event(job_id, "metrics", f"Métricas de {platform} registradas")
 
     def summary(self) -> dict[str, Any]:
@@ -250,8 +270,12 @@ class Store:
                     SELECT MAX(id) AS id FROM metrics GROUP BY job_id, platform
                 )
                 SELECT j.id, j.topic, j.profile, m.platform, m.views, m.likes, m.watch_minutes,
+                       m.impressions, m.clicks, m.average_view_seconds, m.thumbnail_variant,
+                       m.conversions, m.revenue,
                        CASE WHEN m.views > 0 THEN ROUND(100.0 * m.likes / m.views, 2) ELSE 0 END AS engagement_rate,
-                       CASE WHEN m.views > 0 THEN ROUND(m.watch_minutes / m.views, 2) ELSE 0 END AS watch_minutes_per_view
+                       CASE WHEN m.views > 0 THEN ROUND(m.watch_minutes / m.views, 2) ELSE 0 END AS watch_minutes_per_view,
+                       CASE WHEN m.impressions > 0 THEN ROUND(100.0 * m.clicks / m.impressions, 2) ELSE 0 END AS ctr,
+                       CASE WHEN j.duration > 0 THEN ROUND(100.0 * m.average_view_seconds / j.duration, 2) ELSE 0 END AS retention_rate
                 FROM metrics m
                 JOIN latest l ON l.id=m.id
                 JOIN jobs j ON j.id=m.job_id
@@ -259,6 +283,24 @@ class Store:
                 LIMIT 10
             """).fetchall()
             return [dict(row) for row in rows]
+
+    def thumbnail_insights(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("""
+                WITH latest AS (SELECT MAX(id) AS id FROM metrics GROUP BY job_id, platform),
+                scored AS (
+                    SELECT COALESCE(c.series_id,'sem-serie') AS series_id, m.thumbnail_variant,
+                           SUM(m.impressions) AS impressions, SUM(m.clicks) AS clicks
+                    FROM metrics m JOIN latest l ON l.id=m.id JOIN jobs j ON j.id=m.job_id
+                    LEFT JOIN calendar c ON c.job_id=j.id
+                    WHERE m.impressions > 0
+                    GROUP BY COALESCE(c.series_id,'sem-serie'),m.thumbnail_variant
+                )
+                SELECT series_id,thumbnail_variant,impressions,clicks,
+                       ROUND(100.0*clicks/impressions,2) AS ctr
+                FROM scored ORDER BY series_id,ctr DESC,impressions DESC
+            """).fetchall()
+        return [dict(row) for row in rows]
 
     def add_calendar_item(self, topic: str, series_id: str | None, profile: str, duration: int,
                           scheduled_for: str, origin: str = "manual") -> int:

@@ -5,6 +5,8 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from .llm import OpenAIPlanEnhancer
+
 
 @dataclass(frozen=True)
 class AgentSpec:
@@ -39,6 +41,9 @@ def slug(text: str) -> str:
 
 class ContentCrew:
     """Deterministic local agents. Each output can later be replaced by an API provider."""
+
+    def __init__(self, enhancer: OpenAIPlanEnhancer | None = None):
+        self.enhancer = enhancer or OpenAIPlanEnhancer()
 
     def catalog(self) -> list[dict[str, str]]:
         return [asdict(agent) for agent in AGENTS]
@@ -97,7 +102,7 @@ class ContentCrew:
         visual = {
             "mood": mood,
             "palette": palette,
-            "motion": "loop ambiente de 12 s com respiração de câmera, deslocamento suave e luz pulsante",
+            "motion": "câmera fixa; movimento localizado em fumaça, chuva ou pontos de luz",
             "sound": sound_direction,
             "sound_profile": sound_profile,
             "asset_brief": f"Cena original de {topic_lower}, sem marcas, sem personagens identificáveis, composição cinematográfica",
@@ -134,7 +139,7 @@ class ContentCrew:
             "warnings": warnings,
             "next_action": "Renderizar, assistir aos 30s iniciais e revisar o pacote antes de aprovar.",
         }
-        return {
+        plan = {
             "research": research,
             "strategy": strategy,
             "script": script,
@@ -144,3 +149,4 @@ class ContentCrew:
             "review": review,
             "production": {"profile": profile_id, "format": profile["label"], "resolution": f"{profile['width']}x{profile['height']}", "fps": profile["fps"], "duration_seconds": duration},
         }
+        return self.enhancer.enhance(topic, duration, profile_id, plan)

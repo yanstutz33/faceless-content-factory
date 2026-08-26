@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from factory.config import Settings
+from factory.commerce import validate_commerce_brief
 from factory.pipeline import Pipeline
 from factory.store import Store
 from factory.web import serve
@@ -33,8 +34,18 @@ def main() -> None:
     metrics.add_argument("--views", type=int, default=0)
     metrics.add_argument("--likes", type=int, default=0)
     metrics.add_argument("--watch-minutes", type=float, default=0)
+    metrics.add_argument("--impressions", type=int, default=0)
+    metrics.add_argument("--clicks", type=int, default=0)
+    metrics.add_argument("--average-view-seconds", type=float, default=0)
+    metrics.add_argument("--thumbnail-variant", choices=["a", "b"], default="a")
+    metrics.add_argument("--conversions", type=int, default=0)
+    metrics.add_argument("--revenue", type=float, default=0)
     sub.add_parser("serve", help="Open the local operations dashboard")
+    youtube = sub.add_parser("youtube-package", help="Prepare a private YouTube upload package without uploading")
+    youtube.add_argument("job_id")
     sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
+    commerce = sub.add_parser("commerce-check", help="Validate one affiliate product brief without publishing")
+    commerce.add_argument("product_json", type=Path)
     args = parser.parse_args()
 
     settings = Settings.load(ROOT)
@@ -50,15 +61,24 @@ def main() -> None:
         pipeline.approve(args.job_id)
         print(f"Aprovado: {args.job_id}")
     elif args.command == "metrics":
-        store.add_metrics(args.job_id, args.platform, args.views, args.likes, args.watch_minutes)
+        store.add_metrics(args.job_id, args.platform, args.views, args.likes, args.watch_minutes,
+                          args.impressions, args.clicks, args.average_view_seconds,
+                          args.thumbnail_variant, args.conversions, args.revenue)
         print(f"Métricas registradas: {args.job_id}")
     elif args.command == "serve":
         serve(pipeline, store, settings.host, settings.port, ROOT / "web")
+    elif args.command == "youtube-package":
+        print(json.dumps(pipeline.prepare_youtube_package(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "doctor":
         report = pipeline.diagnostics()
         print(json.dumps(report, ensure_ascii=False, indent=2))
         if not report["ok"]:
             sys.exit(1)
+    elif args.command == "commerce-check":
+        result = validate_commerce_brief(json.loads(args.product_json.read_text(encoding="utf-8")))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result["passed"]:
+            sys.exit(2)
 
 
 if __name__ == "__main__":
