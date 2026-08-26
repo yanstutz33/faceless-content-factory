@@ -215,6 +215,13 @@ class CoreTests(unittest.TestCase):
             job_id = pipeline.create("Vertical rain", 9999, profile="vertical_short")
             self.assertEqual(store.get_job(job_id)["duration"], PROFILES["vertical_short"]["max_duration"])
 
+    def test_starter_scene_selection_is_topic_aware(self):
+        self.assertEqual(Pipeline.select_starter_scene("Trem noturno sob chuva", "rain"), "lofi-night-train.jpg")
+        self.assertEqual(Pipeline.select_starter_scene("Cabana junto ao lago", "cozy"), "lofi-lakeside-cabin.jpg")
+        self.assertEqual(Pipeline.select_starter_scene("Observatório lunar", "cosmic"), "lofi-lunar-observatory.jpg")
+        generic = {Pipeline.select_starter_scene(f"Foco silencioso {index}", "focus") for index in range(12)}
+        self.assertGreaterEqual(len(generic), 3)
+
     def test_vertical_package_requires_approval(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -265,6 +272,9 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["metadata"]["motion"]["style"], "localized_atmospheric_loop")
             self.assertEqual(job["metadata"]["motion"]["cycle_seconds"], 12)
             self.assertEqual(job["metadata"]["motion"]["camera_motion"], "none")
+            self.assertTrue(job["metadata"]["creative_fingerprint"]["scene"])
+            self.assertIn(job["metadata"]["creative_fingerprint"]["music_arrangement"],
+                          {"dusty_keys", "felt_piano", "warm_tape_synth"})
             self.assertTrue((Path(job["output_dir"]) / "motion-overlay.mp4").exists())
             assets = json.loads((Path(job["output_dir"]) / "asset-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(assets[0]["license_type"], "original_ai_generated")

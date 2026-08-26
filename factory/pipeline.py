@@ -23,6 +23,14 @@ from .llm import OpenAIPlanEnhancer
 from .store import Store
 
 
+STARTER_SCENES = {
+    "rain": ("lofi-rainy-cafe.jpg", "lofi-night-train.jpg", "lofi-record-store.jpg"),
+    "cozy": ("lofi-cozy-study.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg"),
+    "cosmic": ("lofi-cosmic-lounge.jpg", "lofi-lunar-observatory.jpg"),
+    "focus": ("lofi-cozy-study.jpg", "lofi-night-train.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg"),
+}
+
+
 def safe_slug(text: str) -> str:
     normalized = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")[:42] or "ambient"
@@ -60,7 +68,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "0.9",
+            "studio_version": "1.0",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -265,7 +273,7 @@ class Pipeline:
 
     def create_lofi_loop(self, output: Path, sound_profile: str, seed_text: str = "") -> dict[str, Any]:
         """Create a deterministic original music loop without copyrighted source audio."""
-        sample_rate, loop_seconds = 22_050, 12
+        sample_rate, loop_seconds = 22_050, 16
         seed = int(hashlib.sha256(f"{sound_profile}:{seed_text}".encode()).hexdigest()[:8], 16)
         rng = random.Random(seed)
         progressions = {
@@ -274,7 +282,15 @@ class Pipeline:
             "cosmic": ((50, 53, 57, 60), (46, 50, 53, 57), (53, 57, 60, 64), (48, 52, 55, 59)),
             "focus": ((52, 55, 59, 62), (48, 52, 55, 59), (43, 47, 50, 52), (50, 52, 57, 62)),
         }
-        chords = progressions.get(sound_profile, progressions["focus"])
+        base_chords = progressions.get(sound_profile, progressions["focus"])
+        progression_variant = (seed >> 3) % len(base_chords)
+        chords = tuple(base_chords[(index + progression_variant) % len(base_chords)] for index in range(len(base_chords)))
+        arrangements = (
+            {"name": "dusty_keys", "pad": 0.055, "harmonic": 0.009, "pluck": 0.085, "decay": 4.8, "snare": 0.075},
+            {"name": "felt_piano", "pad": 0.047, "harmonic": 0.015, "pluck": 0.105, "decay": 6.2, "snare": 0.052},
+            {"name": "warm_tape_synth", "pad": 0.064, "harmonic": 0.005, "pluck": 0.065, "decay": 3.7, "snare": 0.063},
+        )
+        arrangement = arrangements[(seed >> 7) % len(arrangements)]
         transpose = (-2, 0, 2)[seed % 3]
         bpm = 70 + seed % 13
         beat = 60.0 / bpm
@@ -293,22 +309,22 @@ class Pipeline:
             for tone_index, midi in enumerate(chord):
                 frequency = self._midi_frequency(midi + transpose)
                 wobble = 1.0 + 0.0025 * math.sin(math.tau * 0.18 * t + tone_index)
-                music += math.sin(math.tau * frequency * wobble * t + phase_offsets[tone_index]) * 0.055
-                music += math.sin(math.tau * frequency * 2 * t) * 0.009
+                music += math.sin(math.tau * frequency * wobble * t + phase_offsets[tone_index]) * arrangement["pad"]
+                music += math.sin(math.tau * frequency * 2 * t) * arrangement["harmonic"]
             music *= pad_envelope
 
             beat_index = int(t / beat)
             beat_time = t % beat
             melody_note = chord[(beat_index + seed) % len(chord)] + 12
             pluck = math.sin(math.tau * self._midi_frequency(melody_note + transpose) * beat_time)
-            music += pluck * math.exp(-beat_time * 4.8) * 0.085
+            music += pluck * math.exp(-beat_time * arrangement["decay"]) * arrangement["pluck"]
             if beat_index % 4 in {0, 2}:
                 music += math.sin(math.tau * (52 + 38 * math.exp(-beat_time * 16)) * beat_time) * math.exp(-beat_time * 12) * 0.20
 
             noise_state = (1_664_525 * noise_state + 1_013_904_223) & 0xFFFFFFFF
             noise = (noise_state / 0xFFFFFFFF) * 2 - 1
             if beat_index % 4 in {1, 3}:
-                music += noise * math.exp(-beat_time * 18) * 0.075
+                music += noise * math.exp(-beat_time * 18) * arrangement["snare"]
             half_beat_time = t % (beat / 2)
             music += noise * math.exp(-half_beat_time * 42) * 0.012
             music += noise * 0.0035
@@ -320,7 +336,8 @@ class Pipeline:
             wav.setsampwidth(2)
             wav.setframerate(sample_rate)
             wav.writeframes(samples.tobytes())
-        return {"style": "original_lofi_chill", "bpm": bpm, "loop_seconds": loop_seconds, "seed": seed}
+        return {"style": "original_lofi_chill", "bpm": bpm, "loop_seconds": loop_seconds, "seed": seed,
+                "arrangement": arrangement["name"], "progression_variant": progression_variant}
 
     def create_ambient_audio(self, output: Path, duration: int, sound_profile: str, seed_text: str = "") -> dict[str, Any]:
         loop = output.with_name("lofi-original-loop.wav")
@@ -369,12 +386,12 @@ class Pipeline:
         }
         return vf, recipe
 
-    def create_motion_overlay(self, output: Path, sound_profile: str, fps: int) -> None:
+    def create_motion_overlay(self, output: Path, sound_profile: str, fps: int, seed_text: str = "") -> None:
         """Render a small seamless effects plate; black pixels disappear with screen blending."""
         width, height, seconds = 320, 180, 12
-        seed = int(hashlib.sha256(sound_profile.encode()).hexdigest()[:8], 16)
+        seed = int(hashlib.sha256(f"{sound_profile}:{seed_text}".encode()).hexdigest()[:8], 16)
         rng = random.Random(seed)
-        raindrops = [(rng.randrange(width), rng.randrange(height), rng.randrange(2, 6), rng.randrange(6, 15)) for _ in range(70)]
+        raindrops = [(rng.randrange(int(width * 0.66)), rng.randrange(height), rng.randrange(2, 6), rng.randrange(6, 15)) for _ in range(70)]
         stars = [(rng.randrange(8, width - 8), rng.randrange(6, int(height * 0.68)), rng.random() * math.tau) for _ in range(54)]
 
         command = [self.settings.ffmpeg, "-y", "-f", "rawvideo", "-pixel_format", "gray",
@@ -505,8 +522,7 @@ class Pipeline:
             self.store.event(job["id"], "assets", f"{len(backgrounds)} asset(s) licenciado(s) enquadrado(s)")
         else:
             background = out / "background.jpg"
-            starter_name = {"rain": "lofi-rainy-cafe.jpg", "cosmic": "lofi-cosmic-lounge.jpg",
-                            "cozy": "lofi-cozy-study.jpg", "focus": "lofi-cozy-study.jpg"}.get(sound_profile, "lofi-cozy-study.jpg")
+            starter_name = self.select_starter_scene(job["topic"], sound_profile)
             starter = self.settings.root / "assets" / "starter" / starter_name
             if starter.is_file():
                 self.command([self.settings.ffmpeg, "-y", "-i", str(starter), "-vf",
@@ -523,6 +539,22 @@ class Pipeline:
             backgrounds.append(background)
             self.store.event(job["id"], "assets", f"Cena visual original '{starter_name}' aplicada automaticamente")
         return backgrounds
+
+    @staticmethod
+    def select_starter_scene(topic: str, sound_profile: str) -> str:
+        normalized = safe_slug(topic)
+        keyword_scenes = (
+            (("trem", "train", "vagao"), "lofi-night-train.jpg"),
+            (("lago", "cabana", "lake"), "lofi-lakeside-cabin.jpg"),
+            (("disco", "vinil", "record", "loja"), "lofi-record-store.jpg"),
+            (("lua", "lunar", "observatorio"), "lofi-lunar-observatory.jpg"),
+        )
+        for keywords, scene in keyword_scenes:
+            if any(keyword in normalized for keyword in keywords):
+                return scene
+        candidates = STARTER_SCENES.get(sound_profile, STARTER_SCENES["focus"])
+        index = int(hashlib.sha256(f"{sound_profile}:{normalized}".encode()).hexdigest()[:8], 16) % len(candidates)
+        return candidates[index]
 
     def run(self, job_id: str) -> dict[str, Any]:
         job = self.store.get_job(job_id)
@@ -582,7 +614,19 @@ class Pipeline:
             width, height, fps = profile["width"], profile["height"], profile["fps"]
             vf, motion = self.visual_motion(sound_profile, width, height, fps)
             motion_overlay = out / "motion-overlay.mp4"
-            self.create_motion_overlay(motion_overlay, sound_profile, fps)
+            self.create_motion_overlay(motion_overlay, sound_profile, fps, job["topic"])
+            scene_identity = backgrounds[0].name
+            asset_manifest_path = out / "asset-manifest.json"
+            if asset_manifest_path.is_file():
+                asset_manifest = json.loads(asset_manifest_path.read_text(encoding="utf-8"))
+                if asset_manifest:
+                    scene_identity = str(asset_manifest[0].get("name") or scene_identity)
+            metadata["creative_fingerprint"] = {
+                "scene": scene_identity,
+                "music_arrangement": music.get("arrangement"),
+                "music_seed": music.get("seed"),
+                "motion_seed": hashlib.sha256(f"{sound_profile}:{job['topic']}".encode()).hexdigest()[:12],
+            }
             metadata["motion"] = motion
             self.store.event(job_id, "motion", f"Loop visual de {motion['cycle_seconds']} s aplicado: {motion['atmosphere']}")
             blend = (f"[0:v]{vf}[base];[1:v]scale={width}:{height},format=gbrp[fx];"

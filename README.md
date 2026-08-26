@@ -1,11 +1,11 @@
-# Faceless Content Factory — Studio MVP 0.9
+# Faceless Content Factory — Studio MVP 1.0
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
 ## O que já funciona
 
 - Tema digitado, sugerido pelos agentes ou recebido pela linha de comando
-- Sete agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade e crítica
+- Oito agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade, crítica e reaproveitamento
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
 - Três cenas-mestre lo-fi originais incluídas: café chuvoso, estúdio acolhedor e lounge cósmico
 - Seleção automática da cena conforme o tema quando nenhum asset próprio é informado
@@ -158,6 +158,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 
 ## Estado do roadmap
 
+0. **Variedade criativa:** sete cenas-mestre originais, seleção por tema, três arranjos musicais, progressões rotativas e partículas variadas pela seed editorial. Cada pacote registra sua impressão digital criativa.
 0. **Quality gate automático:** cada render é amostrado e bloqueado antes da aprovação se houver tela preta, ausência de movimento, câmera não fixa, áudio inaudível/clipping, duração ou decodificação inválida.
 0. **Reaproveitamento vertical:** produções aprovadas agora geram um recorte 9:16 validado e pacotes manuais para Shorts, Reels e TikTok, sem upload automático.
 
