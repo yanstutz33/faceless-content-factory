@@ -1,0 +1,6 @@
+.quality-checks{display:flex!important;flex-wrap:wrap;gap:7px 14px;margin-top:8px;color:#b8c7d9!important}
+.quality-checks span{white-space:nowrap}
+.verification.warning{border-color:#d88959;background:rgba(216,137,89,.08)}
+.verification.warning>span{color:#ffb27d}
+@media(max-width:700px){.quality-checks{display:grid!important;grid-template-columns:1fr}}
+

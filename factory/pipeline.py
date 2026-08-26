@@ -60,7 +60,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "0.8",
+            "studio_version": "0.9",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -164,6 +164,58 @@ class Pipeline:
             "size_bytes": video.stat().st_size,
             "video": {"codec": video_match.group(1), "width": int(video_match.group(2)), "height": int(video_match.group(3)), "pixel_format": None},
             "audio": {"codec": audio_match.group(1), "sample_rate": audio_match.group(2), "channels": channels},
+        }
+
+    def quality_gate(self, video: Path, expected_duration: int, metadata: dict[str, Any],
+                     technical_report: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Fast, deterministic checks that keep broken renders out of the approval queue."""
+        technical_report = technical_report or self.inspect_video(video, expected_duration)
+        duration = max(1.0, float(technical_report.get("duration_seconds") or expected_duration))
+        sample_times = sorted({0.5, max(0.5, duration / 2), max(0.5, duration - 0.5)})
+        frames: list[bytes] = []
+        for moment in sample_times:
+            proc = subprocess.run([
+                self.settings.ffmpeg, "-v", "error", "-ss", f"{moment:.3f}", "-i", str(video),
+                "-vf", "scale=160:90", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-",
+            ], capture_output=True)
+            if proc.returncode == 0 and len(proc.stdout) == 160 * 90:
+                frames.append(proc.stdout)
+        brightness = round(sum(sum(frame) / len(frame) for frame in frames) / max(1, len(frames)), 2)
+        changed_ratios = []
+        for first, second in zip(frames, frames[1:]):
+            changed_ratios.append(sum(abs(a - b) >= 2 for a, b in zip(first, second)) / len(first))
+        motion_ratio = round(max(changed_ratios, default=0), 5)
+
+        volume = subprocess.run([
+            self.settings.ffmpeg, "-hide_banner", "-t", str(min(30, expected_duration)), "-i", str(video),
+            "-vn", "-af", "volumedetect", "-f", "null", "-",
+        ], text=True, capture_output=True)
+        volume_text = volume.stderr or volume.stdout
+        mean_match = re.search(r"mean_volume:\s*(-?[\d.]+) dB", volume_text)
+        max_match = re.search(r"max_volume:\s*(-?[\d.]+) dB", volume_text)
+        mean_db = float(mean_match.group(1)) if mean_match else None
+        max_db = float(max_match.group(1)) if max_match else None
+        camera_motion = metadata.get("motion", {}).get("camera_motion")
+        checks = [
+            {"id": "container", "label": "Vídeo, áudio e duração", "passed": bool(technical_report.get("passed"))},
+            {"id": "frames", "label": "Amostras visuais decodificadas", "passed": len(frames) >= 2,
+             "value": f"{len(frames)}/{len(sample_times)}"},
+            {"id": "brightness", "label": "Imagem sem tela preta ou estourada", "passed": 4 <= brightness <= 245,
+             "value": brightness},
+            {"id": "motion", "label": "Movimento visual presente", "passed": motion_ratio >= 0.001,
+             "value": motion_ratio},
+            {"id": "camera", "label": "Câmera fixa", "passed": camera_motion == "none", "value": camera_motion},
+            {"id": "audio", "label": "Áudio audível sem clipping", "passed": mean_db is not None and max_db is not None and
+             -38 <= mean_db <= -10 and -30 <= max_db <= -0.5, "value": {"mean_db": mean_db, "max_db": max_db}},
+        ]
+        failed = [check for check in checks if not check["passed"]]
+        return {
+            "passed": not failed,
+            "score": round(100 * (len(checks) - len(failed)) / len(checks)),
+            "checks": checks,
+            "failed_check_ids": [check["id"] for check in failed],
+            "sample_times": sample_times,
+            "policy": "ambient_fixed_camera_v1",
         }
 
     @staticmethod
@@ -578,12 +630,19 @@ class Pipeline:
             media_report = self.inspect_video(video, job["duration"])
             (out / "render-report.json").write_text(json.dumps(media_report, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.event(job_id, "verification", f"Vídeo, áudio e duração validados com {media_report['validation_engine']}")
+            gate = self.quality_gate(video, job["duration"], metadata, media_report)
+            (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
+            if not gate["passed"]:
+                failed_labels = [check["label"] for check in gate["checks"] if not check["passed"]]
+                raise RuntimeError("Controle de qualidade bloqueou o pacote: " + ", ".join(failed_labels))
+            metadata["quality_gate"] = gate
+            self.store.event(job_id, "quality_gate", f"Controle automático aprovado: {gate['score']}/100")
 
             self.store.update(job_id, "reviewing", metadata=metadata, progress=88)
             checklist = {
                 "mode": "manual-safe", "ready_for_review": True, "platform_upload_performed": False,
                 "quality_score": plan["review"]["score"], "compliance": plan["compliance"],
-                "media_validation": media_report,
+                "media_validation": media_report, "quality_gate": gate,
                 "narration_requested": job["narration"],
                 "narration_status": metadata.get("narration_status", "not_requested"),
                 "steps": ["Assista aos 30 segundos iniciais", "Confira thumbnail, título e direitos", "Aprove no painel", "Envie manualmente ao YouTube Studio"],
@@ -591,7 +650,7 @@ class Pipeline:
             (out / "publication-package.json").write_text(json.dumps(checklist, ensure_ascii=False, indent=2), encoding="utf-8")
             metadata["files"] = {"video": "video.mp4", "thumbnail": "thumbnail.jpg", "subtitles": "subtitles.srt" if job["subtitles"] else None,
                                  "agents": "agents.json", "publication": "publication-package.json",
-                                 "render_report": "render-report.json", "manifest": "artifact-manifest.json",
+                                 "render_report": "render-report.json", "quality_gate": "quality-gate.json", "manifest": "artifact-manifest.json",
                                  "motion_overlay": "motion-overlay.mp4"}
             metadata["thumbnail_variants"] = thumbnail_design["variants"]
             metadata["selected_thumbnail"] = "a"
@@ -599,7 +658,7 @@ class Pipeline:
             metadata["quality"] = plan["review"]
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-            manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
+            manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json", "quality-gate.json"])
             (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.update(job_id, "awaiting_approval", metadata=metadata, progress=100,
                               quality_score=plan["review"]["score"])
@@ -614,8 +673,40 @@ class Pipeline:
         job = self.store.get_job(job_id)
         if not job or job["status"] not in {"awaiting_approval", "approved"}:
             raise ValueError("A produção ainda não está pronta para aprovação")
+        if not job.get("metadata", {}).get("quality_gate", {}).get("passed"):
+            raise ValueError("Execute e aprove o controle de qualidade antes da aprovação")
         self.store.update(job_id, "approved", job["metadata"], progress=100, quality_score=job.get("quality_score"))
         self.store.event(job_id, "approved", "Aprovado para publicação manual")
+
+    def audit_job(self, job_id: str) -> dict[str, Any]:
+        job = self.store.get_job(job_id)
+        if not job or job["status"] not in {"awaiting_approval", "approved", "rejected"}:
+            raise ValueError("A produção precisa estar renderizada antes da auditoria")
+        out = Path(job["output_dir"])
+        metadata = dict(job.get("metadata") or {})
+        technical = self.inspect_video(out / "video.mp4", job["duration"])
+        gate = self.quality_gate(out / "video.mp4", job["duration"], metadata, technical)
+        metadata["verification"] = technical
+        metadata["quality_gate"] = gate
+        metadata.setdefault("files", {})["quality_gate"] = "quality-gate.json"
+        (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
+        (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        manifest = self.artifact_manifest(out, [
+            "video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg",
+            "subtitles.srt", "metadata.json", "render-report.json", "quality-gate.json",
+            "publication-package.json", "youtube-upload.json", "vertical-short.mp4", "vertical-package.json",
+        ])
+        (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        if gate["passed"]:
+            status = "approved" if job["status"] == "approved" else "awaiting_approval"
+            self.store.update(job_id, status, metadata, progress=100, quality_score=job.get("quality_score"))
+            self.store.event(job_id, "quality_gate", f"Auditoria automática aprovada: {gate['score']}/100")
+        else:
+            labels = [check["label"] for check in gate["checks"] if not check["passed"]]
+            reason = "Controle de qualidade: " + ", ".join(labels)
+            self.store.update(job_id, "rejected", metadata, error=reason, progress=100, quality_score=job.get("quality_score"))
+            self.store.event(job_id, "quality_gate", reason)
+        return gate
 
     def prepare_youtube_package(self, job_id: str) -> dict[str, Any]:
         job = self.store.get_job(job_id)
@@ -624,6 +715,8 @@ class Pipeline:
         metadata = job.get("metadata") or {}
         if not metadata.get("verification", {}).get("passed"):
             raise ValueError("O arquivo ainda não passou pela validação técnica")
+        if not metadata.get("quality_gate", {}).get("passed"):
+            raise ValueError("O arquivo ainda não passou pelo controle de qualidade v0.9")
         out = Path(job["output_dir"])
         payload = {
             "mode": "prepared_not_uploaded",
@@ -655,6 +748,8 @@ class Pipeline:
         job = self.store.get_job(job_id)
         if not job or job["status"] != "approved":
             raise ValueError("A produção precisa estar aprovada antes de criar recortes verticais")
+        if not job.get("metadata", {}).get("quality_gate", {}).get("passed"):
+            raise ValueError("O arquivo ainda não passou pelo controle de qualidade v0.9")
         out = Path(job["output_dir"])
         source = out / "video.mp4"
         if not source.is_file():

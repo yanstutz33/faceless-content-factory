@@ -197,7 +197,8 @@ class CoreTests(unittest.TestCase):
             output = Path(job["output_dir"])
             (output / "video.mp4").write_bytes(b"video")
             metadata = {"title": "Private", "description": "Review first", "tags": ["lofi"],
-                        "verification": {"passed": True}, "files": {"subtitles": None}}
+                        "verification": {"passed": True}, "quality_gate": {"passed": True},
+                        "files": {"subtitles": None}}
             store.update(job_id, "awaiting_approval", metadata, progress=100)
             pipeline.approve(job_id)
             package = pipeline.prepare_youtube_package(job_id)
@@ -222,6 +223,25 @@ class CoreTests(unittest.TestCase):
             job_id = pipeline.create("Vertical gate", 5, profile="preview")
             with self.assertRaisesRegex(ValueError, "aprovada"):
                 pipeline.prepare_vertical_package(job_id, 30)
+
+    @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
+    def test_quality_gate_rejects_black_silent_video(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            video = root / "bad.mp4"
+            pipeline.command([
+                str(FFMPEG), "-y", "-f", "lavfi", "-i", "color=black:s=320x180:r=24",
+                "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "5",
+                "-c:v", "libx264", "-c:a", "aac", str(video),
+            ])
+            technical = pipeline.inspect_video(video, 5)
+            gate = pipeline.quality_gate(video, 5, {"motion": {"camera_motion": "none"}}, technical)
+            self.assertFalse(gate["passed"])
+            self.assertIn("brightness", gate["failed_check_ids"])
+            self.assertIn("motion", gate["failed_check_ids"])
+            self.assertIn("audio", gate["failed_check_ids"])
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_preview_render_end_to_end(self):
@@ -253,7 +273,11 @@ class CoreTests(unittest.TestCase):
             self.assertTrue(report["passed"])
             self.assertTrue(report["video"]["codec"])
             self.assertTrue(report["audio"]["codec"])
+            self.assertTrue(job["metadata"]["quality_gate"]["passed"])
+            self.assertEqual(job["metadata"]["quality_gate"]["score"], 100)
+            self.assertTrue((Path(job["output_dir"]) / "quality-gate.json").is_file())
             self.assertIn("video.mp4", {item["name"] for item in manifest["files"]})
+            self.assertIn("quality-gate.json", {item["name"] for item in manifest["files"]})
             pipeline.select_thumbnail(job_id, "b")
             selected = store.get_job(job_id)
             self.assertEqual(selected["thumbnail_variant"], "b")
