@@ -1,6 +1,21 @@
-const assetApi=async(url,options={})=>{const response=await fetch(url,{headers:{'Content-Type':'application/json'},...options});const data=await response.json();if(!response.ok)throw new Error(data.error||'Não foi possível concluir');return data};
-const assetEsc=value=>{const node=document.createElement('div');node.textContent=value??'';return node.innerHTML};
-async function loadAssets(){try{const assets=await assetApi('/api/assets');const root=document.querySelector('#asset-grid');root.innerHTML=assets.length?assets.map(asset=>`<article class="asset-card"><div class="asset-preview">▧</div><div class="asset-body"><h3>${assetEsc(asset.name)}</h3><p>${assetEsc(asset.path)}</p><span class="asset-license">✓ ${assetEsc(asset.license_type)}</span></div></article>`).join(''):'<div class="asset-empty">Nenhum asset registrado. Comece com material original ou uma licença comercial verificável.</div>';const select=document.querySelector('#production-assets');select.innerHTML=assets.filter(asset=>asset.approved).map(asset=>`<option value="${asset.id}">${assetEsc(asset.name)} · ${assetEsc(asset.license_type)}</option>`).join('')}catch(error){toast(error.message)}}
-document.querySelector('#new-asset').onclick=()=>document.querySelector('#asset-dialog').showModal();
-document.querySelector('#asset-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;const data=new FormData(form);try{await assetApi('/api/assets',{method:'POST',body:JSON.stringify({name:data.get('name'),path:data.get('path'),license_type:data.get('license_type'),source_url:data.get('source_url'),notes:data.get('notes'),rights_confirmed:!!data.get('rights_confirmed')})});document.querySelector('#asset-dialog').close();form.reset();toast('Asset aprovado e registrado.');loadAssets()}catch(error){toast(error.message)}});
-loadAssets();
+registerJobDetailExtension(async({id,job,dialog,actions})=>{
+  const variants=job.metadata?.thumbnail_variants||[];
+  if(!variants.length)return;
+  const selected=job.metadata?.selected_thumbnail||job.thumbnail_variant||'a';
+  const section=document.createElement('section');
+  section.className='thumbnail-test';
+  section.innerHTML=`<div><h4>TESTE A/B · CAPA DO VÍDEO</h4><small>Escolha a capa que acompanha o pacote final.</small></div><div class="thumbnail-choices">${variants.map(item=>`<button class="thumbnail-choice ${selected===item.id?'selected':''}" data-thumbnail-variant="${esc(item.id)}"><img src="/api/jobs/${encodeURIComponent(id)}/artifacts/${esc(item.file)}" alt="Variação ${esc(item.id.toUpperCase())}"><span>Variação ${esc(item.id.toUpperCase())}</span></button>`).join('')}</div>`;
+  actions?.before(section);
+  section.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-thumbnail-variant]');
+    if(!button)return;
+    button.disabled=true;
+    try{
+      await api(`/api/jobs/${encodeURIComponent(id)}/thumbnail`,{method:'POST',body:JSON.stringify({variant:button.dataset.thumbnailVariant})});
+      section.querySelectorAll('.thumbnail-choice').forEach(choice=>choice.classList.toggle('selected',choice===button));
+      const poster=dialog.querySelector('video');
+      if(poster)poster.poster=`/api/jobs/${encodeURIComponent(id)}/artifacts/thumbnail.jpg?t=${Date.now()}`;
+      toast(`Variação ${button.dataset.thumbnailVariant.toUpperCase()} selecionada.`);
+    }catch(error){toast(error.message,'error')}finally{button.disabled=false}
+  });
+});

@@ -34,6 +34,9 @@ class Settings:
     openai_api_key: str = ""
     openai_model: str = "gpt-5.4"
     youtube_client_secrets_file: str = ""
+    tiktok_client_key: str = ""
+    meta_app_id: str = ""
+    shopee_partner_id: str = ""
     local_tts_fallback: bool = True
 
     @classmethod
@@ -63,5 +66,8 @@ class Settings:
             openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
             youtube_client_secrets_file=os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", ""),
+            tiktok_client_key=os.getenv("TIKTOK_CLIENT_KEY", ""),
+            meta_app_id=os.getenv("META_APP_ID", ""),
+            shopee_partner_id=os.getenv("SHOPEE_PARTNER_ID", ""),
             local_tts_fallback=os.getenv("LOCAL_TTS_FALLBACK", "true").lower() == "true",
         )

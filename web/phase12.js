@@ -23,7 +23,7 @@ async function loadPublishing(){
       const checks=(item.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
       const packages=`<span class="package-pill ${item.packages.youtube_private?'done':''}">YouTube privado</span><span class="package-pill ${item.packages.vertical_manual?'done':''}">Shorts · Reels · TikTok</span>`;
       const action=item.release_ready
-        ?`<a class="secondary" target="_blank" href="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/release-manifest.json">Abrir manifesto</a>`
+        ?`<a class="secondary" target="_blank" rel="noopener" href="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/release-manifest.json">Abrir manifesto</a>`
         :item.eligible
           ?`<button class="primary" data-release-job="${esc(item.job_id)}">Preparar pacote completo</button>`
           :`<button class="secondary" data-review-job="${esc(item.job_id)}">Abrir para revisar</button>`;
@@ -48,4 +48,3 @@ document.querySelector('#publish-list').addEventListener('click',async event=>{
 });
 
 loadPublishing();
-

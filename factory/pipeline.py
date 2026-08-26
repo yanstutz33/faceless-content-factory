@@ -68,7 +68,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "1.2",
+            "studio_version": "1.3",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -881,4 +881,3 @@ class Pipeline:
         self.store.set_thumbnail_variant(job_id, variant)
         self.store.update(job_id, job["status"], metadata, progress=job["progress"], quality_score=job.get("quality_score"))
         self.store.event(job_id, "thumbnail", f"Thumbnail {variant.upper()} selecionada para publicação manual")
-

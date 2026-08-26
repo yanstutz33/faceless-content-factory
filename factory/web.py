@@ -6,6 +6,7 @@ import re
 import socket
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from http import HTTPStatus
@@ -16,6 +17,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .agents import PROFILES
 from .autopilot import Autopilot
 from .pipeline import Pipeline
+from .platforms import platform_readiness
 from .publishing import PublishingCenter
 from .nightshift import NightShift
 from .store import Store
@@ -139,6 +141,10 @@ class Handler(SimpleHTTPRequestHandler):
     publishing: PublishingCenter
     static_dir: Path
 
+    def handle_one_request(self) -> None:
+        self.request_id = uuid.uuid4().hex[:12]
+        super().handle_one_request()
+
     def log_message(self, format: str, *args) -> None:
         return
 
@@ -156,6 +162,7 @@ class Handler(SimpleHTTPRequestHandler):
         return str(candidate)
 
     def end_headers(self) -> None:
+        self.send_header("X-Request-ID", getattr(self, "request_id", "unknown"))
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -171,6 +178,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def send_api_error(self, message: str, status: int, code: str) -> None:
+        self.send_json({"error": message, "code": code, "request_id": getattr(self, "request_id", "unknown")}, status)
 
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
@@ -240,6 +250,15 @@ class Handler(SimpleHTTPRequestHandler):
         return value
 
     def do_GET(self) -> None:
+        try:
+            self._do_GET()
+        except (ValueError, KeyError, json.JSONDecodeError) as exc:
+            self.send_api_error(str(exc), HTTPStatus.BAD_REQUEST, "INVALID_REQUEST")
+        except Exception as exc:
+            print(f"[{getattr(self, 'request_id', 'unknown')}] GET {urlparse(self.path).path}: {type(exc).__name__}")
+            self.send_api_error("Falha interna. Use o código da solicitação para diagnóstico.", HTTPStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR")
+
+    def _do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/health":
@@ -292,12 +311,16 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.store.list_assets())
         if path == "/api/publishing":
             return self.send_json(self.publishing.queue())
+        if path == "/api/platforms":
+            return self.send_json(platform_readiness(self.pipeline.settings))
         parts = path.strip("/").split("/")
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
         if len(parts) == 3 and parts[:2] == ["api", "jobs"]:
             job = self.store.get_job(parts[2])
             return self.send_json(job or {"error": "Produção não encontrada"}, 200 if job else 404)
+        if path.startswith("/api/"):
+            return self.send_api_error("Rota não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
         super().do_GET()
 
     def do_POST(self) -> None:
@@ -413,11 +436,19 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     return self.send_json({"error": "Ação não encontrada"}, 404)
                 return self.send_json(self.store.get_job(job_id))
-            return self.send_json({"error": "Rota não encontrada"}, 404)
+            return self.send_api_error("Rota não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
         except (ValueError, KeyError, json.JSONDecodeError) as exc:
-            return self.send_json({"error": str(exc)}, 400)
+            return self.send_api_error(str(exc), HTTPStatus.BAD_REQUEST, "INVALID_REQUEST")
         except Exception as exc:
-            return self.send_json({"error": f"Falha interna: {exc}"}, 500)
+            print(f"[{getattr(self, 'request_id', 'unknown')}] POST {urlparse(self.path).path}: {type(exc).__name__}")
+            return self.send_api_error("Falha interna. Use o código da solicitação para diagnóstico.", HTTPStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR")
+
+    def _method_not_allowed(self) -> None:
+        self.send_api_error("Método não permitido para esta rota", HTTPStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED")
+
+    do_PUT = _method_not_allowed
+    do_PATCH = _method_not_allowed
+    do_DELETE = _method_not_allowed
 
 
 def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
@@ -448,4 +479,3 @@ def serve(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Pa
     print(f"Faceless Factory: http://{host}:{port}")
     print("Publicação automática: DESATIVADA")
     server.serve_forever()
-

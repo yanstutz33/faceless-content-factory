@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.2
+# Faceless Content Factory — Studio MVP 1.3
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -35,6 +35,9 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Pacote `youtube-upload.json` privado e revisável, sem executar upload
 - Centro de publicação com auditoria unificada de aprovação, qualidade técnica e direitos de mídia
 - Preparação combinada de YouTube privado e recortes para Shorts, Reels e TikTok, sempre sem upload
+- Diagnóstico pré-login para YouTube, TikTok, Reels e Shopee sem expor chaves no navegador
+- API com erros estruturados, código de solicitação e proteção contra vazamento de exceções internas
+- Frontend modular com um único registro de extensões, evitando dependência frágil da ordem dos scripts
 - Manifesto final de lançamento e fila visual de pacotes liberados, completos ou bloqueados
 - Validador comercial que bloqueia produto divergente, publicidade oculta e mídia sem direitos
 - Piloto automático semanal com séries, cadência, horário e duração configuráveis
@@ -168,6 +171,8 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 0. **Quality gate automático:** cada render é amostrado e bloqueado antes da aprovação se houver tela preta, ausência de movimento, câmera não fixa, áudio inaudível/clipping, duração ou decodificação inválida.
 0. **Reaproveitamento vertical:** produções aprovadas agora geram um recorte 9:16 validado e pacotes manuais para Shorts, Reels e TikTok, sem upload automático.
 0. **Centro de publicação segura:** reúne vídeos aprovados, bloqueia mídia sem direitos ou auditoria e prepara os pacotes de YouTube/vertical com um clique, sem acessar contas.
+0. **Prontidão de integrações:** a área Conexões diagnostica YouTube, TikTok, Reels e Shopee sem transferir credenciais ao frontend e mostra o próximo passo manual de cada plataforma.
+0. **Hardening do Studio:** respostas da API possuem código rastreável, erros internos não são expostos e as extensões do modal passam por um único carregador tolerante a falhas.
 
 1. **Conector opcional de LLM:** implementado com Responses API, Structured Outputs, `store=false` e fallback local. Só ativa com `OPENAI_API_KEY`.
 2. **Microvariações sonoras:** implementadas por seed, BPM, progressão, melodia e perfil.
@@ -181,4 +186,3 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 ## Frente futura de afiliados
 
 O planejamento para Shopee está documentado em `docs/commerce-video-roadmap.md`. Pinterest será tratado como referência de pesquisa, não como fonte automática de vídeos sem autorização. O módulo comercial só deverá aceitar mídia própria, licenciada ou fornecida oficialmente para afiliados.
-

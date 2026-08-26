@@ -1,5 +1,6 @@
 import json
 import hashlib
+import re
 import shutil
 import tempfile
 import threading
@@ -448,6 +449,11 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(publishing["mode"], "manual-safe")
                 self.assertFalse(publishing["automatic_upload_allowed"])
                 self.assertEqual(publishing["summary"]["total"], 0)
+                platforms = json.load(urllib.request.urlopen(base + "/api/platforms"))
+                self.assertEqual(platforms["mode"], "manual-safe")
+                self.assertFalse(platforms["automatic_upload_allowed"])
+                self.assertEqual(platforms["total"], 4)
+                self.assertTrue(all("secret" not in key for item in platforms["platforms"] for key in item))
                 autopilot = json.load(urllib.request.urlopen(base + "/api/autopilot"))
                 self.assertEqual(autopilot["mode"], "off")
                 autopilot_request = urllib.request.Request(
@@ -474,7 +480,22 @@ class CoreTests(unittest.TestCase):
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(request)
                 self.assertEqual(error.exception.code, 400)
+                error_payload = json.loads(error.exception.read())
+                self.assertEqual(error_payload["code"], "INVALID_REQUEST")
+                self.assertTrue(error_payload["request_id"])
                 error.exception.close()
+                invalid_limit = urllib.request.Request(base + "/api/jobs?limit=wrong")
+                with self.assertRaises(urllib.error.HTTPError) as invalid:
+                    urllib.request.urlopen(invalid_limit)
+                self.assertEqual(invalid.exception.code, 400)
+                self.assertEqual(json.loads(invalid.exception.read())["code"], "INVALID_REQUEST")
+                invalid.exception.close()
+                put = urllib.request.Request(base + "/api/jobs", data=b"{}", method="PUT")
+                with self.assertRaises(urllib.error.HTTPError) as unsupported:
+                    urllib.request.urlopen(put)
+                self.assertEqual(unsupported.exception.code, 405)
+                self.assertEqual(json.loads(unsupported.exception.read())["code"], "METHOD_NOT_ALLOWED")
+                unsupported.exception.close()
                 with self.assertRaises(urllib.error.HTTPError) as traversal:
                     urllib.request.urlopen(base + "/%2e%2e/.env.example")
                 self.assertEqual(traversal.exception.code, 404)
@@ -482,6 +503,43 @@ class CoreTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 server.server_close()
+
+    def test_api_internal_errors_are_traceable_without_leaking_details(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            server = create_server(pipeline, store, "127.0.0.1", 0, ROOT / "web")
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with patch.object(store, "summary", side_effect=RuntimeError("DO_NOT_LEAK_THIS")):
+                    with self.assertRaises(urllib.error.HTTPError) as failure:
+                        urllib.request.urlopen(base + "/api/dashboard")
+                    payload = json.loads(failure.exception.read())
+                    self.assertEqual(failure.exception.code, 500)
+                    self.assertEqual(payload["code"], "INTERNAL_ERROR")
+                    self.assertTrue(payload["request_id"])
+                    self.assertNotIn("DO_NOT_LEAK_THIS", json.dumps(payload))
+                    failure.exception.close()
+            finally:
+                server.shutdown()
+                server.server_close()
+
+    def test_frontend_scripts_use_one_detail_extension_runner(self):
+        index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        scripts = re.findall(r'<script src="/([^\"]+\.js)"></script>', index)
+        self.assertTrue(scripts)
+        self.assertEqual(len(scripts), len(set(scripts)))
+        self.assertTrue(all((ROOT / "web" / script).is_file() for script in scripts))
+        for name in ("phase3.js", "phase7.js", "phase8.js", "phase9.js", "phase10.js"):
+            source = (ROOT / "web" / name).read_text(encoding="utf-8")
+            self.assertIn("registerJobDetailExtension", source)
+            self.assertNotIn("openJob=", source)
+        runner = (ROOT / "web" / "phase13.js").read_text(encoding="utf-8")
+        self.assertIn("openJob=async function", runner)
+        self.assertLess(index.index('/phase14.js'), index.index('/phase13.js'))
 
     def test_artifact_endpoint_supports_byte_ranges(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -513,4 +571,3 @@ class CoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

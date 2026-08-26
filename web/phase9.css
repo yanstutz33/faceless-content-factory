@@ -2,5 +2,4 @@
 .quality-checks span{white-space:nowrap}
 .verification.warning{border-color:#d88959;background:rgba(216,137,89,.08)}
 .verification.warning>span{color:#ffb27d}
-@media(max-width:700px){.quality-checks{display:grid!important;grid-template-columns:1fr}}
-
+@media(max-width:700px){.verification{grid-template-columns:minmax(0,1fr)}.verification>span{grid-row:auto}.quality-checks{display:grid!important;grid-template-columns:minmax(0,1fr)}.quality-checks span{white-space:normal;overflow-wrap:anywhere}}
