@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.1
+# Faceless Content Factory — Studio MVP 1.1.1
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -7,7 +7,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Tema digitado, sugerido pelos agentes ou recebido pela linha de comando
 - Oito agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade, crítica e reaproveitamento
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
-- Três cenas-mestre lo-fi originais incluídas: café chuvoso, estúdio acolhedor e lounge cósmico
+- Oito cenas-mestre lo-fi originais incluídas, com a linha opcional Anime Nights totalmente autoral
 - Seleção automática da cena conforme o tema quando nenhum asset próprio é informado
 - Loop visual ambiente de 12 segundos com câmera fixa e efeitos atmosféricos localizados
 - Fumaça sobre a xícara, chuva ou estrelas pulsantes conforme o perfil, codificadas no MP4 em vez de GIF pesado
@@ -24,7 +24,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Certificação técnica de duração, faixas de vídeo/áudio e decodificação de amostra
 - Manifesto SHA-256 para comprovar a integridade de cada pacote
 - Diagnóstico contínuo de ferramentas, fila e espaço em disco
-- Quatro templates de séries, geração em lote e calendário editorial
+- Cinco templates de séries, geração em lote e calendário editorial
 - Início automático dos itens vencidos do calendário, com fila resiliente e publicação ainda manual
 - Biblioteca de assets com licença, confirmação de direitos e composição multicena
 - Duas thumbnails editoriais por vídeo, comparação A/B e seleção persistente da capa final
@@ -45,6 +45,8 @@ Narração é opcional. `--narration` usa voz neural em português e tenta a voz
 ## Imagem e música automáticas
 
 Produções antigas não são modificadas retroativamente. Os primeiros testes sem asset usavam apenas um fundo procedural escuro e ruídos ambientais; por isso pareciam não ter imagem e soavam semelhantes. Todo pacote novo agora recebe uma cena ilustrada real do starter pack e uma trilha lo-fi original. O perfil `rain` adiciona chuva baixa atrás da música, enquanto `cozy`, `cosmic` e `focus` usam somente variações musicais e textura leve.
+
+A série opcional `Anime Nights original` usa uma personagem adulta criada exclusivamente para o projeto, sem copiar franquias, personagens ou artistas. Ela só é escolhida quando o tema menciona explicitamente anime ou personagem; as demais séries continuam sem personagens.
 
 A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva no perfil rain e pontos de luz no cosmic. É o efeito de um GIF ambiente, mas entregue diretamente no vídeo MP4/H.264 para preservar qualidade. Perfil, atmosfera e efeitos usados ficam registrados no campo `motion` de `metadata.json`.
 

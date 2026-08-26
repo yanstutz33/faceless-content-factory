@@ -22,6 +22,12 @@ SERIES: dict[str, dict[str, Any]] = {
         "topics": ["Estação orbital sobre Júpiter", "Nave cargueira cruzando uma nebulosa", "Observatório lunar abandonado"],
         "color": "#D99BFF",
     },
+    "anime_nights": {
+        "name": "Anime Nights original", "description": "Personagens adultos originais em noites lo-fi, sem franquias.",
+        "profile": "youtube_long", "duration": 3600, "narration": False,
+        "topics": ["Apartamento anime original sob chuva à meia-noite", "Personagem anime original estudando com música lo-fi", "Janela da cidade em uma noite anime original"],
+        "color": "#5EC8D8",
+    },
     "vertical_moments": {
         "name": "Momentos verticais", "description": "Recortes para Shorts, Reels e TikTok.",
         "profile": "vertical_short", "duration": 30, "narration": True,
@@ -33,3 +39,4 @@ SERIES: dict[str, dict[str, Any]] = {
 
 def series_catalog() -> list[dict[str, Any]]:
     return [{"id": key, **value} for key, value in SERIES.items()]
+

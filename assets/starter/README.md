@@ -1,6 +1,6 @@
 # Starter visual pack
 
-These seven original scenes were generated for this project with OpenAI's built-in image generation on 2026-08-25 and 2026-08-26. They contain no requested logos, text, characters, or third-party franchise references.
+These eight original scenes were generated for this project with OpenAI's built-in image generation on 2026-08-25 and 2026-08-26. They contain no requested logos, readable text, or third-party franchise references.
 
 - `lofi-rainy-cafe.jpg`: Japanese-inspired reading cafe, warm paper lamps, books, record player and rainy city window.
 - `lofi-cozy-study.jpg`: late-night study room, desk lamp, books, headphones and city window.
@@ -9,6 +9,7 @@ These seven original scenes were generated for this project with OpenAI's built-
 - `lofi-lakeside-cabin.jpg`: warm reading desk overlooking a misty lake at blue hour.
 - `lofi-record-store.jpg`: independent record store listening corner after midnight.
 - `lofi-lunar-observatory.jpg`: quiet lunar observatory desk overlooking Earth and moon craters.
+- `lofi-anime-rainy-apartment.jpg`: original adult anime-inspired character studying beside a rainy city window; no franchise reference.
 
-The factory selects a deterministic but varied scene according to the topic and editorial sound profile whenever the user has not supplied an approved asset. User-owned or licensed library assets still take priority.
+The factory selects a deterministic but varied scene according to the topic and editorial sound profile whenever the user has not supplied an approved asset. The character scene is opt-in and selected only for topics explicitly mentioning anime or a character. User-owned or licensed library assets still take priority.
 

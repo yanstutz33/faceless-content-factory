@@ -251,6 +251,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(Pipeline.select_starter_scene("Trem noturno sob chuva", "rain"), "lofi-night-train.jpg")
         self.assertEqual(Pipeline.select_starter_scene("Cabana junto ao lago", "cozy"), "lofi-lakeside-cabin.jpg")
         self.assertEqual(Pipeline.select_starter_scene("Observatório lunar", "cosmic"), "lofi-lunar-observatory.jpg")
+        self.assertEqual(Pipeline.select_starter_scene("Apartamento anime original sob chuva", "rain"), "lofi-anime-rainy-apartment.jpg")
         generic = {Pipeline.select_starter_scene(f"Foco silencioso {index}", "focus") for index in range(12)}
         self.assertGreaterEqual(len(generic), 3)
 
