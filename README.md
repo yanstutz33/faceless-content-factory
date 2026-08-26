@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 0.7
+# Faceless Content Factory — Studio MVP 0.8
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -114,6 +114,12 @@ Por padrão, o piloto pausa somente os itens automáticos quando existem 12 paco
 3. Abra a produção, assista à prévia, compare as capas A/B e confira direção, score e metadados.
 4. Aprove ou peça ajustes; falhas e revisões podem ser executadas novamente.
 5. Faça o upload manual pelo YouTube Studio enquanto a API não estiver configurada.
+
+Uma produção aprovada também pode gerar, pelo painel, uma versão vertical de 30 segundos. A fábrica preserva o quadro horizontal no centro, usa um fundo desfocado para completar 9:16 e cria `vertical-package.json` com textos separados para Shorts, Reels e TikTok. Nenhum desses pacotes é enviado automaticamente.
+
+```powershell
+python app.py vertical-package ID_DA_PRODUCAO --duration 30
+```
 6. Registre resultados para formar histórico de aprendizado:
 
 ```powershell
@@ -152,6 +158,8 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 
 ## Estado do roadmap
 
+0. **Reaproveitamento vertical:** produções aprovadas agora geram um recorte 9:16 validado e pacotes manuais para Shorts, Reels e TikTok, sem upload automático.
+
 1. **Conector opcional de LLM:** implementado com Responses API, Structured Outputs, `store=false` e fallback local. Só ativa com `OPENAI_API_KEY`.
 2. **Microvariações sonoras:** implementadas por seed, BPM, progressão, melodia e perfil.
 3. **CTR e capas:** implementados no banco, API e painel; a fábrica recomenda vencedoras por série sem fazer trocas cegas.
@@ -164,3 +172,4 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 ## Frente futura de afiliados
 
 O planejamento para Shopee está documentado em `docs/commerce-video-roadmap.md`. Pinterest será tratado como referência de pesquisa, não como fonte automática de vídeos sem autorização. O módulo comercial só deverá aceitar mídia própria, licenciada ou fornecida oficialmente para afiliados.
+

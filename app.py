@@ -43,6 +43,9 @@ def main() -> None:
     sub.add_parser("serve", help="Open the local operations dashboard")
     youtube = sub.add_parser("youtube-package", help="Prepare a private YouTube upload package without uploading")
     youtube.add_argument("job_id")
+    vertical = sub.add_parser("vertical-package", help="Create a manual-safe 9:16 derivative from an approved job")
+    vertical.add_argument("job_id")
+    vertical.add_argument("--duration", type=int, default=30)
     sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
     commerce = sub.add_parser("commerce-check", help="Validate one affiliate product brief without publishing")
     commerce.add_argument("product_json", type=Path)
@@ -69,6 +72,8 @@ def main() -> None:
         serve(pipeline, store, settings.host, settings.port, ROOT / "web")
     elif args.command == "youtube-package":
         print(json.dumps(pipeline.prepare_youtube_package(args.job_id), ensure_ascii=False, indent=2))
+    elif args.command == "vertical-package":
+        print(json.dumps(pipeline.prepare_vertical_package(args.job_id, args.duration), ensure_ascii=False, indent=2))
     elif args.command == "doctor":
         report = pipeline.diagnostics()
         print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -83,3 +88,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

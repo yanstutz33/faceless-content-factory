@@ -25,6 +25,7 @@ AGENTS = [
     AgentSpec("seo", "Descoberta", "Título e distribuição", "Título, descrição e tags", "#67D4FF"),
     AgentSpec("compliance", "Guardião", "Direitos e segurança", "Checklist de riscos e publicação", "#FF8B8B"),
     AgentSpec("review", "Crítica", "Controle de qualidade", "Score, alertas e recomendações", "#F6DA73"),
+    AgentSpec("repurpose", "Recorte", "Reaproveitamento multicanal", "Clipes verticais e pacote por plataforma", "#FF8FCB"),
 ]
 
 
@@ -150,3 +151,4 @@ class ContentCrew:
             "production": {"profile": profile_id, "format": profile["label"], "resolution": f"{profile['width']}x{profile['height']}", "fps": profile["fps"], "duration_seconds": duration},
         }
         return self.enhancer.enhance(topic, duration, profile_id, plan)
+

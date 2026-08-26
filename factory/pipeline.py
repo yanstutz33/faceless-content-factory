@@ -60,7 +60,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "0.7",
+            "studio_version": "0.8",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -650,6 +650,64 @@ class Pipeline:
         self.store.event(job_id, "youtube", "Pacote privado do YouTube preparado; nenhum upload foi realizado")
         return payload
 
+    def prepare_vertical_package(self, job_id: str, duration: int = 30) -> dict[str, Any]:
+        """Create one original 9:16 derivative and manual-safe metadata for short platforms."""
+        job = self.store.get_job(job_id)
+        if not job or job["status"] != "approved":
+            raise ValueError("A produção precisa estar aprovada antes de criar recortes verticais")
+        out = Path(job["output_dir"])
+        source = out / "video.mp4"
+        if not source.is_file():
+            raise ValueError("Vídeo principal não encontrado")
+        duration = max(5, min(int(duration), 60))
+        vertical = out / "vertical-short.mp4"
+        thumbnail = out / "vertical-thumbnail.jpg"
+        filter_graph = (
+            "[0:v]split=2[base][front];"
+            "[base]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,gblur=sigma=28[bg];"
+            "[front]scale=720:-2[fg];"
+            "[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]"
+        )
+        self.command([
+            self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source),
+            "-filter_complex", filter_graph, "-map", "[v]", "-map", "0:a:0", "-t", str(duration),
+            "-r", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+            "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(vertical),
+        ])
+        self.command([
+            self.settings.ffmpeg, "-y", "-ss", "1", "-i", str(vertical), "-frames:v", "1", "-q:v", "2", str(thumbnail)
+        ])
+        report = self.inspect_video(vertical, duration)
+        if report.get("video", {}).get("width") != 720 or report.get("video", {}).get("height") != 1280:
+            raise RuntimeError("O recorte vertical não foi renderizado em 720x1280")
+        title = str(job.get("metadata", {}).get("title") or job["topic"])
+        description = str(job.get("metadata", {}).get("description") or "")
+        package = {
+            "mode": "prepared_not_uploaded",
+            "source_job_id": job_id,
+            "source_rights": "inherits_approved_source_manifest",
+            "video_file": "vertical-short.mp4",
+            "thumbnail_file": "vertical-thumbnail.jpg",
+            "duration_seconds": duration,
+            "format": "9:16",
+            "resolution": "720x1280",
+            "platforms": {
+                "youtube_shorts": {"title": f"{title[:85]} #Shorts", "description": description, "upload": "manual"},
+                "instagram_reels": {"caption": f"{title}\n\n#lofi #chill #reels", "upload": "manual"},
+                "tiktok": {"caption": f"{title}\n\n#lofi #chill #fyp", "upload": "manual"},
+            },
+            "automatic_upload_allowed": False,
+            "validation": report,
+        }
+        (out / "vertical-package.json").write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        manifest = self.artifact_manifest(out, [
+            "video.mp4", "thumbnail.jpg", "metadata.json", "render-report.json", "youtube-upload.json",
+            "vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json",
+        ])
+        (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.store.event(job_id, "repurpose", f"Recorte vertical de {duration}s validado; nenhum upload foi realizado")
+        return package
+
     def reject(self, job_id: str, reason: str) -> None:
         job = self.store.get_job(job_id)
         if not job or job["status"] not in {"awaiting_approval", "approved"}:
@@ -683,3 +741,4 @@ class Pipeline:
         self.store.set_thumbnail_variant(job_id, variant)
         self.store.update(job_id, job["status"], metadata, progress=job["progress"], quality_score=job.get("quality_score"))
         self.store.event(job_id, "thumbnail", f"Thumbnail {variant.upper()} selecionada para publicação manual")
+

@@ -214,6 +214,15 @@ class CoreTests(unittest.TestCase):
             job_id = pipeline.create("Vertical rain", 9999, profile="vertical_short")
             self.assertEqual(store.get_job(job_id)["duration"], PROFILES["vertical_short"]["max_duration"])
 
+    def test_vertical_package_requires_approval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Vertical gate", 5, profile="preview")
+            with self.assertRaisesRegex(ValueError, "aprovada"):
+                pipeline.prepare_vertical_package(job_id, 30)
+
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_preview_render_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -255,6 +264,15 @@ class CoreTests(unittest.TestCase):
                 (Path(job["output_dir"]) / "thumbnail.jpg").read_bytes(),
                 (Path(job["output_dir"]) / "thumbnail-b.jpg").read_bytes(),
             )
+            pipeline.approve(job_id)
+            vertical = pipeline.prepare_vertical_package(job_id, 5)
+            self.assertEqual(vertical["resolution"], "720x1280")
+            self.assertEqual(vertical["mode"], "prepared_not_uploaded")
+            self.assertFalse(vertical["automatic_upload_allowed"])
+            self.assertTrue(vertical["validation"]["passed"])
+            self.assertEqual(vertical["platforms"]["youtube_shorts"]["upload"], "manual")
+            self.assertTrue((Path(job["output_dir"]) / "vertical-short.mp4").is_file())
+            self.assertTrue((Path(job["output_dir"]) / "vertical-thumbnail.jpg").is_file())
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_theme_sound_profiles_render(self):
@@ -385,3 +403,4 @@ class CoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

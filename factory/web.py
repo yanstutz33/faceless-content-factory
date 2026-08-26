@@ -167,7 +167,8 @@ class Handler(SimpleHTTPRequestHandler):
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
         allowed = {"video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
-                   "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json", "youtube-upload.json"}
+                   "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json", "youtube-upload.json",
+                   "vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
         path = Path(job["output_dir"]) / name
@@ -386,6 +387,8 @@ class Handler(SimpleHTTPRequestHandler):
                     self.pipeline.select_thumbnail(job_id, str(data.get("variant", "")))
                 elif action == "youtube-package":
                     return self.send_json(self.pipeline.prepare_youtube_package(job_id))
+                elif action == "vertical-package":
+                    return self.send_json(self.pipeline.prepare_vertical_package(job_id, int(data.get("duration", 30))))
                 else:
                     return self.send_json({"error": "Ação não encontrada"}, 404)
                 return self.send_json(self.store.get_job(job_id))
@@ -421,3 +424,4 @@ def serve(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Pa
     print(f"Faceless Factory: http://{host}:{port}")
     print("Publicação automática: DESATIVADA")
     server.serve_forever()
+
