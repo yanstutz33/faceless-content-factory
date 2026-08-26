@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .agents import PROFILES
 from .autopilot import Autopilot
 from .pipeline import Pipeline
+from .nightshift import NightShift
 from .store import Store
 from .templates import SERIES, series_catalog
 
@@ -62,11 +63,13 @@ class JobRunner:
 class CalendarScheduler:
     """Turn due calendar plans into queued jobs without publishing them."""
 
-    def __init__(self, pipeline: Pipeline, store: Store, runner: JobRunner, autopilot: Autopilot, interval: int = 15):
+    def __init__(self, pipeline: Pipeline, store: Store, runner: JobRunner, autopilot: Autopilot,
+                 nightshift: NightShift | None = None, interval: int = 15):
         self.pipeline = pipeline
         self.store = store
         self.runner = runner
         self.autopilot = autopilot
+        self.nightshift = nightshift
         self.interval = max(5, interval)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, name="calendar-scheduler", daemon=True)
@@ -83,6 +86,8 @@ class CalendarScheduler:
         while not self._stop.is_set():
             try:
                 self.run_once()
+                if self.nightshift:
+                    self.nightshift.run_once()
             except Exception:
                 # A temporary database/tooling issue must not kill future checks.
                 pass
@@ -129,6 +134,7 @@ class Handler(SimpleHTTPRequestHandler):
     store: Store
     runner: JobRunner
     autopilot: Autopilot
+    nightshift: NightShift
     static_dir: Path
 
     def log_message(self, format: str, *args) -> None:
@@ -275,6 +281,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(series_catalog())
         if path == "/api/autopilot":
             return self.send_json(self.autopilot.status())
+        if path == "/api/night-shift":
+            return self.send_json(self.nightshift.status())
         if path == "/api/calendar":
             return self.send_json(self.store.list_calendar())
         if path == "/api/assets":
@@ -340,6 +348,10 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/autopilot/plan":
                 created = self.autopilot.ensure_plan(force=True)
                 return self.send_json({"created": created, "count": len(created), "status": self.autopilot.status()})
+            if path == "/api/night-shift":
+                return self.send_json(self.nightshift.configure(data))
+            if path == "/api/night-shift/run":
+                return self.send_json(self.nightshift.run_once(force=True), HTTPStatus.ACCEPTED)
             if path == "/api/assets":
                 asset_path = Path(str(data.get("path", ""))).expanduser().resolve()
                 if not asset_path.is_file() or asset_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
@@ -404,9 +416,10 @@ class Handler(SimpleHTTPRequestHandler):
 def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
     runner = JobRunner(pipeline, pipeline.settings.workers)
     autopilot = Autopilot(pipeline.settings, store)
-    scheduler = CalendarScheduler(pipeline, store, runner, autopilot, pipeline.settings.calendar_poll_seconds)
+    nightshift = NightShift(pipeline, store, runner, autopilot)
+    scheduler = CalendarScheduler(pipeline, store, runner, autopilot, nightshift, pipeline.settings.calendar_poll_seconds)
     handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner,
-                                                   "autopilot": autopilot, "static_dir": static_dir})
+                                                   "autopilot": autopilot, "nightshift": nightshift, "static_dir": static_dir})
     server = FactoryServer((host, port), handler, runner, scheduler)
     store.recover_interrupted()
     for job_id in store.queued_jobs():

@@ -73,6 +73,12 @@ class Store:
                     duration INTEGER NOT NULL DEFAULT 1800, horizon_days INTEGER NOT NULL DEFAULT 7,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS night_shift (
+                    id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
+                    start_hour TEXT NOT NULL DEFAULT '22:00', end_hour TEXT NOT NULL DEFAULT '07:00',
+                    batch_limit INTEGER NOT NULL DEFAULT 2, last_run_at TEXT,
+                    last_summary TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+                );
             """)
             existing = {row[1] for row in db.execute("PRAGMA table_info(jobs)")}
             additions = {
@@ -110,6 +116,11 @@ class Store:
                 """INSERT OR IGNORE INTO autopilot(id,enabled,series_ids,cadence,publish_hour,duration,horizon_days,updated_at)
                    VALUES(1,0,?,3,'19:00',1800,7,?)""",
                 (json.dumps(["rainy_places", "cozy_worlds", "cosmic_focus"]), now()),
+            )
+            db.execute(
+                """INSERT OR IGNORE INTO night_shift(id,enabled,start_hour,end_hour,batch_limit,last_summary,updated_at)
+                   VALUES(1,0,'22:00','07:00',2,'{}',?)""",
+                (now(),),
             )
 
     def create_job(self, job: dict[str, Any]) -> None:
@@ -347,6 +358,22 @@ class Store:
             )
             return dict(row) if cursor.rowcount else None
 
+    def claim_next_calendar(self, allow_autopilot: bool = True) -> dict[str, Any] | None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT * FROM calendar WHERE status='planned' AND job_id IS NULL
+                   AND (? OR origin!='autopilot') ORDER BY scheduled_for,id LIMIT 1""",
+                (int(allow_autopilot),),
+            ).fetchone()
+            if not row:
+                return None
+            cursor = db.execute(
+                "UPDATE calendar SET status='starting',error=NULL,updated_at=? WHERE id=? AND status='planned' AND job_id IS NULL",
+                (now(), row["id"]),
+            )
+            return dict(row) if cursor.rowcount else None
+
     def fail_calendar_item(self, item_id: int, error: str) -> None:
         with self.connect() as db:
             db.execute(
@@ -389,6 +416,30 @@ class Store:
             )
         return self.get_autopilot()
 
+    def get_night_shift(self) -> dict[str, Any]:
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM night_shift WHERE id=1").fetchone()
+        item = dict(row) if row else {}
+        item["enabled"] = bool(item.get("enabled"))
+        try:
+            item["last_summary"] = json.loads(item.get("last_summary") or "{}")
+        except json.JSONDecodeError:
+            item["last_summary"] = {}
+        return item
+
+    def update_night_shift(self, enabled: bool, start_hour: str, end_hour: str, batch_limit: int,
+                           summary: dict[str, Any] | None = None, ran: bool = False) -> dict[str, Any]:
+        current = self.get_night_shift()
+        with self.connect() as db:
+            db.execute(
+                """UPDATE night_shift SET enabled=?,start_hour=?,end_hour=?,batch_limit=?,last_run_at=?,
+                   last_summary=?,updated_at=? WHERE id=1""",
+                (int(enabled), start_hour, end_hour, batch_limit,
+                 now() if ran else current.get("last_run_at"),
+                 json.dumps(summary if summary is not None else current.get("last_summary", {}), ensure_ascii=False), now()),
+            )
+        return self.get_night_shift()
+
     def add_asset(self, name: str, path: str, license_type: str, source_url: str | None,
                   notes: str | None, approved: bool) -> int:
         if not name.strip() or not path.strip() or not license_type.strip():
@@ -419,3 +470,4 @@ class Store:
         with self.connect() as db:
             rows = db.execute(f"SELECT * FROM assets WHERE id IN ({placeholders}) AND approved=1", asset_ids).fetchall()
             return [dict(row) for row in rows]
+

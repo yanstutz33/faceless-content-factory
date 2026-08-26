@@ -1,0 +1,4 @@
+.night-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;margin:0 0 18px;padding:18px 20px;border:1px solid #35415d;border-radius:16px;background:radial-gradient(circle at 88% 0,rgba(103,136,212,.14),transparent 35%),#0d1728}
+.night-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:rgba(126,155,231,.13);color:#9eb6ff;font-size:22px}.night-card h3{margin:5px 0;font-size:15px}.night-card p{margin:0;color:#8495aa;font-size:11px}.night-card.active{border-color:#5978bb}.night-card.blocked{border-color:#8e693a}.night-actions{display:flex;gap:8px}
+@media(max-width:700px){.night-card{grid-template-columns:auto 1fr}.night-actions{grid-column:1/-1}.night-actions button{flex:1}}
+

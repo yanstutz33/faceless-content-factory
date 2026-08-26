@@ -15,6 +15,7 @@ from factory.autopilot import Autopilot
 from factory.config import Settings
 from factory.commerce import validate_commerce_brief
 from factory.llm import OpenAIPlanEnhancer
+from factory.nightshift import NightShift
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
 from factory.store import Store
 from factory.web import CalendarScheduler, create_server
@@ -123,6 +124,37 @@ class CoreTests(unittest.TestCase):
             self.assertEqual({item["series_id"] for item in calendar}, {"rainy_places", "cozy_worlds"})
             self.assertEqual(len({item["topic"] for item in calendar}), 3)
             self.assertTrue(all(item["duration"] == 1200 for item in calendar))
+
+    def test_night_shift_runs_bounded_batch_and_never_publishes(self):
+        class FakeRunner:
+            def __init__(self):
+                self.active = set()
+
+            def submit(self, job_id):
+                self.active.add(job_id)
+
+            def snapshot(self):
+                return {"active": sorted(self.active), "worker_limit": 1}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            autopilot = Autopilot(self.settings(root), store)
+            autopilot.configure({"enabled": True, "series_ids": ["rainy_places"], "cadence": 3,
+                                 "publish_hour": "19:00", "duration": 300})
+            autopilot.ensure_plan(datetime(2026, 8, 26, 10, 0))
+            runner = FakeRunner()
+            night = NightShift(pipeline, store, runner, autopilot)
+            night.configure({"enabled": True, "start_hour": "22:00", "end_hour": "07:00", "batch_limit": 2})
+            self.assertTrue(night.in_window(datetime(2026, 8, 26, 23, 0)))
+            self.assertTrue(night.in_window(datetime(2026, 8, 27, 6, 0)))
+            self.assertFalse(night.in_window(datetime(2026, 8, 27, 12, 0)))
+            result = night.run_once(force=True)
+            self.assertEqual(len(result["created"]), 2)
+            self.assertFalse(result["publish_performed"])
+            self.assertEqual(len(runner.active), 2)
+            self.assertEqual(sum(item["status"] == "producing" for item in store.list_calendar()), 2)
 
     def test_manual_calendar_bypasses_autopilot_pause(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -394,6 +426,17 @@ class CoreTests(unittest.TestCase):
                 configured = json.load(urllib.request.urlopen(autopilot_request))
                 self.assertTrue(configured["enabled"])
                 self.assertEqual(configured["planned"], 2)
+                night = json.load(urllib.request.urlopen(base + "/api/night-shift"))
+                self.assertEqual(night["mode"], "off")
+                night_request = urllib.request.Request(
+                    base + "/api/night-shift",
+                    data=json.dumps({"enabled": True, "start_hour": "22:00", "end_hour": "07:00",
+                                     "batch_limit": 2}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                night = json.load(urllib.request.urlopen(night_request))
+                self.assertTrue(night["enabled"])
+                self.assertEqual(night["batch_limit"], 2)
                 request = urllib.request.Request(base + "/api/jobs", data=b'{"topic":"x"}', headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(request)
