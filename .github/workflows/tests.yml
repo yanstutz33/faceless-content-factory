@@ -24,6 +24,8 @@ jobs:
       - name: Validate frontend JavaScript
         shell: pwsh
         run: |
-          node --check web/app.js
-          node --check web/phase2.js
-          node --check web/phase3.js
+          Get-ChildItem web -Filter '*.js' | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
