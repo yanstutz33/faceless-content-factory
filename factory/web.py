@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .agents import PROFILES
 from .autopilot import Autopilot
 from .pipeline import Pipeline
+from .publishing import PublishingCenter
 from .nightshift import NightShift
 from .store import Store
 from .templates import SERIES, series_catalog
@@ -135,6 +136,7 @@ class Handler(SimpleHTTPRequestHandler):
     runner: JobRunner
     autopilot: Autopilot
     nightshift: NightShift
+    publishing: PublishingCenter
     static_dir: Path
 
     def log_message(self, format: str, *args) -> None:
@@ -174,7 +176,8 @@ class Handler(SimpleHTTPRequestHandler):
         job = self.store.get_job(job_id)
         allowed = {"video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
                    "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json", "youtube-upload.json",
-                   "vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json", "quality-gate.json"}
+                   "vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json", "quality-gate.json",
+                   "release-manifest.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
         path = Path(job["output_dir"]) / name
@@ -287,6 +290,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.store.list_calendar())
         if path == "/api/assets":
             return self.send_json(self.store.list_assets())
+        if path == "/api/publishing":
+            return self.send_json(self.publishing.queue())
         parts = path.strip("/").split("/")
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
@@ -403,6 +408,8 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json(self.pipeline.prepare_vertical_package(job_id, int(data.get("duration", 30))))
                 elif action == "quality-audit":
                     return self.send_json(self.pipeline.audit_job(job_id))
+                elif action == "release-package":
+                    return self.send_json(self.publishing.prepare(job_id, int(data.get("vertical_duration", 30))))
                 else:
                     return self.send_json({"error": "Ação não encontrada"}, 404)
                 return self.send_json(self.store.get_job(job_id))
@@ -417,9 +424,11 @@ def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static
     runner = JobRunner(pipeline, pipeline.settings.workers)
     autopilot = Autopilot(pipeline.settings, store)
     nightshift = NightShift(pipeline, store, runner, autopilot)
+    publishing = PublishingCenter(pipeline, store)
     scheduler = CalendarScheduler(pipeline, store, runner, autopilot, nightshift, pipeline.settings.calendar_poll_seconds)
     handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner,
-                                                   "autopilot": autopilot, "nightshift": nightshift, "static_dir": static_dir})
+                                                   "autopilot": autopilot, "nightshift": nightshift,
+                                                   "publishing": publishing, "static_dir": static_dir})
     server = FactoryServer((host, port), handler, runner, scheduler)
     store.recover_interrupted()
     for job_id in store.queued_jobs():

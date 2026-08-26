@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.1.1
+# Faceless Content Factory — Studio MVP 1.2
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -33,6 +33,9 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Recomendação da capa vencedora por série sem troca automática arriscada
 - Agentes enriquecíveis pela OpenAI Responses API, sempre com fallback local reproduzível
 - Pacote `youtube-upload.json` privado e revisável, sem executar upload
+- Centro de publicação com auditoria unificada de aprovação, qualidade técnica e direitos de mídia
+- Preparação combinada de YouTube privado e recortes para Shorts, Reels e TikTok, sempre sem upload
+- Manifesto final de lançamento e fila visual de pacotes liberados, completos ou bloqueados
 - Validador comercial que bloqueia produto divergente, publicidade oculta e mídia sem direitos
 - Piloto automático semanal com séries, cadência, horário e duração configuráveis
 - Reposição inteligente do calendário sem repetir temas já produzidos ou planejados
@@ -164,6 +167,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 0. **Variedade criativa:** sete cenas-mestre originais, seleção por tema, três arranjos musicais, progressões rotativas e partículas variadas pela seed editorial. Cada pacote registra sua impressão digital criativa.
 0. **Quality gate automático:** cada render é amostrado e bloqueado antes da aprovação se houver tela preta, ausência de movimento, câmera não fixa, áudio inaudível/clipping, duração ou decodificação inválida.
 0. **Reaproveitamento vertical:** produções aprovadas agora geram um recorte 9:16 validado e pacotes manuais para Shorts, Reels e TikTok, sem upload automático.
+0. **Centro de publicação segura:** reúne vídeos aprovados, bloqueia mídia sem direitos ou auditoria e prepara os pacotes de YouTube/vertical com um clique, sem acessar contas.
 
 1. **Conector opcional de LLM:** implementado com Responses API, Structured Outputs, `store=false` e fallback local. Só ativa com `OPENAI_API_KEY`.
 2. **Microvariações sonoras:** implementadas por seed, BPM, progressão, melodia e perfil.
@@ -172,7 +176,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 5. **Retenção:** captura e ranking implementados. A coleta automática depende da autorização da conta/plataforma.
 6. **Voz offline:** fallback implementado e diagnosticado, mas este Windows não possui uma voz SAPI instalada. A ambientação segura continua funcionando.
 
-`ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação.
+`ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 
 ## Frente futura de afiliados
 

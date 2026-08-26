@@ -17,6 +17,7 @@ from factory.commerce import validate_commerce_brief
 from factory.llm import OpenAIPlanEnhancer
 from factory.nightshift import NightShift
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
+from factory.publishing import PublishingCenter
 from factory.store import Store
 from factory.web import CalendarScheduler, create_server
 
@@ -255,6 +256,21 @@ class CoreTests(unittest.TestCase):
         generic = {Pipeline.select_starter_scene(f"Foco silencioso {index}", "focus") for index in range(12)}
         self.assertGreaterEqual(len(generic), 3)
 
+    def test_publishing_center_blocks_untraceable_media(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Release without rights", 5, profile="preview")
+            job = store.get_job(job_id)
+            store.update(job_id, "approved", {
+                "verification": {"passed": True}, "quality_gate": {"passed": True, "score": 100}
+            }, progress=100)
+            audit = PublishingCenter(pipeline, store).audit(store.get_job(job_id) or job)
+            self.assertFalse(audit["eligible"])
+            self.assertIn("Manifesto de direitos não encontrado", audit["blockers"])
+            self.assertFalse(audit["automatic_upload_allowed"])
+
     def test_vertical_package_requires_approval(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -332,7 +348,16 @@ class CoreTests(unittest.TestCase):
                 (Path(job["output_dir"]) / "thumbnail-b.jpg").read_bytes(),
             )
             pipeline.approve(job_id)
-            vertical = pipeline.prepare_vertical_package(job_id, 5)
+            publishing = PublishingCenter(pipeline, store)
+            before = publishing.audit(store.get_job(job_id))
+            self.assertTrue(before["eligible"])
+            self.assertFalse(before["release_ready"])
+            release = publishing.prepare(job_id, 5)
+            self.assertEqual(release["mode"], "prepared_not_uploaded")
+            self.assertFalse(release["automatic_upload_allowed"])
+            self.assertEqual(release["destinations"]["youtube"]["privacy"], "private")
+            self.assertTrue((Path(job["output_dir"]) / "release-manifest.json").is_file())
+            vertical = json.loads((Path(job["output_dir"]) / "vertical-package.json").read_text(encoding="utf-8"))
             self.assertEqual(vertical["resolution"], "720x1280")
             self.assertEqual(vertical["mode"], "prepared_not_uploaded")
             self.assertFalse(vertical["automatic_upload_allowed"])
@@ -340,6 +365,9 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(vertical["platforms"]["youtube_shorts"]["upload"], "manual")
             self.assertTrue((Path(job["output_dir"]) / "vertical-short.mp4").is_file())
             self.assertTrue((Path(job["output_dir"]) / "vertical-thumbnail.jpg").is_file())
+            queue = publishing.queue()
+            self.assertEqual(queue["summary"]["ready"], 1)
+            self.assertTrue(queue["items"][0]["release_ready"])
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_theme_sound_profiles_render(self):
@@ -416,6 +444,10 @@ class CoreTests(unittest.TestCase):
                 self.assertGreaterEqual(len(series), 4)
                 insights = json.load(urllib.request.urlopen(base + "/api/insights"))
                 self.assertEqual(insights, [])
+                publishing = json.load(urllib.request.urlopen(base + "/api/publishing"))
+                self.assertEqual(publishing["mode"], "manual-safe")
+                self.assertFalse(publishing["automatic_upload_allowed"])
+                self.assertEqual(publishing["summary"]["total"], 0)
                 autopilot = json.load(urllib.request.urlopen(base + "/api/autopilot"))
                 self.assertEqual(autopilot["mode"], "off")
                 autopilot_request = urllib.request.Request(

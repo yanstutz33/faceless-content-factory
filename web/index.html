@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09111f"><title>Faceless Factory</title>
-  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css"><link rel="stylesheet" href="/phase4.css"><link rel="stylesheet" href="/phase5.css"><link rel="stylesheet" href="/phase6.css"><link rel="stylesheet" href="/phase7.css"><link rel="stylesheet" href="/phase9.css"><link rel="stylesheet" href="/phase11.css">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css"><link rel="stylesheet" href="/phase4.css"><link rel="stylesheet" href="/phase5.css"><link rel="stylesheet" href="/phase6.css"><link rel="stylesheet" href="/phase7.css"><link rel="stylesheet" href="/phase9.css"><link rel="stylesheet" href="/phase11.css"><link rel="stylesheet" href="/phase12.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -11,6 +11,7 @@
     <nav aria-label="Navegação principal">
       <a class="nav-item active" href="#overview"><span>◫</span> Visão geral</a>
       <a class="nav-item" href="#production"><span>▶</span> Produções <i id="queue-badge">0</i></a>
+      <a class="nav-item" href="#publishing"><span>↥</span> Publicação <i id="publish-badge">0</i></a>
       <a class="nav-item" href="#calendar"><span>▦</span> Calendário</a>
       <a class="nav-item" href="#library"><span>▤</span> Biblioteca</a>
       <a class="nav-item" href="#agents"><span>✦</span> Agentes</a>
@@ -50,6 +51,13 @@
       <div class="production-list" id="jobs"><div class="skeleton"></div><div class="skeleton"></div></div>
     </section>
 
+    <section id="publishing" class="section">
+      <div class="section-heading"><div><p class="kicker">SAÍDA CONTROLADA</p><h2>Centro de publicação</h2><p class="section-copy">Confira direitos e qualidade, prepare todos os formatos e envie manualmente quando estiver pronto.</p></div><button class="secondary" id="refresh-publishing">↻ Atualizar</button></div>
+      <article class="publish-safety"><span class="publish-lock">✓</span><div><b>Nenhum upload automático</b><p>O centro cria pacotes privados e arquivos verticais. Ele não acessa contas nem publica por conta própria.</p></div></article>
+      <div class="publish-summary" id="publish-summary"><div class="skeleton"></div></div>
+      <div class="publish-list" id="publish-list"><div class="skeleton"></div></div>
+    </section>
+
     <section id="agents" class="section">
       <div class="section-heading"><div><p class="kicker">EQUIPE DIGITAL</p><h2>Agentes especializados</h2></div><p class="section-copy">Cada agente entrega uma parte auditável do pacote.</p></div>
       <div class="agent-grid" id="agent-grid"></div>
@@ -87,6 +95,6 @@
   <dialog id="autopilot-dialog" class="modal"><form method="dialog" class="dialog-shell" id="autopilot-form"><div class="dialog-head"><div><p class="kicker">AUTOMAÇÃO SEMANAL</p><h2>Defina o ritmo uma vez.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar piloto automático">×</button></div><fieldset><legend>Séries que podem entrar no plano</legend><div class="autopilot-series"><label><input type="checkbox" name="series_ids" value="rainy_places" checked> Lugares sob chuva</label><label><input type="checkbox" name="series_ids" value="cozy_worlds" checked> Mundos acolhedores</label><label><input type="checkbox" name="series_ids" value="cosmic_focus" checked> Foco cósmico</label><label><input type="checkbox" name="series_ids" value="anime_nights"> Anime Nights original</label></div></fieldset><div class="form-grid"><label class="field"><span>Vídeos por semana</span><input name="cadence" type="number" min="1" max="7" value="3"></label><label class="field"><span>Horário de início</span><input name="publish_hour" type="time" value="19:00"></label></div><label class="field"><span>Duração de cada vídeo</span><select name="duration"><option value="1200">20 minutos · mais leve</option><option value="1800" selected>30 minutos · recomendado</option><option value="3600">1 hora</option><option value="7200">2 horas</option></select><small>O piloto pausa sozinho quando a fila de revisão ou o computador precisa de atenção.</small></label><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="secondary" id="autopilot-plan-now" type="button">Só planejar esta semana</button><button class="primary" value="default">Salvar e ativar</button></div></form></dialog>
   <dialog id="night-dialog" class="modal"><form method="dialog" class="dialog-shell" id="night-form"><div class="dialog-head"><div><p class="kicker">TURNO AUTÔNOMO</p><h2>Produção noturna com limites.</h2></div><button class="icon-button" value="cancel" aria-label="Fechar turno noturno">×</button></div><label class="rights-check"><input name="enabled" type="checkbox"> Ativar execução automática dentro desta janela.</label><div class="form-grid"><label class="field"><span>Começa às</span><input name="start_hour" type="time" value="22:00"></label><label class="field"><span>Termina às</span><input name="end_hour" type="time" value="07:00"></label></div><label class="field"><span>Máximo por turno</span><select name="batch_limit"><option value="1">1 produção</option><option value="2" selected>2 produções</option><option value="3">3 produções</option><option value="4">4 produções</option><option value="5">5 produções</option></select><small>O turno roda uma vez por noite, respeita espaço, fila de revisão e nunca publica.</small></label><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="default">Salvar turno</button></div></form></dialog>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/app.js"></script><script src="/phase2.js"></script><script src="/phase3.js"></script><script src="/phase5.js"></script><script src="/phase6.js"></script><script src="/phase7.js"></script><script src="/phase8.js"></script><script src="/phase9.js"></script><script src="/phase10.js"></script><script src="/phase11.js"></script>
+  <script src="/app.js"></script><script src="/phase2.js"></script><script src="/phase3.js"></script><script src="/phase5.js"></script><script src="/phase6.js"></script><script src="/phase7.js"></script><script src="/phase8.js"></script><script src="/phase9.js"></script><script src="/phase10.js"></script><script src="/phase11.js"></script><script src="/phase12.js"></script>
 </body></html>
 
