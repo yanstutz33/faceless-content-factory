@@ -567,8 +567,11 @@ class CoreTests(unittest.TestCase):
                 platforms = json.load(urllib.request.urlopen(base + "/api/platforms"))
                 self.assertEqual(platforms["mode"], "manual-safe")
                 self.assertFalse(platforms["automatic_upload_allowed"])
-                self.assertEqual(platforms["total"], 4)
+                self.assertEqual(platforms["total"], 6)
                 self.assertTrue(all("secret" not in key for item in platforms["platforms"] for key in item))
+                planned = {item["id"]: item for item in platforms["platforms"] if item["state"] == "planned"}
+                self.assertEqual(set(planned), {"pinterest", "bilibili"})
+                self.assertTrue(all(not item["upload_enabled"] for item in planned.values()))
                 serialized_platforms = json.dumps(platforms)
                 self.assertNotIn("client-secret", serialized_platforms)
                 backups = json.load(urllib.request.urlopen(base + "/api/system/backups"))

@@ -186,6 +186,9 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 4. **YouTube:** pacote privado oficial preparado após aprovação. O upload real depende do arquivo OAuth da conta e continuará exigindo confirmação humana.
 5. **Retenção:** captura e ranking implementados. A coleta automática depende da autorização da conta/plataforma.
 6. **Voz offline:** fallback implementado e diagnosticado, mas este Windows não possui uma voz SAPI instalada. A ambientação segura continua funcionando.
+7. **Shopee + Pinterest:** trilha comercial aprovada para transformar produtos oficiais em vídeos próprios e publicar Video Pins rastreáveis; Pinterest nunca será fonte automática de mídia de terceiros.
+8. **Bilibili:** destino editorial internacional aprovado para pacotes longos com capa, metadados e legendas localizados; começa com upload manual pelo Creator Studio.
+9. **Painel comercial:** campanhas, produtos, links, cliques, conversões, comissão e custo de produção ficarão separados das métricas editoriais.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 
@@ -193,4 +196,4 @@ As telas, callbacks e validações anteriores ao login já estão preparados. Us
 
 ## Frente futura de afiliados
 
-O planejamento para Shopee está documentado em `docs/commerce-video-roadmap.md`. Pinterest será tratado como referência de pesquisa, não como fonte automática de vídeos sem autorização. O módulo comercial só deverá aceitar mídia própria, licenciada ou fornecida oficialmente para afiliados.
+O planejamento consolidado está em `docs/roadmap.md`, e a especificação comercial em `docs/commerce-video-roadmap.md`. Pinterest será fonte de tendências e destino dos nossos próprios Video Pins, nunca uma biblioteca automática de vídeos de terceiros. O módulo comercial só aceitará mídia própria, licenciada ou fornecida oficialmente para afiliados.
