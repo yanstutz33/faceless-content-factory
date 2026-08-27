@@ -2,6 +2,13 @@
 
 O projeto terá duas linhas independentes que compartilham agentes, assets, renderização, fila, aprovação e métricas. Nenhuma fase futura habilita publicação automática por padrão.
 
+### Confiabilidade operacional — Studio 1.7
+
+- uma produção só pode ser reservada por um worker/processo de cada vez;
+- a renderização escreve em arquivo temporário e só substitui o vídeo final depois da validação;
+- início, meio e fim do vídeo são decodificados quando o FFprobe não está disponível;
+- aprovação e reaproveitamento conferem novamente o checksum SHA-256 do vídeo.
+
 ## Linha editorial
 
 ### Entregue — fábrica de ambientação

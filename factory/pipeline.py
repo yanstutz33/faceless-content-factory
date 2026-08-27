@@ -68,12 +68,14 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "1.6",
+            "studio_version": "1.7",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
             "free_gb": round(usage.free / (1024 ** 3), 1),
             "publish_mode": "manual-safe",
+            "render_safety": {"atomic_promotion": True, "duplicate_claim": True,
+                              "checksum_before_release": True},
             "narration_fallback": self.settings.narration_fallback,
             "llm_provider": {"configured": bool(self.settings.openai_api_key), "model": self.settings.openai_model},
             "youtube_connector": {"configured": bool(self.settings.youtube_client_secrets_file), "mode": "manual-safe"},
@@ -156,13 +158,18 @@ class Pipeline:
         tolerance = max(0.75, expected_duration * 0.02)
         if abs(duration - expected_duration) > tolerance:
             raise RuntimeError(f"Validação de mídia falhou: duração={duration:.2f}s")
-        sample = subprocess.run(
-            [self.settings.ffmpeg, "-v", "error", "-i", str(video), "-t", "1", "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
-            text=True,
-            capture_output=True,
-        )
-        if sample.returncode:
-            raise RuntimeError(f"FFmpeg não conseguiu decodificar a amostra do vídeo: {sample.stderr[-1200:]}")
+        decode_samples = sorted({0.0, max(0.0, duration / 2 - 1), max(0.0, duration - 2)})
+        for moment in decode_samples:
+            sample = subprocess.run(
+                [self.settings.ffmpeg, "-v", "error", "-ss", f"{moment:.3f}", "-i", str(video), "-t", "2",
+                 "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"],
+                text=True,
+                capture_output=True,
+            )
+            if sample.returncode:
+                raise RuntimeError(
+                    f"FFmpeg não conseguiu decodificar o vídeo em {moment:.1f}s: {sample.stderr[-1200:]}"
+                )
         channels = {"mono": 1, "stereo": 2, "5.1": 6, "7.1": 8}.get(audio_match.group(3))
         return {
             "passed": True,
@@ -170,6 +177,7 @@ class Pipeline:
             "duration_seconds": round(duration, 3),
             "expected_duration_seconds": expected_duration,
             "size_bytes": video.stat().st_size,
+            "decode_samples_seconds": decode_samples,
             "video": {"codec": video_match.group(1), "width": int(video_match.group(2)), "height": int(video_match.group(3)), "pixel_format": None},
             "audio": {"codec": audio_match.group(1), "sample_rate": audio_match.group(2), "channels": channels},
         }
@@ -239,6 +247,28 @@ class Pipeline:
                     digest.update(chunk)
             files.append({"name": name, "size_bytes": path.stat().st_size, "sha256": digest.hexdigest()})
         return {"algorithm": "sha256", "files": files}
+
+    @staticmethod
+    def verify_artifact_checksum(out: Path, name: str = "video.mp4") -> dict[str, Any]:
+        manifest_path = out / "artifact-manifest.json"
+        if not manifest_path.is_file():
+            raise ValueError("Manifesto de integridade ausente; execute a auditoria novamente")
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("Manifesto de integridade inválido; execute a auditoria novamente") from exc
+        expected = next((item for item in manifest.get("files", []) if item.get("name") == name), None)
+        artifact = out / name
+        if not expected or not artifact.is_file():
+            raise ValueError(f"{name} não está registrado no manifesto de integridade")
+        digest = hashlib.sha256()
+        with artifact.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        current = {"name": name, "size_bytes": artifact.stat().st_size, "sha256": digest.hexdigest()}
+        if current["size_bytes"] != int(expected.get("size_bytes", -1)) or current["sha256"] != expected.get("sha256"):
+            raise ValueError(f"{name} mudou após a validação; renderize ou audite novamente")
+        return current
 
     def synthesize_narration(self, script: Path, output: Path) -> None:
         proc = subprocess.run(
@@ -563,8 +593,12 @@ class Pipeline:
             raise KeyError(job_id)
         if job["status"] not in {"queued", "failed", "rejected"}:
             return job
+        if not self.store.claim_job(job_id):
+            return self.store.get_job(job_id) or job
+        job = self.store.get_job(job_id) or job
         out = Path(job["output_dir"])
         profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
+        render_candidate = out / "video.rendering.mp4"
         try:
             self.store.update(job_id, "planning", progress=8)
             plan = self.generate_plan(job["topic"], job["duration"], job.get("profile", "youtube_long"), job["narration"])
@@ -612,6 +646,7 @@ class Pipeline:
             self.store.update(job_id, "rendering", metadata=metadata, progress=62)
 
             video = out / "video.mp4"
+            render_candidate.unlink(missing_ok=True)
             width, height, fps = profile["width"], profile["height"], profile["fps"]
             vf, motion = self.visual_motion(sound_profile, width, height, fps)
             motion_overlay = out / "motion-overlay.mp4"
@@ -637,7 +672,7 @@ class Pipeline:
                               "-stream_loop", "-1", "-i", str(motion_overlay), "-i", str(audio),
                               "-filter_complex", blend, "-map", "[v]", "-map", "2:a:0", "-t", str(job["duration"]),
                               "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-                              "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(video)])
+                              "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", str(render_candidate)])
             else:
                 scene_dir = out / "render-scenes"
                 scene_dir.mkdir(exist_ok=True)
@@ -654,7 +689,7 @@ class Pipeline:
                 concat_file.write_text("\n".join(f"file '{clip.as_posix()}'" for clip in clips), encoding="utf-8")
                 self.command([self.settings.ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
                               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", str(job["duration"]),
-                              "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(video)])
+                              "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(render_candidate)])
                 self.store.event(job_id, "rendering", f"Composição multicena concluída com {len(backgrounds)} cenas")
             thumbnail_a = out / "thumbnail-a.jpg"
             thumbnail_b = out / "thumbnail-b.jpg"
@@ -672,14 +707,17 @@ class Pipeline:
             }
             (out / "thumbnail-design.json").write_text(json.dumps(thumbnail_design, ensure_ascii=False, indent=2), encoding="utf-8")
 
-            media_report = self.inspect_video(video, job["duration"])
-            (out / "render-report.json").write_text(json.dumps(media_report, ensure_ascii=False, indent=2), encoding="utf-8")
-            self.store.event(job_id, "verification", f"Vídeo, áudio e duração validados com {media_report['validation_engine']}")
-            gate = self.quality_gate(video, job["duration"], metadata, media_report)
+            media_report = self.inspect_video(render_candidate, job["duration"])
+            gate = self.quality_gate(render_candidate, job["duration"], metadata, media_report)
             (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
             if not gate["passed"]:
                 failed_labels = [check["label"] for check in gate["checks"] if not check["passed"]]
                 raise RuntimeError("Controle de qualidade bloqueou o pacote: " + ", ".join(failed_labels))
+            os.replace(render_candidate, video)
+            media_report["size_bytes"] = video.stat().st_size
+            media_report["atomic_promotion"] = True
+            (out / "render-report.json").write_text(json.dumps(media_report, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.store.event(job_id, "verification", f"Vídeo, áudio e duração validados com {media_report['validation_engine']}")
             metadata["quality_gate"] = gate
             self.store.event(job_id, "quality_gate", f"Controle automático aprovado: {gate['score']}/100")
 
@@ -710,6 +748,7 @@ class Pipeline:
             self.store.event(job_id, "complete", "Pacote revisado e pronto; nenhum upload foi realizado")
             return self.store.get_job(job_id) or {}
         except Exception as exc:
+            render_candidate.unlink(missing_ok=True)
             self.store.update(job_id, "failed", error=str(exc), progress=0)
             self.store.event(job_id, "failed", str(exc))
             raise
@@ -720,6 +759,7 @@ class Pipeline:
             raise ValueError("A produção ainda não está pronta para aprovação")
         if not job.get("metadata", {}).get("quality_gate", {}).get("passed"):
             raise ValueError("Execute e aprove o controle de qualidade antes da aprovação")
+        self.verify_artifact_checksum(Path(job["output_dir"]))
         self.store.update(job_id, "approved", job["metadata"], progress=100, quality_score=job.get("quality_score"))
         self.store.event(job_id, "approved", "Aprovado para publicação manual")
 
@@ -763,6 +803,7 @@ class Pipeline:
         if not metadata.get("quality_gate", {}).get("passed"):
             raise ValueError("O arquivo ainda não passou pelo controle de qualidade v0.9")
         out = Path(job["output_dir"])
+        self.verify_artifact_checksum(out)
         payload = {
             "mode": "prepared_not_uploaded",
             "api": "youtube_data_api_v3",
@@ -796,6 +837,7 @@ class Pipeline:
         if not job.get("metadata", {}).get("quality_gate", {}).get("passed"):
             raise ValueError("O arquivo ainda não passou pelo controle de qualidade v0.9")
         out = Path(job["output_dir"])
+        self.verify_artifact_checksum(out)
         source = out / "video.mp4"
         if not source.is_file():
             raise ValueError("Vídeo principal não encontrado")

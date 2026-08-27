@@ -449,6 +449,9 @@ class CoreTests(unittest.TestCase):
             job = store.get_job(job_id)
             output = Path(job["output_dir"])
             (output / "video.mp4").write_bytes(b"video")
+            (output / "artifact-manifest.json").write_text(
+                json.dumps(pipeline.artifact_manifest(output, ["video.mp4"])), encoding="utf-8"
+            )
             metadata = {"title": "Private", "description": "Review first", "tags": ["lofi"],
                         "verification": {"passed": True}, "quality_gate": {"passed": True},
                         "files": {"subtitles": None}}
@@ -550,6 +553,8 @@ class CoreTests(unittest.TestCase):
             report = json.loads((Path(job["output_dir"]) / "render-report.json").read_text(encoding="utf-8"))
             manifest = json.loads((Path(job["output_dir"]) / "artifact-manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(report["passed"])
+            self.assertTrue(report["atomic_promotion"])
+            self.assertFalse((Path(job["output_dir"]) / "video.rendering.mp4").exists())
             self.assertTrue(report["video"]["codec"])
             self.assertTrue(report["audio"]["codec"])
             self.assertTrue(job["metadata"]["quality_gate"]["passed"])
@@ -588,6 +593,35 @@ class CoreTests(unittest.TestCase):
             queue = publishing.queue()
             self.assertEqual(queue["summary"]["ready"], 1)
             self.assertTrue(queue["items"][0]["release_ready"])
+
+    def test_job_claim_is_atomic_and_blocks_duplicate_render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), first)
+            job_id = pipeline.create("Reserva atômica", 5, profile="preview")
+            second = Store(first.db_path)
+            self.assertTrue(first.claim_job(job_id))
+            self.assertFalse(second.claim_job(job_id))
+            self.assertEqual(second.get_job(job_id)["status"], "planning")
+
+    def test_approval_blocks_video_changed_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Integridade antes da aprovação", 5, profile="preview")
+            job = store.get_job(job_id)
+            output = Path(job["output_dir"])
+            video = output / "video.mp4"
+            video.write_bytes(b"arquivo-validado")
+            (output / "artifact-manifest.json").write_text(
+                json.dumps(pipeline.artifact_manifest(output, ["video.mp4"])), encoding="utf-8"
+            )
+            store.update(job_id, "awaiting_approval", {"quality_gate": {"passed": True}}, progress=100)
+            video.write_bytes(b"arquivo-alterado")
+            with self.assertRaisesRegex(ValueError, "mudou após a validação"):
+                pipeline.approve(job_id)
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_theme_sound_profiles_render(self):

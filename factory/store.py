@@ -167,6 +167,22 @@ class Store:
                     (calendar_status, error, now(), job_id),
                 )
 
+    def claim_job(self, job_id: str) -> bool:
+        """Atomically reserve one queued/retryable job across processes."""
+        timestamp = now()
+        with self.connect() as db:
+            cursor = db.execute(
+                """UPDATE jobs SET status='planning',progress=8,error=NULL,updated_at=?
+                   WHERE id=? AND status IN ('queued','failed','rejected')""",
+                (timestamp, job_id),
+            )
+            if cursor.rowcount:
+                db.execute(
+                    "UPDATE calendar SET status='producing',error=NULL,updated_at=? WHERE job_id=?",
+                    (timestamp, job_id),
+                )
+            return bool(cursor.rowcount)
+
     def event(self, job_id: str, stage: str, message: str) -> None:
         with self.connect() as db:
             db.execute("INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)", (job_id, stage, message, now()))
@@ -470,4 +486,3 @@ class Store:
         with self.connect() as db:
             rows = db.execute(f"SELECT * FROM assets WHERE id IN ({placeholders}) AND approved=1", asset_ids).fetchall()
             return [dict(row) for row in rows]
-

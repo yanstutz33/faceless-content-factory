@@ -7,11 +7,11 @@ $pythonExe = if (Test-Path -LiteralPath $venvPython) { $venvPython } else { "pyt
 
 try {
     $health = Invoke-RestMethod -Uri "http://127.0.0.1:8787/api/health" -TimeoutSec 2
-    if ($health.ok -and $health.studio_version -eq "1.6") {
+    if ($health.ok -and $health.studio_version -eq "1.7") {
         Write-Host "Faceless Factory já está ativo em http://127.0.0.1:8787"
         exit 0
     }
-    throw "Existe uma versão anterior ativa. Feche a janela antiga antes de iniciar a versão 1.6."
+    throw "Existe uma versão anterior ativa. Feche a janela antiga antes de iniciar a versão 1.7."
 } catch {
     # Nenhuma instância ativa: continue com o diagnóstico e a inicialização.
 }
