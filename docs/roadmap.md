@@ -25,14 +25,15 @@ O projeto terá duas linhas independentes que compartilham agentes, assets, rend
 - ativar coleta oficial de métricas;
 - manter confirmação humana antes de cada publicação durante o período de validação.
 
-### Futura — Bilibili
+### Entregue — pacote Bilibili manual
 
-1. Criar o perfil de destino e presets técnicos.
-2. Gerar títulos, descrições, capas e legendas em inglês e chinês simplificado.
-3. Adicionar validação cultural e terminológica, sem tradução literal cega.
-4. Produzir um pacote `bilibili-upload.json` para revisão e upload manual.
-5. Registrar métricas separadas por idioma e série.
-6. Avaliar automação somente por acesso oficial estável e autorizado.
+1. Perfil de destino e fluxo manual seguro — concluído no Studio 1.8.
+2. Títulos, descrições, capa neutra e legendas em inglês e chinês simplificado — concluído.
+3. Classificação conservadora por cena e intenção, sem tradução literal cega — concluído.
+4. Pacote `bilibili-upload.json` para revisão e upload manual — concluído.
+5. Registro de métricas Bilibili no histórico editorial — concluído.
+6. Primeiro login, categoria e validação cultural final — etapa manual.
+7. Automação de upload somente se houver acesso oficial estável, autorizado e testado.
 
 Referência: [Bilibili Studio para criadores](https://member.bilibili.com/creator/home).
 
@@ -69,5 +70,5 @@ Referências: [Pinterest Content API](https://developers.pinterest.com/docs/work
 1. Concluir logins das plataformas que já estão preparadas.
 2. Central comercial e catálogo Shopee — concluídos no Studio 1.5.
 3. Pacote Pinterest para mídia própria — concluído no Studio 1.6; login oficial pendente.
-4. Adicionar o pacote manual localizado para Bilibili.
+4. Adicionar o pacote manual localizado para Bilibili — concluído no Studio 1.8.
 5. Automatizar publicações individualmente somente após testes, aprovação das APIs e confirmação humana.

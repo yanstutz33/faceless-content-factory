@@ -164,11 +164,11 @@ class IntegrationManager:
              "output": "Video Pin original com produto Shopee, capa, link e payload local",
              "manual_step": "Registrar app e autorizar uma conta Pinterest Business",
              "package_only": True, "code_ready": True},
-            {"id": "bilibili", "label": "Bilibili", "oauth_supported": False, "package_ready": False,
+            {"id": "bilibili", "label": "Bilibili", "oauth_supported": False, "package_ready": True,
              "scope": "manual-creator-upload",
-             "output": "Vídeo longo localizado, capa e legendas para o mercado chinês",
-             "manual_step": "Fase editorial: criar conta de creator e validar o fluxo internacional",
-             "planned": True},
+             "output": "Vídeo longo, capa neutra, metadados e legendas em chinês simplificado e inglês",
+             "manual_step": "Criar a conta de creator, revisar a localização e fazer o primeiro upload",
+             "package_only": True, "code_ready": True},
         ]
 
     def readiness(self) -> dict[str, Any]:

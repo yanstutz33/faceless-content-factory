@@ -14,14 +14,14 @@ async function loadPublishing(){
     document.querySelector('#publish-summary').innerHTML=[
       ['Na central',s.total||0,'Vídeos aprovados ou em revisão'],
       ['Liberados',s.eligible||0,'Direitos e qualidade conferidos'],
-      ['Completos',s.ready||0,'YouTube e vertical preparados'],
+      ['Completos',s.ready||0,'YouTube, verticais e Bilibili preparados'],
       ['Pendências',s.blocked||0,'Precisam de aprovação ou auditoria']
     ].map(([label,value,detail])=>`<article><small>${esc(label)}</small><b>${Number(value).toLocaleString('pt-BR')}</b><span>${esc(detail)}</span></article>`).join('');
     const root=document.querySelector('#publish-list');
     root.innerHTML=publishingState.items.length?publishingState.items.map(item=>{
       const status=publishStatus(item);
       const checks=(item.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
-      const packages=`<span class="package-pill ${item.packages.youtube_private?'done':''}">YouTube privado</span><span class="package-pill ${item.packages.vertical_manual?'done':''}">Shorts · Reels · TikTok</span>`;
+      const packages=`<span class="package-pill ${item.packages.youtube_private?'done':''}">YouTube privado</span><span class="package-pill ${item.packages.vertical_manual?'done':''}">Shorts · Reels · TikTok</span><span class="package-pill ${item.packages.bilibili_manual?'done':''}">Bilibili 中文 · EN</span>`;
       const action=item.release_ready
         ?`<a class="secondary" target="_blank" rel="noopener" href="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/release-manifest.json">Abrir manifesto</a>`
         :item.eligible
@@ -33,6 +33,11 @@ async function loadPublishing(){
 }
 
 document.querySelector('#refresh-publishing').onclick=loadPublishing;
+registerJobDetailExtension(({dialog})=>{
+  const platform=dialog.querySelector('#metric-form select[name="platform"]');
+  if(!platform||platform.querySelector('[value="bilibili"]'))return;
+  platform.insertAdjacentHTML('beforeend','<option value="pinterest">Pinterest</option><option value="bilibili">Bilibili</option>');
+});
 document.querySelector('#publish-list').addEventListener('click',async event=>{
   const release=event.target.closest('[data-release-job]');
   if(release){

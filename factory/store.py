@@ -254,7 +254,7 @@ class Store:
         if not self.get_job(job_id):
             raise ValueError("Produção não encontrada")
         platform = platform.strip().lower()
-        if platform not in {"youtube", "shorts", "tiktok", "reels", "shopee"}:
+        if platform not in {"youtube", "shorts", "tiktok", "reels", "shopee", "bilibili", "pinterest"}:
             raise ValueError("Plataforma de métricas inválida")
         thumbnail_variant = thumbnail_variant.lower()
         if thumbnail_variant not in {"a", "b"}:

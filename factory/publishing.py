@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .bilibili import BilibiliPackager
 from .pipeline import Pipeline
 from .store import Store
 
@@ -15,6 +16,7 @@ class PublishingCenter:
     def __init__(self, pipeline: Pipeline, store: Store):
         self.pipeline = pipeline
         self.store = store
+        self.bilibili = BilibiliPackager(pipeline, store)
 
     @staticmethod
     def _asset_rights(out: Path) -> tuple[bool, str]:
@@ -51,6 +53,10 @@ class PublishingCenter:
         blockers = [check["detail"] for check in checks if not check["passed"]]
         youtube_ready = (out / "youtube-upload.json").is_file()
         vertical_ready = (out / "vertical-package.json").is_file() and (out / "vertical-short.mp4").is_file()
+        bilibili_ready = all((out / name).is_file() for name in (
+            "bilibili-upload.json", "bilibili-cover.jpg", "bilibili-subtitles-zh-Hans.srt",
+            "bilibili-subtitles-en.srt",
+        ))
         release_manifest_ready = (out / "release-manifest.json").is_file()
         return {
             "job_id": job["id"],
@@ -63,8 +69,9 @@ class PublishingCenter:
             "checks": checks,
             "blockers": blockers,
             "eligible": not blockers,
-            "packages": {"youtube_private": youtube_ready, "vertical_manual": vertical_ready},
-            "release_ready": not blockers and youtube_ready and vertical_ready and release_manifest_ready,
+            "packages": {"youtube_private": youtube_ready, "vertical_manual": vertical_ready,
+                         "bilibili_manual": bilibili_ready},
+            "release_ready": not blockers and youtube_ready and vertical_ready and bilibili_ready and release_manifest_ready,
             "automatic_upload_allowed": False,
         }
 
@@ -93,6 +100,7 @@ class PublishingCenter:
             raise ValueError("Pacote bloqueado: " + "; ".join(before["blockers"]))
         youtube = self.pipeline.prepare_youtube_package(job_id)
         vertical = self.pipeline.prepare_vertical_package(job_id, vertical_duration)
+        bilibili = self.bilibili.prepare(job_id)
         job = self.store.get_job(job_id) or job
         audit = self.audit(job)
         out = Path(job["output_dir"])
@@ -105,9 +113,12 @@ class PublishingCenter:
             "destinations": {
                 "youtube": {"privacy": youtube["status"]["privacyStatus"], "package": "youtube-upload.json"},
                 "shorts_reels_tiktok": {"upload": "manual", "package": "vertical-package.json"},
+                "bilibili": {"upload": "manual", "package": "bilibili-upload.json",
+                             "title": bilibili["localization"]["titles"]["zh_hans"]},
             },
             "files": ["video.mp4", "thumbnail.jpg", "youtube-upload.json", "vertical-short.mp4",
-                      "vertical-thumbnail.jpg", "vertical-package.json"],
+                      "vertical-thumbnail.jpg", "vertical-package.json", "bilibili-cover.jpg",
+                      "bilibili-subtitles-zh-Hans.srt", "bilibili-subtitles-en.srt", "bilibili-upload.json"],
             "next_step": "Revisar os arquivos e enviar manualmente pelas plataformas oficiais.",
         }
         (out / "release-manifest.json").write_text(
@@ -119,4 +130,3 @@ class PublishingCenter:
         )
         self.store.event(job_id, "release", "Pacote completo preparado; nenhum upload foi realizado")
         return release
-

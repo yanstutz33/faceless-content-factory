@@ -19,6 +19,7 @@ from unittest.mock import patch
 from factory.agents import ContentCrew, PROFILES
 from factory.autopilot import Autopilot
 from factory.backup import BackupManager
+from factory.bilibili import BilibiliPackager
 from factory.config import Settings
 from factory.commerce import CommercePackager, validate_commerce_brief
 from factory.commercial_center import CommercialCenter
@@ -494,6 +495,41 @@ class CoreTests(unittest.TestCase):
             self.assertIn("Manifesto de direitos não encontrado", audit["blockers"])
             self.assertFalse(audit["automatic_upload_allowed"])
 
+    def test_bilibili_package_is_localized_and_never_uploads(self):
+        cafe = BilibiliPackager._localized_identity("Café lo-fi noturno", {})
+        self.assertEqual(cafe["scene_zh"], "深夜咖啡馆")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Cabana na neve para dormir", 60, profile="preview")
+            job = store.get_job(job_id)
+            output = Path(job["output_dir"])
+            (output / "video.mp4").write_bytes(b"validated-video")
+            metadata = dict(job["metadata"])
+            metadata["verification"] = {"passed": True}
+            metadata["quality_gate"] = {"passed": True}
+            store.update(job_id, "approved", metadata, progress=100)
+            (output / "artifact-manifest.json").write_text(
+                json.dumps(pipeline.artifact_manifest(output, ["video.mp4"])), encoding="utf-8"
+            )
+
+            def fake_command(_args):
+                (output / "bilibili-cover.jpg").write_bytes(b"cover" * 300)
+
+            with patch.object(pipeline, "command", side_effect=fake_command):
+                package = BilibiliPackager(pipeline, store).prepare(job_id)
+            self.assertEqual(package["mode"], "prepared_not_uploaded")
+            self.assertFalse(package["automatic_upload_allowed"])
+            self.assertIn("雪夜小屋", package["localization"]["titles"]["zh_hans"])
+            self.assertIn("Snowy Night Cabin", package["localization"]["titles"]["en"])
+            self.assertTrue(package["localization"]["human_review_required"])
+            self.assertTrue((output / "bilibili-subtitles-zh-Hans.srt").is_file())
+            self.assertTrue((output / "bilibili-subtitles-en.srt").is_file())
+            self.assertTrue((output / "bilibili-upload.json").is_file())
+            store.add_metrics(job_id, "bilibili", 25, 4, 9)
+            self.assertEqual(store.get_job(job_id)["metrics"][0]["platform"], "bilibili")
+
     def test_vertical_package_requires_approval(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -581,6 +617,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(release["mode"], "prepared_not_uploaded")
             self.assertFalse(release["automatic_upload_allowed"])
             self.assertEqual(release["destinations"]["youtube"]["privacy"], "private")
+            self.assertEqual(release["destinations"]["bilibili"]["upload"], "manual")
             self.assertTrue((Path(job["output_dir"]) / "release-manifest.json").is_file())
             vertical = json.loads((Path(job["output_dir"]) / "vertical-package.json").read_text(encoding="utf-8"))
             self.assertEqual(vertical["resolution"], "720x1280")
@@ -590,6 +627,8 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(vertical["platforms"]["youtube_shorts"]["upload"], "manual")
             self.assertTrue((Path(job["output_dir"]) / "vertical-short.mp4").is_file())
             self.assertTrue((Path(job["output_dir"]) / "vertical-thumbnail.jpg").is_file())
+            self.assertTrue((Path(job["output_dir"]) / "bilibili-cover.jpg").is_file())
+            self.assertTrue((Path(job["output_dir"]) / "bilibili-upload.json").is_file())
             queue = publishing.queue()
             self.assertEqual(queue["summary"]["ready"], 1)
             self.assertTrue(queue["items"][0]["release_ready"])
@@ -708,8 +747,11 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(platforms["total"], 6)
                 self.assertTrue(all("secret" not in key for item in platforms["platforms"] for key in item))
                 planned = {item["id"]: item for item in platforms["platforms"] if item["state"] == "planned"}
-                self.assertEqual(set(planned), {"bilibili"})
-                self.assertTrue(all(not item["upload_enabled"] for item in planned.values()))
+                self.assertEqual(planned, {})
+                bilibili = next(item for item in platforms["platforms"] if item["id"] == "bilibili")
+                self.assertEqual(bilibili["state"], "package_ready")
+                self.assertTrue(bilibili["package_ready"])
+                self.assertFalse(bilibili["upload_enabled"])
                 pinterest = next(item for item in platforms["platforms"] if item["id"] == "pinterest")
                 self.assertEqual(pinterest["state"], "package_ready")
                 self.assertTrue(pinterest["package_ready"])
@@ -844,6 +886,8 @@ class CoreTests(unittest.TestCase):
         self.assertIn("data-pinterest-package", commerce_ui)
         self.assertIn("pinterest-package", commerce_ui)
         self.assertIn("package_ready:'PACOTE LOCAL PRONTO'", integrations_ui)
+        publishing_ui = (ROOT / "web" / "phase12.js").read_text(encoding="utf-8")
+        self.assertIn("bilibili_manual", publishing_ui)
 
     def test_artifact_endpoint_supports_byte_ranges(self):
         with tempfile.TemporaryDirectory() as tmp:

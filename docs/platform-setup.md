@@ -1,6 +1,6 @@
 # Conexões oficiais — etapa manual
 
-O Studio 1.4 já prepara OAuth, cofre criptografado, callbacks, auditoria e pré-validação. Esta etapa exige ação humana porque cada plataforma precisa confirmar a identidade e o canal/conta corretos. O modo de publicação continua bloqueado por padrão.
+O Studio 1.8 já prepara OAuth, cofre criptografado, callbacks, auditoria, pré-validação e pacotes localizados. Esta etapa exige ação humana porque cada plataforma precisa confirmar a identidade e o canal/conta corretos. O modo de publicação continua bloqueado por padrão.
 
 ## Antes de conectar
 
@@ -39,6 +39,17 @@ Documentação oficial: https://developers.tiktok.com/docs/en/content-posting-ap
 2. Use o validador comercial e forneça mídia própria, licenciada ou oficialmente disponibilizada.
 3. Pinterest pode servir como pesquisa visual, nunca como prova de licença ou fonte automática do vídeo.
 4. Confirme manualmente o produto exato, preço, disponibilidade e divulgação `#publicidade` antes de publicar.
+
+## Bilibili
+
+1. Aprove uma produção e use **Centro de publicação → Preparar pacote completo**. O Studio cria `bilibili-upload.json`, capa neutra e legendas separadas em chinês simplificado e inglês.
+2. Revise a localização do primeiro pacote com uma pessoa fluente; o gerador usa frases conservadoras, mas não substitui validação cultural.
+3. Crie a conta no Creator Studio oficial e confirme os requisitos de identidade e região.
+4. Envie `video.mp4`, selecione conteúdo original, use `bilibili-cover.jpg` e copie o título e a descrição do JSON.
+5. Depois do rascunho, envie os SRTs correspondentes e confira a sincronia antes de publicar.
+
+- Creator Studio oficial: https://member.bilibili.com/platform/upload/video/frame
+- Portal internacional indicado pela FAQ oficial: https://studio.biliintl.com/
 
 ## Verificação local
 

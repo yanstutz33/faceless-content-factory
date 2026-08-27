@@ -20,6 +20,8 @@ ROOT = Path(__file__).parent
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="Faceless Content Factory")
     sub = parser.add_subparsers(dest="command", required=True)
     generate = sub.add_parser("generate", help="Generate one complete local video package")
@@ -50,6 +52,8 @@ def main() -> None:
     vertical = sub.add_parser("vertical-package", help="Create a manual-safe 9:16 derivative from an approved job")
     vertical.add_argument("job_id")
     vertical.add_argument("--duration", type=int, default=30)
+    bilibili = sub.add_parser("bilibili-package", help="Prepare a localized Bilibili package without uploading")
+    bilibili.add_argument("job_id")
     sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
     commerce = sub.add_parser("commerce-check", help="Validate one affiliate product brief without publishing")
     commerce.add_argument("product_json", type=Path)
@@ -101,6 +105,8 @@ def main() -> None:
         print(json.dumps(pipeline.prepare_youtube_package(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "vertical-package":
         print(json.dumps(pipeline.prepare_vertical_package(args.job_id, args.duration), ensure_ascii=False, indent=2))
+    elif args.command == "bilibili-package":
+        print(json.dumps(publishing.bilibili.prepare(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "doctor":
         report = pipeline.diagnostics()
         print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.7
+# Faceless Content Factory — Studio MVP 1.8
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -33,6 +33,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Recomendação da capa vencedora por série sem troca automática arriscada
 - Agentes enriquecíveis pela OpenAI Responses API, sempre com fallback local reproduzível
 - Pacote `youtube-upload.json` privado e revisável, sem executar upload
+- Pacote Bilibili bilíngue com capa neutra, metadados e legendas em chinês simplificado e inglês
 - Centro de publicação com auditoria unificada de aprovação, qualidade técnica e direitos de mídia
 - Preparação combinada de YouTube privado e recortes para Shorts, Reels e TikTok, sempre sem upload
 - Diagnóstico pré-login para YouTube, TikTok, Reels e Shopee sem expor chaves no navegador
@@ -93,6 +94,7 @@ python app.py integrations
 python app.py backup
 python app.py commerce-overview
 python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados úteis"
+python app.py bilibili-package ID_DA_PRODUCAO
 ```
 
 O tempo e o espaço de renderização crescem com a duração. Faça uma prévia antes de iniciar vídeos de várias horas.
@@ -192,11 +194,12 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 5. **Retenção:** captura e ranking implementados. A coleta automática depende da autorização da conta/plataforma.
 6. **Voz offline:** fallback implementado e diagnosticado, mas este Windows não possui uma voz SAPI instalada. A ambientação segura continua funcionando.
 7. **Shopee + Pinterest:** trilha comercial aprovada para transformar produtos oficiais em vídeos próprios e publicar Video Pins rastreáveis; Pinterest nunca será fonte automática de mídia de terceiros.
-8. **Bilibili:** destino editorial internacional aprovado para pacotes longos com capa, metadados e legendas localizados; começa com upload manual pelo Creator Studio.
+8. **Bilibili:** pacote localizado entregue no Studio 1.8 com capa neutra, títulos, descrições e legendas em chinês simplificado e inglês; upload manual pelo Creator Studio.
 9. **Painel comercial:** campanhas, produtos, links, cliques, conversões, comissão e custo de produção ficarão separados das métricas editoriais.
 10. **Central Comercial Shopee:** entregue no Studio 1.5 com catálogo validado, campanhas persistentes, pacote manual e cálculo de resultado.
 11. **Pinterest Video Pin:** entregue no Studio 1.6 como pacote local com vídeo, capa, texto alternativo, link, board-alvo e payload da API; login e upload continuam bloqueados.
 12. **Renderização protegida:** entregue no Studio 1.7 com reserva atômica de cada produção, arquivo temporário isolado, promoção somente depois do quality gate e checksum obrigatório antes de aprovar ou reutilizar.
+13. **Bilibili localizada:** entregue no Studio 1.8 com classificação editorial conservadora, metadados bilíngues, capa sem texto em português e SRTs separados; a revisão humana da primeira localização continua obrigatória.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 
