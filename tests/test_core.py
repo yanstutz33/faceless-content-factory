@@ -21,6 +21,7 @@ from factory.autopilot import Autopilot
 from factory.backup import BackupManager
 from factory.config import Settings
 from factory.commerce import CommercePackager, validate_commerce_brief
+from factory.commercial_center import CommercialCenter
 from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationManager
 from factory.llm import OpenAIPlanEnhancer
 from factory.nightshift import NightShift
@@ -101,6 +102,7 @@ class CoreTests(unittest.TestCase):
                 (output / "vertical-thumbnail.jpg").write_bytes(b"image")
                 return {"mode": "prepared_not_uploaded"}
             product = {"product_id": "123", "title": "Luminária", "product_url": "https://shopee.com.br/item/123",
+                       "affiliate_url": "https://s.shopee.com.br/abc",
                        "exact_product_confirmed": True, "affiliate_disclosure": True,
                        "assets": [{"name": "Demonstração própria", "license_type": "original", "approved": True}],
                        "claims": [{"text": "Material informado pelo vendedor", "source": "Página oficial"}]}
@@ -108,7 +110,75 @@ class CoreTests(unittest.TestCase):
                 package = CommercePackager(pipeline, store).prepare(job_id, product, 5)
             self.assertFalse(package["automatic_upload_allowed"])
             self.assertEqual(package["platform"], "shopee")
+            self.assertEqual(package["product"]["affiliate_url"], "https://s.shopee.com.br/abc")
             self.assertTrue((output / "commerce-package.json").is_file())
+
+    def test_commercial_center_tracks_catalog_campaign_and_profit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            packager = CommercePackager(pipeline, store)
+            center = CommercialCenter(store, packager)
+            product = center.create_product({
+                "product_id": "SKU-123", "title": "Luminária de mesa",
+                "product_url": "https://shopee.com.br/produto/123",
+                "affiliate_url": "https://s.shopee.com.br/abc", "price": 79.9,
+                "exact_product_confirmed": True, "affiliate_disclosure": True,
+                "assets": [{"name": "Demonstração própria", "license_type": "original", "approved": True}],
+                "claims": [{"text": "Potência informada pelo vendedor", "source": "Ficha oficial"}],
+            })
+            self.assertEqual(product["status"], "validated")
+            campaign = center.create_campaign({"product_id": product["id"], "name": "Teste 01",
+                                               "destination": "shopee_video", "cost": 20})
+            self.assertEqual(campaign["status"], "draft")
+            measured = center.record_metrics(campaign["id"], {"clicks": 50, "conversions": 5,
+                                                                "commission": 60, "cost": 20})
+            self.assertEqual(measured["conversion_rate"], 10)
+            self.assertEqual(measured["roi"], 200)
+            overview = center.overview()
+            self.assertEqual(overview["summary"]["profit"], 40)
+            self.assertFalse(overview["automatic_upload_allowed"])
+
+    def test_commercial_center_blocks_invalid_product_from_campaign(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            center = CommercialCenter(store, CommercePackager(pipeline, store))
+            product = center.create_product({
+                "product_id": "SKU-INVALID", "title": "Produto",
+                "product_url": "https://example.com/product", "affiliate_url": "https://example.com/affiliate",
+                "assets": [{"name": "Pin", "license_type": "commercial_license", "approved": True,
+                            "source_url": "https://pinterest.com/pin/123"}],
+            })
+            self.assertEqual(product["status"], "blocked")
+            with self.assertRaisesRegex(ValueError, "validação comercial"):
+                center.create_campaign({"product_id": product["id"], "name": "Não pode entrar"})
+
+    def test_commercial_campaign_package_keeps_affiliate_link_and_manual_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            packager = CommercePackager(pipeline, store)
+            center = CommercialCenter(store, packager)
+            job_id = pipeline.create("Demonstração de produto", 5, profile="preview")
+            store.update(job_id, "approved", {}, progress=100)
+            product = center.create_product({
+                "product_id": "SKU-PACK", "title": "Produto demonstrado",
+                "product_url": "https://shopee.com.br/produto/pack",
+                "affiliate_url": "https://s.shopee.com.br/pack", "exact_product_confirmed": True,
+                "affiliate_disclosure": True,
+                "assets": [{"name": "Vídeo próprio", "license_type": "original", "approved": True}],
+            })
+            campaign = center.create_campaign({"product_id": product["id"], "name": "Pacote",
+                                               "job_id": job_id, "destination": "shopee_video"})
+            with patch.object(packager, "prepare", return_value={"automatic_upload_allowed": False}) as prepare:
+                result = center.prepare_campaign(campaign["id"], 15)
+            self.assertEqual(prepare.call_args.args[1]["affiliate_url"], "https://s.shopee.com.br/pack")
+            self.assertEqual(result["campaign"]["status"], "packaged")
+            self.assertFalse(result["automatic_upload_allowed"])
 
     def test_backup_manager_creates_integrity_checked_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -574,6 +644,28 @@ class CoreTests(unittest.TestCase):
                 self.assertTrue(all(not item["upload_enabled"] for item in planned.values()))
                 serialized_platforms = json.dumps(platforms)
                 self.assertNotIn("client-secret", serialized_platforms)
+                commerce = json.load(urllib.request.urlopen(base + "/api/commerce-center"))
+                self.assertEqual(commerce["summary"]["products"], 0)
+                self.assertFalse(commerce["automatic_upload_allowed"])
+                product_request = urllib.request.Request(
+                    base + "/api/commerce-center/products",
+                    data=json.dumps({"product_id": "API-1", "title": "Produto API",
+                                     "product_url": "https://shopee.com.br/produto/api-1",
+                                     "affiliate_url": "https://s.shopee.com.br/api-1", "price": 25,
+                                     "exact_product_confirmed": True, "affiliate_disclosure": True,
+                                     "assets": [{"name": "Asset próprio", "license_type": "original", "approved": True}]}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                product = json.load(urllib.request.urlopen(product_request))
+                self.assertEqual(product["status"], "validated")
+                campaign_request = urllib.request.Request(
+                    base + "/api/commerce-center/campaigns",
+                    data=json.dumps({"product_id": product["id"], "name": "Campanha API",
+                                     "destination": "shopee_video", "cost": 5}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                campaign = json.load(urllib.request.urlopen(campaign_request))
+                self.assertEqual(campaign["status"], "draft")
                 backups = json.load(urllib.request.urlopen(base + "/api/system/backups"))
                 self.assertGreaterEqual(len(backups), 1)
                 preflight_request = urllib.request.Request(
@@ -673,6 +765,8 @@ class CoreTests(unittest.TestCase):
         runner = (ROOT / "web" / "phase13.js").read_text(encoding="utf-8")
         self.assertIn("openJob=async function", runner)
         self.assertLess(index.index('/phase14.js'), index.index('/phase13.js'))
+        self.assertLess(index.index('/phase15.js'), index.index('/phase13.js'))
+        self.assertIn('id="commerce"', index)
 
     def test_artifact_endpoint_supports_byte_ranges(self):
         with tempfile.TemporaryDirectory() as tmp:

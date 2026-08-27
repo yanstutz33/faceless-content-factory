@@ -19,6 +19,7 @@ from .agents import PROFILES
 from .autopilot import Autopilot
 from .backup import BackupManager
 from .commerce import CommercePackager, validate_commerce_brief
+from .commercial_center import CommercialCenter
 from .integrations import IntegrationManager
 from .pipeline import Pipeline
 from .publishing import PublishingCenter
@@ -145,6 +146,7 @@ class Handler(SimpleHTTPRequestHandler):
     integrations: IntegrationManager
     backups: BackupManager
     commerce: CommercePackager
+    commercial: CommercialCenter
     static_dir: Path
 
     def handle_one_request(self) -> None:
@@ -334,6 +336,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.integrations.deliveries.list())
         if path == "/api/system/backups":
             return self.send_json(self.backups.list())
+        if path == "/api/commerce-center":
+            return self.send_json(self.commercial.overview())
         if path.startswith("/api/oauth/callback/"):
             platform = path.rsplit("/", 1)[-1]
             query = parse_qs(parsed.query)
@@ -361,6 +365,18 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/commerce/package":
                 return self.send_json(self.commerce.prepare(str(data.get("job_id", "")), data.get("product") or {},
                                                             int(data.get("duration", 30))), HTTPStatus.CREATED)
+            if path == "/api/commerce-center/products":
+                return self.send_json(self.commercial.create_product(data), HTTPStatus.CREATED)
+            if path == "/api/commerce-center/campaigns":
+                return self.send_json(self.commercial.create_campaign(data), HTTPStatus.CREATED)
+            commerce_parts = path.strip("/").split("/")
+            if len(commerce_parts) == 5 and commerce_parts[:3] == ["api", "commerce-center", "campaigns"]:
+                campaign_id, action = commerce_parts[3], commerce_parts[4]
+                if action == "metrics":
+                    return self.send_json(self.commercial.record_metrics(campaign_id, data))
+                if action == "package":
+                    return self.send_json(self.commercial.prepare_campaign(campaign_id, int(data.get("duration", 30))),
+                                          HTTPStatus.CREATED)
             integration_parts = path.strip("/").split("/")
             if len(integration_parts) == 4 and integration_parts[:2] == ["api", "integrations"]:
                 platform, action = integration_parts[2], integration_parts[3]
@@ -502,11 +518,12 @@ def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static
     integrations = IntegrationManager(pipeline.settings, store, publishing)
     backups = BackupManager(store.db_path, pipeline.settings.data_dir / "backups", pipeline.settings.backup_keep)
     commerce = CommercePackager(pipeline, store)
+    commercial = CommercialCenter(store, commerce)
     scheduler = CalendarScheduler(pipeline, store, runner, autopilot, nightshift, pipeline.settings.calendar_poll_seconds)
     handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner,
                                                    "autopilot": autopilot, "nightshift": nightshift,
                                                    "publishing": publishing, "integrations": integrations,
-                                                   "backups": backups, "commerce": commerce,
+                                                   "backups": backups, "commerce": commerce, "commercial": commercial,
                                                    "static_dir": static_dir})
     server = FactoryServer((host, port), handler, runner, scheduler)
     backups.ensure_daily()

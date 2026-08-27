@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.4
+# Faceless Content Factory — Studio MVP 1.5
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -40,6 +40,8 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Fila de pré-envio persistente, log de auditoria sem segredos e retentativa exponencial limitada
 - Backup diário e manual do SQLite com verificação de integridade e retenção configurável
 - Pacote comercial Shopee com produto exato, divulgação de comissão, fontes e direitos obrigatórios
+- Central Comercial separada com catálogo Shopee, campanhas, cliques, conversões, comissão, custo, lucro e ROI
+- Geração do pacote comercial vinculada somente a produtos validados e produções aprovadas
 - API com erros estruturados, código de solicitação e proteção contra vazamento de exceções internas
 - Frontend modular com um único registro de extensões, evitando dependência frágil da ordem dos scripts
 - Manifesto final de lançamento e fila visual de pacotes liberados, completos ou bloqueados
@@ -89,6 +91,7 @@ python app.py generate --topic "Café ao amanhecer" --duration 12 --profile prev
 python app.py doctor
 python app.py integrations
 python app.py backup
+python app.py commerce-overview
 ```
 
 O tempo e o espaço de renderização crescem com a duração. Faça uma prévia antes de iniciar vídeos de várias horas.
@@ -149,6 +152,7 @@ factory/agents.py      equipe digital, perfis e sugestões
 factory/pipeline.py    planejamento, assets e renderização
 factory/store.py       fila, eventos e métricas SQLite
 factory/web.py         API e servidor local
+factory/commercial_center.py  catálogo, campanhas e resultados de afiliados
 web/                   painel operacional
 tests/                 agentes, banco, API e renderização real
 data/jobs/             pacotes gerados (ignorado pelo Git)
@@ -189,6 +193,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 7. **Shopee + Pinterest:** trilha comercial aprovada para transformar produtos oficiais em vídeos próprios e publicar Video Pins rastreáveis; Pinterest nunca será fonte automática de mídia de terceiros.
 8. **Bilibili:** destino editorial internacional aprovado para pacotes longos com capa, metadados e legendas localizados; começa com upload manual pelo Creator Studio.
 9. **Painel comercial:** campanhas, produtos, links, cliques, conversões, comissão e custo de produção ficarão separados das métricas editoriais.
+10. **Central Comercial Shopee:** entregue no Studio 1.5 com catálogo validado, campanhas persistentes, pacote manual e cálculo de resultado; Pinterest permanece como próximo destino.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 

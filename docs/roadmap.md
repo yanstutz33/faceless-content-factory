@@ -37,13 +37,13 @@ Referência: [Bilibili Studio para criadores](https://member.bilibili.com/creato
 - pacote vertical comercial sem upload;
 - bloqueio explícito de mídia de terceiros obtida no Pinterest.
 
-### Próxima — central de campanhas
+### Entregue — central de campanhas
 
-1. Separar campanhas comerciais das séries editoriais.
-2. Importar produto e link de afiliado por fonte oficial ou formulário revisável.
-3. Gerar roteiro, vídeo, capa, legenda e variações de CTA.
-4. Associar cada criativo ao produto exato e registrar validade de preço/oferta.
-5. Medir cliques, conversões, comissão, custo e retorno por campanha.
+1. Campanhas comerciais separadas das séries editoriais.
+2. Produto e link de afiliado importados por formulário revisável e validação oficial de domínio.
+3. Produto exato, direitos, divulgação e alegações verificados antes da campanha.
+4. Criativo associado ao produto e à produção aprovada para gerar o pacote manual.
+5. Cliques, conversões, comissão, custo, lucro e ROI persistidos por campanha.
 
 ### Futura — Shopee + Pinterest
 
@@ -59,7 +59,7 @@ Referências: [Pinterest Content API](https://developers.pinterest.com/docs/work
 ## Ordem aprovada
 
 1. Concluir logins das plataformas que já estão preparadas.
-2. Construir a central comercial e o catálogo Shopee.
+2. Central comercial e catálogo Shopee — concluídos no Studio 1.5.
 3. Adicionar Pinterest como destino de mídia própria.
 4. Adicionar o pacote manual localizado para Bilibili.
 5. Automatizar publicações individualmente somente após testes, aprovação das APIs e confirmação humana.

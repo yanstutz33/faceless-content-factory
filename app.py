@@ -8,6 +8,7 @@ from pathlib import Path
 from factory.config import Settings
 from factory.backup import BackupManager
 from factory.commerce import CommercePackager, validate_commerce_brief
+from factory.commercial_center import CommercialCenter
 from factory.integrations import IntegrationManager
 from factory.pipeline import Pipeline
 from factory.publishing import PublishingCenter
@@ -61,6 +62,14 @@ def main() -> None:
     preflight.add_argument("platform", choices=["youtube", "tiktok", "reels", "shopee"])
     preflight.add_argument("--job-id")
     sub.add_parser("backup", help="Create and verify a local database backup")
+    sub.add_parser("commerce-overview", help="Show affiliate products, campaigns and results")
+    commerce_product = sub.add_parser("commerce-save-product", help="Validate and save a Shopee product brief")
+    commerce_product.add_argument("product_json", type=Path)
+    commerce_campaign = sub.add_parser("commerce-create-campaign", help="Create a manual-safe affiliate campaign")
+    commerce_campaign.add_argument("campaign_json", type=Path)
+    commerce_metrics = sub.add_parser("commerce-metrics", help="Record one commercial performance snapshot")
+    commerce_metrics.add_argument("campaign_id")
+    commerce_metrics.add_argument("metrics_json", type=Path)
     args = parser.parse_args()
 
     settings = Settings.load(ROOT)
@@ -68,6 +77,7 @@ def main() -> None:
     pipeline = Pipeline(settings, store)
     publishing = PublishingCenter(pipeline, store)
     integrations = IntegrationManager(settings, store, publishing)
+    commercial = CommercialCenter(store, CommercePackager(pipeline, store))
     if args.command == "generate":
         job_id = pipeline.create(args.topic, max(5, args.duration), args.narration, not args.no_subtitles,
                                  args.profile, args.asset)
@@ -109,6 +119,17 @@ def main() -> None:
     elif args.command == "backup":
         result = BackupManager(store.db_path, settings.data_dir / "backups", settings.backup_keep).create()
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "commerce-overview":
+        print(json.dumps(commercial.overview(), ensure_ascii=False, indent=2))
+    elif args.command == "commerce-save-product":
+        product = json.loads(args.product_json.read_text(encoding="utf-8"))
+        print(json.dumps(commercial.create_product(product), ensure_ascii=False, indent=2))
+    elif args.command == "commerce-create-campaign":
+        campaign = json.loads(args.campaign_json.read_text(encoding="utf-8"))
+        print(json.dumps(commercial.create_campaign(campaign), ensure_ascii=False, indent=2))
+    elif args.command == "commerce-metrics":
+        metrics_data = json.loads(args.metrics_json.read_text(encoding="utf-8"))
+        print(json.dumps(commercial.record_metrics(args.campaign_id, metrics_data), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
