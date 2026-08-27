@@ -1,8 +1,13 @@
 .env
 .venv/
 .tools/
+secrets/
+client_secret*.json
 __pycache__/
 *.pyc
 data/factory.db
 data/jobs/
-
+data/private/
+data/backups/
+data/integration-audit.jsonl
+data/deliveries.json

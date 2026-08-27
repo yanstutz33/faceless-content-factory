@@ -35,8 +35,14 @@ class Settings:
     openai_model: str = "gpt-5.4"
     youtube_client_secrets_file: str = ""
     tiktok_client_key: str = ""
+    tiktok_client_secret: str = ""
+    tiktok_redirect_uri: str = ""
     meta_app_id: str = ""
+    meta_app_secret: str = ""
+    meta_redirect_uri: str = ""
     shopee_partner_id: str = ""
+    shopee_partner_key: str = ""
+    backup_keep: int = 10
     local_tts_fallback: bool = True
 
     @classmethod
@@ -67,7 +73,13 @@ class Settings:
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
             youtube_client_secrets_file=os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", ""),
             tiktok_client_key=os.getenv("TIKTOK_CLIENT_KEY", ""),
+            tiktok_client_secret=os.getenv("TIKTOK_CLIENT_SECRET", ""),
+            tiktok_redirect_uri=os.getenv("TIKTOK_REDIRECT_URI", f"http://{os.getenv('FACTORY_HOST', '127.0.0.1')}:{os.getenv('FACTORY_PORT', '8787')}/api/oauth/callback/tiktok"),
             meta_app_id=os.getenv("META_APP_ID", ""),
+            meta_app_secret=os.getenv("META_APP_SECRET", ""),
+            meta_redirect_uri=os.getenv("META_REDIRECT_URI", f"http://{os.getenv('FACTORY_HOST', '127.0.0.1')}:{os.getenv('FACTORY_PORT', '8787')}/api/oauth/callback/reels"),
             shopee_partner_id=os.getenv("SHOPEE_PARTNER_ID", ""),
+            shopee_partner_key=os.getenv("SHOPEE_PARTNER_KEY", ""),
+            backup_keep=max(2, min(50, int(os.getenv("FACTORY_BACKUP_KEEP", "10")))),
             local_tts_fallback=os.getenv("LOCAL_TTS_FALLBACK", "true").lower() == "true",
         )

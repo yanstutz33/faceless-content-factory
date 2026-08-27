@@ -1,26 +1,34 @@
 import json
 import hashlib
+import os
 import re
 import shutil
+import sqlite3
+from contextlib import closing
 import tempfile
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from datetime import datetime
+from dataclasses import replace
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 from factory.agents import ContentCrew, PROFILES
 from factory.autopilot import Autopilot
+from factory.backup import BackupManager
 from factory.config import Settings
-from factory.commerce import validate_commerce_brief
+from factory.commerce import CommercePackager, validate_commerce_brief
+from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationManager
 from factory.llm import OpenAIPlanEnhancer
 from factory.nightshift import NightShift
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
 from factory.store import Store
 from factory.web import CalendarScheduler, create_server
+from factory.vault import SecureVault
 
 
 ROOT = Path(__file__).parents[1]
@@ -69,6 +77,113 @@ class CoreTests(unittest.TestCase):
                                           "assets": [{"name": "Demo própria", "license_type": "original", "approved": True}],
                                           "claims": [{"text": "Material informado", "source": "página oficial"}]})
         self.assertTrue(result["passed"])
+
+    def test_commerce_brief_rejects_non_shopee_and_pinterest_media(self):
+        result = validate_commerce_brief({"product_id": "123", "title": "Produto", "product_url": "https://example.com/item/123",
+                                          "exact_product_confirmed": True, "affiliate_disclosure": True,
+                                          "assets": [{"name": "Pin", "license_type": "commercial_license", "approved": True,
+                                                      "source_url": "https://pinterest.com/pin/123"}]})
+        self.assertFalse(result["passed"])
+        self.assertTrue(any("Shopee Brasil" in error for error in result["errors"]))
+        self.assertTrue(any("Pinterest" in error for error in result["errors"]))
+
+    def test_commerce_packager_creates_manual_safe_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Produto em uso", 5, profile="preview")
+            job = store.get_job(job_id)
+            store.update(job_id, "approved", {"verification": {"passed": True}, "quality_gate": {"passed": True}}, progress=100)
+            output = Path(job["output_dir"])
+            def vertical(_job_id, _duration):
+                (output / "vertical-short.mp4").write_bytes(b"video")
+                (output / "vertical-thumbnail.jpg").write_bytes(b"image")
+                return {"mode": "prepared_not_uploaded"}
+            product = {"product_id": "123", "title": "Luminária", "product_url": "https://shopee.com.br/item/123",
+                       "exact_product_confirmed": True, "affiliate_disclosure": True,
+                       "assets": [{"name": "Demonstração própria", "license_type": "original", "approved": True}],
+                       "claims": [{"text": "Material informado pelo vendedor", "source": "Página oficial"}]}
+            with patch.object(pipeline, "prepare_vertical_package", side_effect=vertical):
+                package = CommercePackager(pipeline, store).prepare(job_id, product, 5)
+            self.assertFalse(package["automatic_upload_allowed"])
+            self.assertEqual(package["platform"], "shopee")
+            self.assertTrue((output / "commerce-package.json").is_file())
+
+    def test_backup_manager_creates_integrity_checked_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "factory.db")
+            store.add_calendar_item("Backup test", None, "preview", 5, "2026-09-01T19:00")
+            manager = BackupManager(store.db_path, root / "backups", keep=2)
+            first = manager.create()
+            second = manager.create()
+            self.assertEqual(first["integrity"], "ok")
+            self.assertEqual(second["integrity"], "ok")
+            self.assertEqual(len(manager.list()), 2)
+            with closing(sqlite3.connect(root / "backups" / second["file"])) as database:
+                self.assertEqual(database.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+
+    def test_integration_audit_scrubs_sensitive_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audit = IntegrationAudit(Path(tmp) / "audit.jsonl")
+            audit.record("test", "youtube", {"access_token": "never-store-in-log", "nested": {"client_secret": "hidden"}})
+            raw = (Path(tmp) / "audit.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn("never-store-in-log", raw)
+            self.assertNotIn("hidden", raw)
+            self.assertEqual(audit.recent()[0]["detail"]["access_token"], "[redacted]")
+
+    def test_delivery_retry_policy_is_bounded(self):
+        base = datetime.fromisoformat("2026-08-26T12:00:00+00:00")
+        first = datetime.fromisoformat(DeliveryLedger.retry_after(1, base))
+        late = datetime.fromisoformat(DeliveryLedger.retry_after(20, base))
+        self.assertEqual((first - base).total_seconds(), 15)
+        self.assertEqual((late - base).total_seconds(), 3600)
+
+    def test_secure_vault_round_trip_uses_encrypted_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = SecureVault(Path(tmp) / "oauth.vault")
+            vault.set("token:test", {"access_token": "sensitive-value"})
+            self.assertEqual(vault.get("token:test")["access_token"], "sensitive-value")
+            self.assertNotIn(b"sensitive-value", (Path(tmp) / "oauth.vault").read_bytes())
+            self.assertIsNotNone(vault.pop("token:test"))
+            self.assertFalse(vault.contains("token:test"))
+
+    def test_oauth_flow_prepares_pkce_and_stores_tokens_without_exposing_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            secrets_file = root / "client.json"
+            secrets_file.write_text(json.dumps({"installed": {"client_id": "client-id", "client_secret": "client-secret",
+                                                               "redirect_uris": ["http://127.0.0.1:8787/api/oauth/callback/youtube"]}}), encoding="utf-8")
+            settings = replace(self.settings(root), youtube_client_secrets_file=str(secrets_file))
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(settings, store)
+            manager = IntegrationManager(settings, store, PublishingCenter(pipeline, store))
+            start = manager.oauth_start("youtube")
+            query = parse_qs(urlparse(start["authorization_url"]).query)
+            self.assertIn("code_challenge", query)
+            self.assertNotIn("verifier", json.dumps(start))
+            with patch.object(manager, "_post_form", return_value={"access_token": "top-secret", "refresh_token": "refresh"}):
+                result = manager.oauth_callback("youtube", query["state"][0], "authorization-code")
+            self.assertTrue(result["connected"])
+            self.assertNotIn("top-secret", json.dumps(result))
+            self.assertTrue(manager.readiness()["platforms"][0]["authenticated"])
+
+    def test_oauth_callback_rejects_expired_state_before_network(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            secrets_file = root / "client.json"
+            secrets_file.write_text(json.dumps({"installed": {"client_id": "id", "client_secret": "secret",
+                                                               "redirect_uris": ["http://127.0.0.1:8787/api/oauth/callback/youtube"]}}), encoding="utf-8")
+            settings = replace(self.settings(root), youtube_client_secrets_file=str(secrets_file))
+            store = Store(root / "data" / "factory.db")
+            manager = IntegrationManager(settings, store, PublishingCenter(Pipeline(settings, store), store))
+            manager.vault.set("pending:expired", {"platform": "youtube", "verifier": "v",
+                                                   "created_at": "2020-01-01T00:00:00+00:00"})
+            with patch.object(manager, "_post_form") as post:
+                with self.assertRaisesRegex(ValueError, "expirou"):
+                    manager.oauth_callback("youtube", "expired", "code")
+                post.assert_not_called()
 
     def test_editorial_calendar(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -454,6 +569,21 @@ class CoreTests(unittest.TestCase):
                 self.assertFalse(platforms["automatic_upload_allowed"])
                 self.assertEqual(platforms["total"], 4)
                 self.assertTrue(all("secret" not in key for item in platforms["platforms"] for key in item))
+                serialized_platforms = json.dumps(platforms)
+                self.assertNotIn("client-secret", serialized_platforms)
+                backups = json.load(urllib.request.urlopen(base + "/api/system/backups"))
+                self.assertGreaterEqual(len(backups), 1)
+                preflight_request = urllib.request.Request(
+                    base + "/api/integrations/youtube/preflight", data=b"{}",
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                preflight = json.load(urllib.request.urlopen(preflight_request))
+                self.assertFalse(preflight["network_contacted"])
+                self.assertFalse(preflight["upload_performed"])
+                deliveries = json.load(urllib.request.urlopen(base + "/api/integrations/deliveries"))
+                self.assertEqual(deliveries[0]["platform"], "youtube")
+                audit = json.load(urllib.request.urlopen(base + "/api/integrations/audit"))
+                self.assertEqual(audit[0]["event"], "preflight")
                 autopilot = json.load(urllib.request.urlopen(base + "/api/autopilot"))
                 self.assertEqual(autopilot["mode"], "off")
                 autopilot_request = urllib.request.Request(

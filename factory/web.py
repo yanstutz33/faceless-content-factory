@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import html
 import mimetypes
 import re
 import socket
@@ -16,8 +17,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .agents import PROFILES
 from .autopilot import Autopilot
+from .backup import BackupManager
+from .commerce import CommercePackager, validate_commerce_brief
+from .integrations import IntegrationManager
 from .pipeline import Pipeline
-from .platforms import platform_readiness
 from .publishing import PublishingCenter
 from .nightshift import NightShift
 from .store import Store
@@ -139,6 +142,9 @@ class Handler(SimpleHTTPRequestHandler):
     autopilot: Autopilot
     nightshift: NightShift
     publishing: PublishingCenter
+    integrations: IntegrationManager
+    backups: BackupManager
+    commerce: CommercePackager
     static_dir: Path
 
     def handle_one_request(self) -> None:
@@ -182,12 +188,20 @@ class Handler(SimpleHTTPRequestHandler):
     def send_api_error(self, message: str, status: int, code: str) -> None:
         self.send_json({"error": message, "code": code, "request_id": getattr(self, "request_id", "unknown")}, status)
 
+    def send_html(self, value: str, status: int = 200) -> None:
+        body = value.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
         allowed = {"video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
                    "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json", "youtube-upload.json",
                    "vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json", "quality-gate.json",
-                   "release-manifest.json"}
+                   "release-manifest.json", "commerce-package.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
         path = Path(job["output_dir"]) / name
@@ -312,7 +326,20 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/publishing":
             return self.send_json(self.publishing.queue())
         if path == "/api/platforms":
-            return self.send_json(platform_readiness(self.pipeline.settings))
+            return self.send_json(self.integrations.readiness())
+        if path == "/api/integrations/audit":
+            limit = int(parse_qs(parsed.query).get("limit", ["40"])[0])
+            return self.send_json(self.integrations.audit.recent(limit))
+        if path == "/api/integrations/deliveries":
+            return self.send_json(self.integrations.deliveries.list())
+        if path == "/api/system/backups":
+            return self.send_json(self.backups.list())
+        if path.startswith("/api/oauth/callback/"):
+            platform = path.rsplit("/", 1)[-1]
+            query = parse_qs(parsed.query)
+            result = self.integrations.oauth_callback(platform, query.get("state", [""])[0], query.get("code", [""])[0])
+            label = html.escape(platform.title())
+            return self.send_html(f"<!doctype html><meta charset='utf-8'><title>Conta conectada</title><style>body{{font:16px system-ui;background:#09111f;color:#eef3fb;display:grid;place-items:center;min-height:100vh}}main{{max-width:520px;padding:32px;background:#101a2b;border-radius:18px}}a{{color:#77e0bd}}</style><main><h1>{label} conectado</h1><p>A autorização foi guardada no cofre local. Nenhum conteúdo foi publicado.</p><a href='/#connections'>Voltar ao Studio</a></main>")
         parts = path.strip("/").split("/")
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
@@ -327,6 +354,22 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             data = self.read_json()
+            if path == "/api/system/backup":
+                return self.send_json(self.backups.create(), HTTPStatus.CREATED)
+            if path == "/api/commerce/validate":
+                return self.send_json(validate_commerce_brief(data))
+            if path == "/api/commerce/package":
+                return self.send_json(self.commerce.prepare(str(data.get("job_id", "")), data.get("product") or {},
+                                                            int(data.get("duration", 30))), HTTPStatus.CREATED)
+            integration_parts = path.strip("/").split("/")
+            if len(integration_parts) == 4 and integration_parts[:2] == ["api", "integrations"]:
+                platform, action = integration_parts[2], integration_parts[3]
+                if action == "oauth-start":
+                    return self.send_json(self.integrations.oauth_start(platform))
+                if action == "disconnect":
+                    return self.send_json(self.integrations.disconnect(platform))
+                if action == "preflight":
+                    return self.send_json(self.integrations.preflight(platform, data.get("job_id")))
             if path == "/api/jobs":
                 asset_ids = [int(value) for value in data.get("asset_ids", [])]
                 selected_assets = self.store.get_assets(asset_ids)
@@ -456,11 +499,17 @@ def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static
     autopilot = Autopilot(pipeline.settings, store)
     nightshift = NightShift(pipeline, store, runner, autopilot)
     publishing = PublishingCenter(pipeline, store)
+    integrations = IntegrationManager(pipeline.settings, store, publishing)
+    backups = BackupManager(store.db_path, pipeline.settings.data_dir / "backups", pipeline.settings.backup_keep)
+    commerce = CommercePackager(pipeline, store)
     scheduler = CalendarScheduler(pipeline, store, runner, autopilot, nightshift, pipeline.settings.calendar_poll_seconds)
     handler = type("FactoryHandler", (Handler,), {"pipeline": pipeline, "store": store, "runner": runner,
                                                    "autopilot": autopilot, "nightshift": nightshift,
-                                                   "publishing": publishing, "static_dir": static_dir})
+                                                   "publishing": publishing, "integrations": integrations,
+                                                   "backups": backups, "commerce": commerce,
+                                                   "static_dir": static_dir})
     server = FactoryServer((host, port), handler, runner, scheduler)
+    backups.ensure_daily()
     store.recover_interrupted()
     for job_id in store.queued_jobs():
         runner.submit(job_id)

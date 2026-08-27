@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.3
+# Faceless Content Factory — Studio MVP 1.4
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -36,6 +36,10 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Centro de publicação com auditoria unificada de aprovação, qualidade técnica e direitos de mídia
 - Preparação combinada de YouTube privado e recortes para Shorts, Reels e TikTok, sempre sem upload
 - Diagnóstico pré-login para YouTube, TikTok, Reels e Shopee sem expor chaves no navegador
+- Cofre OAuth criptografado, estado anti-CSRF, PKCE, desconexão local e callbacks preparados
+- Fila de pré-envio persistente, log de auditoria sem segredos e retentativa exponencial limitada
+- Backup diário e manual do SQLite com verificação de integridade e retenção configurável
+- Pacote comercial Shopee com produto exato, divulgação de comissão, fontes e direitos obrigatórios
 - API com erros estruturados, código de solicitação e proteção contra vazamento de exceções internas
 - Frontend modular com um único registro de extensões, evitando dependência frágil da ordem dos scripts
 - Manifesto final de lançamento e fila visual de pacotes liberados, completos ou bloqueados
@@ -60,7 +64,7 @@ O loop musical é sintetizado pelo próprio projeto e não copia gravações ou 
 
 ## Início rápido (Windows / PowerShell)
 
-Requisitos: Python 3.11+ e FFmpeg. Esta cópia local contém uma instalação portátil em `.tools/ffmpeg/bin` (a pasta não vai para o GitHub). FFprobe é usado quando estiver disponível; sem ele, a fábrica valida metadados e decodifica uma amostra diretamente com FFmpeg. Instale a dependência opcional de voz com `python -m pip install -r requirements.txt`.
+Requisitos: Python 3.11+ e FFmpeg. Esta cópia local contém uma instalação portátil em `.tools/ffmpeg/bin` (a pasta não vai para o GitHub). FFprobe é usado quando estiver disponível; sem ele, a fábrica valida metadados e decodifica uma amostra diretamente com FFmpeg. O setup instala voz neural e o cofre criptografado no ambiente isolado.
 
 Em um checkout novo, o caminho mais simples é:
 
@@ -83,6 +87,8 @@ python app.py generate --topic "Biblioteca chuvosa à noite" --duration 3600 --p
 python app.py generate --topic "Cabana na neve" --duration 45 --profile vertical_short --narration
 python app.py generate --topic "Café ao amanhecer" --duration 12 --profile preview --asset "C:\Assets\cafe.jpg"
 python app.py doctor
+python app.py integrations
+python app.py backup
 ```
 
 O tempo e o espaço de renderização crescem com a duração. Faça uma prévia antes de iniciar vídeos de várias horas.
@@ -182,6 +188,8 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 6. **Voz offline:** fallback implementado e diagnosticado, mas este Windows não possui uma voz SAPI instalada. A ambientação segura continua funcionando.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
+
+As telas, callbacks e validações anteriores ao login já estão preparados. Use [docs/platform-setup.md](docs/platform-setup.md) para registrar as URLs de retorno e concluir cada login quando quiser. Até lá, o botão **Pré-validar** apenas prepara a entrega local e confirma bloqueios; ele não chama a plataforma.
 
 ## Frente futura de afiliados
 

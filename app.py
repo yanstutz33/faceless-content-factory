@@ -6,8 +6,11 @@ import sys
 from pathlib import Path
 
 from factory.config import Settings
-from factory.commerce import validate_commerce_brief
+from factory.backup import BackupManager
+from factory.commerce import CommercePackager, validate_commerce_brief
+from factory.integrations import IntegrationManager
 from factory.pipeline import Pipeline
+from factory.publishing import PublishingCenter
 from factory.store import Store
 from factory.web import serve
 
@@ -49,11 +52,22 @@ def main() -> None:
     sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
     commerce = sub.add_parser("commerce-check", help="Validate one affiliate product brief without publishing")
     commerce.add_argument("product_json", type=Path)
+    commerce_package = sub.add_parser("commerce-package", help="Prepare a rights-safe Shopee package without uploading")
+    commerce_package.add_argument("job_id")
+    commerce_package.add_argument("product_json", type=Path)
+    commerce_package.add_argument("--duration", type=int, default=30)
+    sub.add_parser("integrations", help="Show connector readiness without exposing credentials")
+    preflight = sub.add_parser("preflight", help="Stage a manual-safe delivery check without uploading")
+    preflight.add_argument("platform", choices=["youtube", "tiktok", "reels", "shopee"])
+    preflight.add_argument("--job-id")
+    sub.add_parser("backup", help="Create and verify a local database backup")
     args = parser.parse_args()
 
     settings = Settings.load(ROOT)
     store = Store(settings.data_dir / "factory.db")
     pipeline = Pipeline(settings, store)
+    publishing = PublishingCenter(pipeline, store)
+    integrations = IntegrationManager(settings, store, publishing)
     if args.command == "generate":
         job_id = pipeline.create(args.topic, max(5, args.duration), args.narration, not args.no_subtitles,
                                  args.profile, args.asset)
@@ -84,8 +98,18 @@ def main() -> None:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if not result["passed"]:
             sys.exit(2)
+    elif args.command == "commerce-package":
+        product = json.loads(args.product_json.read_text(encoding="utf-8"))
+        result = CommercePackager(pipeline, store).prepare(args.job_id, product, args.duration)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "integrations":
+        print(json.dumps(integrations.readiness(), ensure_ascii=False, indent=2))
+    elif args.command == "preflight":
+        print(json.dumps(integrations.preflight(args.platform, args.job_id), ensure_ascii=False, indent=2))
+    elif args.command == "backup":
+        result = BackupManager(store.db_path, settings.data_dir / "backups", settings.backup_keep).create()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
     main()
-
