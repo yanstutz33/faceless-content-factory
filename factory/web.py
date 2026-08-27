@@ -203,7 +203,7 @@ class Handler(SimpleHTTPRequestHandler):
         allowed = {"video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json",
                    "render-report.json", "artifact-manifest.json", "asset-manifest.json", "thumbnail-design.json", "youtube-upload.json",
                    "vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json", "quality-gate.json",
-                   "release-manifest.json", "commerce-package.json"}
+                   "release-manifest.json", "commerce-package.json", "pinterest-package.json"}
         if not job or name not in allowed:
             return self.send_json({"error": "Artefato não encontrado"}, 404)
         path = Path(job["output_dir"]) / name
@@ -377,6 +377,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if action == "package":
                     return self.send_json(self.commercial.prepare_campaign(campaign_id, int(data.get("duration", 30))),
                                           HTTPStatus.CREATED)
+                if action == "pinterest-package":
+                    return self.send_json(self.commercial.prepare_pinterest(campaign_id, data), HTTPStatus.CREATED)
             integration_parts = path.strip("/").split("/")
             if len(integration_parts) == 4 and integration_parts[:2] == ["api", "integrations"]:
                 platform, action = integration_parts[2], integration_parts[3]

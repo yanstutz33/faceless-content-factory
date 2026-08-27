@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.5
+# Faceless Content Factory — Studio MVP 1.6
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -92,6 +92,7 @@ python app.py doctor
 python app.py integrations
 python app.py backup
 python app.py commerce-overview
+python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados úteis"
 ```
 
 O tempo e o espaço de renderização crescem com a duração. Faça uma prévia antes de iniciar vídeos de várias horas.
@@ -193,7 +194,8 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 7. **Shopee + Pinterest:** trilha comercial aprovada para transformar produtos oficiais em vídeos próprios e publicar Video Pins rastreáveis; Pinterest nunca será fonte automática de mídia de terceiros.
 8. **Bilibili:** destino editorial internacional aprovado para pacotes longos com capa, metadados e legendas localizados; começa com upload manual pelo Creator Studio.
 9. **Painel comercial:** campanhas, produtos, links, cliques, conversões, comissão e custo de produção ficarão separados das métricas editoriais.
-10. **Central Comercial Shopee:** entregue no Studio 1.5 com catálogo validado, campanhas persistentes, pacote manual e cálculo de resultado; Pinterest permanece como próximo destino.
+10. **Central Comercial Shopee:** entregue no Studio 1.5 com catálogo validado, campanhas persistentes, pacote manual e cálculo de resultado.
+11. **Pinterest Video Pin:** entregue no Studio 1.6 como pacote local com vídeo, capa, texto alternativo, link, board-alvo e payload da API; login e upload continuam bloqueados.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 
@@ -201,4 +203,4 @@ As telas, callbacks e validações anteriores ao login já estão preparados. Us
 
 ## Frente futura de afiliados
 
-O planejamento consolidado está em `docs/roadmap.md`, e a especificação comercial em `docs/commerce-video-roadmap.md`. Pinterest será fonte de tendências e destino dos nossos próprios Video Pins, nunca uma biblioteca automática de vídeos de terceiros. O módulo comercial só aceitará mídia própria, licenciada ou fornecida oficialmente para afiliados.
+O planejamento consolidado está em `docs/roadmap.md`, e a especificação comercial em `docs/commerce-video-roadmap.md`. Pinterest é destino dos nossos próprios Video Pins e fonte de pesquisa de tendências, nunca biblioteca automática de vídeos de terceiros. O módulo comercial só aceita mídia própria, licenciada ou fornecida oficialmente para afiliados.

@@ -40,7 +40,7 @@ Fontes aceitas para uma futura automação:
 
 Fontes: [adicionar produtos na Shopee Video](https://help.shopee.com.br/portal/10/article/165032), [diretrizes da comunidade](https://help.shopee.com.br/portal/10/article/165433-Diretrizes-da-comunidade-Shopee-Video), [identificação de publicidade](https://help.shopee.com.br/portal/10/article/196794) e [marcação no YouTube](https://help.shopee.com.br/portal/10/article/189593).
 
-O comando `python app.py commerce-check produto.json` agora valida um briefing e bloqueia produto incorreto, ausência de divulgação, alegações sem fonte e mídia sem direitos. A futura saída Pinterest publicará somente mídia criada ou licenciada pela própria operação.
+O comando `python app.py commerce-check produto.json` valida um briefing e bloqueia produto incorreto, ausência de divulgação, alegações sem fonte e mídia sem direitos. `python app.py commerce-pinterest-package ID_DA_CAMPANHA` prepara o Video Pin local com o payload da API, mas não faz login nem upload.
 
 Documentação oficial do destino Pinterest: [criação de Pins e Video Pins](https://developers.pinterest.com/docs/work-with-organic-content-and-users/create-boards-and-pins/) e [métricas orgânicas](https://developers.pinterest.com/docs/analytics-and-reports/organic-reporting/).
 

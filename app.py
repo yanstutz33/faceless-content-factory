@@ -70,6 +70,9 @@ def main() -> None:
     commerce_metrics = sub.add_parser("commerce-metrics", help="Record one commercial performance snapshot")
     commerce_metrics.add_argument("campaign_id")
     commerce_metrics.add_argument("metrics_json", type=Path)
+    pinterest_package = sub.add_parser("commerce-pinterest-package", help="Prepare a Video Pin package without uploading")
+    pinterest_package.add_argument("campaign_id")
+    pinterest_package.add_argument("--board-name", default="Achados úteis")
     args = parser.parse_args()
 
     settings = Settings.load(ROOT)
@@ -130,6 +133,9 @@ def main() -> None:
     elif args.command == "commerce-metrics":
         metrics_data = json.loads(args.metrics_json.read_text(encoding="utf-8"))
         print(json.dumps(commercial.record_metrics(args.campaign_id, metrics_data), ensure_ascii=False, indent=2))
+    elif args.command == "commerce-pinterest-package":
+        print(json.dumps(commercial.prepare_pinterest(args.campaign_id, {"board_name": args.board_name}),
+                         ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

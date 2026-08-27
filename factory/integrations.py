@@ -159,11 +159,11 @@ class IntegrationManager:
             {"id": "shopee", "label": "Shopee", "oauth_supported": False, "package_ready": True,
              "scope": "partner-account-link", "output": "Brief, direitos, produto e pacote vertical validados",
              "manual_step": "Vincular a conta de parceiro e confirmar o catálogo oficial"},
-            {"id": "pinterest", "label": "Pinterest", "oauth_supported": False, "package_ready": False,
+            {"id": "pinterest", "label": "Pinterest", "oauth_supported": False, "package_ready": True,
              "scope": "boards:read,boards:write,pins:read,pins:write",
-             "output": "Video Pins originais com produto Shopee e métricas",
-             "manual_step": "Fase comercial: registrar app e autorizar uma conta Pinterest Business",
-             "planned": True},
+             "output": "Video Pin original com produto Shopee, capa, link e payload local",
+             "manual_step": "Registrar app e autorizar uma conta Pinterest Business",
+             "package_only": True, "code_ready": True},
             {"id": "bilibili", "label": "Bilibili", "oauth_supported": False, "package_ready": False,
              "scope": "manual-creator-upload",
              "output": "Vídeo longo localizado, capa e legendas para o mercado chinês",
@@ -183,9 +183,10 @@ class IntegrationManager:
             except RuntimeError:
                 authenticated = False
                 vault_error = "O cofre precisa ser reparado antes de conectar contas"
-            state = "planned" if definition.get("planned") else "connected" if authenticated else "login_required" if configured else "config_required"
+            state = "planned" if definition.get("planned") else "package_ready" if definition.get("package_only") else "connected" if authenticated else "login_required" if configured else "config_required"
             platforms.append({**definition, "connector_configured": configured, "authenticated": authenticated,
-                              "state": state, "code_ready": not definition.get("planned", False), "upload_enabled": False})
+                              "state": state, "code_ready": definition.get("code_ready", not definition.get("planned", False)),
+                              "upload_enabled": False})
         return {"mode": "manual-safe", "automatic_upload_allowed": False,
                 "configured": sum(item["connector_configured"] for item in platforms),
                 "connected": sum(item["authenticated"] for item in platforms), "total": len(platforms),
@@ -279,6 +280,8 @@ class IntegrationManager:
             raise ValueError("Plataforma não suportada")
         if definition.get("planned"):
             raise ValueError("Esta integração está registrada no roadmap, mas ainda não entrou em implementação")
+        if definition.get("package_only"):
+            raise ValueError("O pacote Pinterest está pronto na Central de afiliados; o pré-teste online aguarda o login oficial")
         queue = self.publishing.queue()["items"]
         item = next((entry for entry in queue if entry["job_id"] == job_id), None) if job_id else next((entry for entry in queue if entry["release_ready"]), None)
         checks = []

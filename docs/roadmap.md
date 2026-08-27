@@ -45,14 +45,15 @@ Referência: [Bilibili Studio para criadores](https://member.bilibili.com/creato
 4. Criativo associado ao produto e à produção aprovada para gerar o pacote manual.
 5. Cliques, conversões, comissão, custo, lucro e ROI persistidos por campanha.
 
-### Futura — Shopee + Pinterest
+### Em andamento — Shopee + Pinterest
 
-1. Reutilizar o vídeo comercial original em formato Video Pin.
+1. Reutilizar o vídeo comercial original em formato Video Pin — concluído no Studio 1.6.
 2. Registrar app Pinterest e OAuth da conta Business.
-3. Publicar em boards comerciais usando somente a API oficial.
-4. Conectar o Pin ao link rastreável permitido e registrar a origem da campanha.
-5. Coletar métricas orgânicas e comparar Pinterest, Shopee Video e formatos verticais.
-6. Nunca baixar ou republicar automaticamente vídeos de outros Pins.
+3. Gerar payload local com board, vídeo, capa e texto alternativo — concluído no Studio 1.6.
+4. Publicar em boards comerciais usando somente a API oficial após login.
+5. Conectar o Pin ao link rastreável permitido e registrar a origem da campanha.
+6. Coletar métricas orgânicas e comparar Pinterest, Shopee Video e formatos verticais.
+7. Nunca baixar ou republicar automaticamente vídeos de outros Pins.
 
 Referências: [Pinterest Content API](https://developers.pinterest.com/docs/work-with-organic-content-and-users/create-boards-and-pins/) e [Pinterest Organic Analytics](https://developers.pinterest.com/docs/analytics-and-reports/organic-reporting/).
 
@@ -60,6 +61,6 @@ Referências: [Pinterest Content API](https://developers.pinterest.com/docs/work
 
 1. Concluir logins das plataformas que já estão preparadas.
 2. Central comercial e catálogo Shopee — concluídos no Studio 1.5.
-3. Adicionar Pinterest como destino de mídia própria.
+3. Pacote Pinterest para mídia própria — concluído no Studio 1.6; login oficial pendente.
 4. Adicionar o pacote manual localizado para Bilibili.
 5. Automatizar publicações individualmente somente após testes, aprovação das APIs e confirmação humana.

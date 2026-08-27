@@ -180,6 +180,40 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(result["campaign"]["status"], "packaged")
             self.assertFalse(result["automatic_upload_allowed"])
 
+    def test_pinterest_package_reuses_validated_commercial_media_without_upload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            commerce = CommercePackager(pipeline, store)
+            center = CommercialCenter(store, commerce)
+            job_id = pipeline.create("Produto original para Pinterest", 5, profile="preview")
+            store.update(job_id, "approved", {}, progress=100)
+            output = Path(store.get_job(job_id)["output_dir"])
+            (output / "vertical-short.mp4").write_bytes(b"video")
+            (output / "vertical-thumbnail.jpg").write_bytes(b"cover")
+            (output / "commerce-package.json").write_text("{}", encoding="utf-8")
+            product = center.create_product({
+                "product_id": "SKU-PIN", "title": "Luminária autoral",
+                "product_url": "https://shopee.com.br/produto/pin",
+                "affiliate_url": "https://s.shopee.com.br/pin", "exact_product_confirmed": True,
+                "affiliate_disclosure": True,
+                "assets": [{"name": "Vídeo próprio", "license_type": "original", "approved": True}],
+            })
+            campaign = center.create_campaign({"product_id": product["id"], "name": "Pin seguro",
+                                               "job_id": job_id, "destination": "shopee_video"})
+            with patch.object(commerce, "prepare", return_value={"automatic_upload_allowed": False}):
+                center.prepare_campaign(campaign["id"], 15)
+            result = center.prepare_pinterest(campaign["id"], {"board_name": "Achados testados"})
+            payload = result["package"]["api_plan"]["payload_template"]
+            self.assertEqual(result["campaign"]["pinterest_status"], "prepared")
+            self.assertEqual(result["package"]["board_target"]["name"], "Achados testados")
+            self.assertEqual(payload["link"], "https://s.shopee.com.br/pin")
+            self.assertEqual(payload["media_source"]["source_type"], "video_id")
+            self.assertFalse(result["automatic_upload_allowed"])
+            self.assertTrue(result["login_required"])
+            self.assertTrue((output / "pinterest-package.json").is_file())
+
     def test_backup_manager_creates_integrity_checked_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -640,8 +674,12 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(platforms["total"], 6)
                 self.assertTrue(all("secret" not in key for item in platforms["platforms"] for key in item))
                 planned = {item["id"]: item for item in platforms["platforms"] if item["state"] == "planned"}
-                self.assertEqual(set(planned), {"pinterest", "bilibili"})
+                self.assertEqual(set(planned), {"bilibili"})
                 self.assertTrue(all(not item["upload_enabled"] for item in planned.values()))
+                pinterest = next(item for item in platforms["platforms"] if item["id"] == "pinterest")
+                self.assertEqual(pinterest["state"], "package_ready")
+                self.assertTrue(pinterest["package_ready"])
+                self.assertFalse(pinterest["upload_enabled"])
                 serialized_platforms = json.dumps(platforms)
                 self.assertNotIn("client-secret", serialized_platforms)
                 commerce = json.load(urllib.request.urlopen(base + "/api/commerce-center"))
@@ -767,6 +805,11 @@ class CoreTests(unittest.TestCase):
         self.assertLess(index.index('/phase14.js'), index.index('/phase13.js'))
         self.assertLess(index.index('/phase15.js'), index.index('/phase13.js'))
         self.assertIn('id="commerce"', index)
+        commerce_ui = (ROOT / "web" / "phase15.js").read_text(encoding="utf-8")
+        integrations_ui = (ROOT / "web" / "phase14.js").read_text(encoding="utf-8")
+        self.assertIn("data-pinterest-package", commerce_ui)
+        self.assertIn("pinterest-package", commerce_ui)
+        self.assertIn("package_ready:'PACOTE LOCAL PRONTO'", integrations_ui)
 
     def test_artifact_endpoint_supports_byte_ranges(self):
         with tempfile.TemporaryDirectory() as tmp:

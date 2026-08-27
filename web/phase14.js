@@ -1,6 +1,6 @@
 let integrationState={platforms:[],backups:[],audit:[],deliveries:[]};
 
-const integrationLabels={config_required:'CONFIGURAÇÃO NECESSÁRIA',login_required:'PRONTA PARA LOGIN',connected:'CONTA CONECTADA',planned:'NO ROADMAP'};
+const integrationLabels={config_required:'CONFIGURAÇÃO NECESSÁRIA',login_required:'PRONTA PARA LOGIN',connected:'CONTA CONECTADA',planned:'NO ROADMAP',package_ready:'PACOTE LOCAL PRONTO'};
 const deliveryLabels={blocked_auth:'Aguardando conta',blocked_package:'Aguardando pacote',manual_approval:'Aguardando sua confirmação'};
 
 function renderIntegrationLists(){
@@ -15,16 +15,16 @@ function renderConnections(readiness){
   document.querySelector('#vault-status').textContent=readiness.vault.available?`${readiness.vault.provider} ativo`:'Cofre indisponível';
   document.querySelector('#backup-status').textContent=integrationState.backups.length?`${integrationState.backups.length} backup(s) íntegro(s) retido(s)`:'O backup diário será criado automaticamente';
   document.querySelector('#connection-grid').innerHTML=readiness.platforms.map(platform=>{
-    const planned=platform.state==='planned';
+    const planned=platform.state==='planned';const packageOnly=platform.state==='package_ready';
     const connected=platform.authenticated;const configured=platform.connector_configured;
-    const authAction=planned
-      ?'<button class="secondary" disabled>Disponível em fase futura</button>'
+    const authAction=planned||packageOnly
+      ?`<button class="secondary" disabled>${packageOnly?'Login oficial pendente':'Disponível em fase futura'}</button>`
       :connected
       ?`<button class="secondary" data-disconnect="${esc(platform.id)}">Desconectar conta</button>`
       :platform.oauth_supported
         ?`<button class="secondary" data-oauth="${esc(platform.id)}" ${configured?'':'disabled'}>${configured?'Abrir login oficial':'Configuração necessária'}</button>`
         :'<button class="secondary" disabled>Vinculação manual da conta</button>';
-    return `<article class="connection-card ${planned?'planned':connected?'connected':configured?'configured':'waiting'}"><div class="connection-head"><div><span class="tag">${integrationLabels[platform.state]}</span><h3>${esc(platform.label)}</h3></div><span class="connection-state">${planned?'◷':connected?'✓':configured?'◇':'○'}</span></div><p>${esc(platform.output)}</p><dl><div><dt>Código</dt><dd>${platform.code_ready?'Pronto e testável':'Planejado'}</dd></div><div><dt>Pacote local</dt><dd>${platform.package_ready?'Pronto':'Em planejamento'}</dd></div><div><dt>Próxima etapa</dt><dd>${esc(platform.manual_step)}</dd></div></dl><div class="connection-actions"><button class="primary" data-preflight="${esc(platform.id)}" ${planned?'disabled':''}>${planned?'Ainda não iniciado':'Executar pré-teste'}</button>${authAction}</div><div class="preflight-result" data-result="${esc(platform.id)}"></div></article>`;
+    return `<article class="connection-card ${planned?'planned':packageOnly?'configured':connected?'connected':configured?'configured':'waiting'}"><div class="connection-head"><div><span class="tag">${integrationLabels[platform.state]}</span><h3>${esc(platform.label)}</h3></div><span class="connection-state">${planned?'◷':packageOnly?'◆':connected?'✓':configured?'◇':'○'}</span></div><p>${esc(platform.output)}</p><dl><div><dt>Código</dt><dd>${platform.code_ready?'Pronto e testável':'Planejado'}</dd></div><div><dt>Pacote local</dt><dd>${platform.package_ready?'Pronto':'Em planejamento'}</dd></div><div><dt>Próxima etapa</dt><dd>${esc(platform.manual_step)}</dd></div></dl><div class="connection-actions"><button class="primary" data-preflight="${esc(platform.id)}" ${planned||packageOnly?'disabled':''}>${planned?'Ainda não iniciado':packageOnly?'Preparação concluída':'Executar pré-teste'}</button>${authAction}</div><div class="preflight-result" data-result="${esc(platform.id)}"></div></article>`;
   }).join('');
   renderIntegrationLists();
 }

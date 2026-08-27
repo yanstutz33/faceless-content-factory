@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .commerce import CommercePackager, validate_commerce_brief
+from .pinterest import PinterestPackager
 from .store import Store, now
 
 
@@ -18,6 +19,7 @@ class CommercialCenter:
     def __init__(self, store: Store, packager: CommercePackager):
         self.store = store
         self.packager = packager
+        self.pinterest = PinterestPackager(store)
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -48,6 +50,14 @@ class CommercialCenter:
                     commission REAL NOT NULL DEFAULT 0, cost REAL NOT NULL DEFAULT 0,
                     recorded_at TEXT NOT NULL,
                     FOREIGN KEY(campaign_id) REFERENCES commerce_campaigns(id)
+                );
+                CREATE TABLE IF NOT EXISTS commerce_distributions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, campaign_id TEXT NOT NULL,
+                    destination TEXT NOT NULL, status TEXT NOT NULL,
+                    manifest_file TEXT NOT NULL, settings TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    FOREIGN KEY(campaign_id) REFERENCES commerce_campaigns(id),
+                    UNIQUE(campaign_id, destination)
                 );
             """)
 
@@ -191,10 +201,13 @@ class CommercialCenter:
             WITH latest AS (SELECT campaign_id,MAX(id) AS id FROM commerce_metrics GROUP BY campaign_id)
             SELECT c.*,p.title AS product_title,p.external_id AS product_external_id,p.status AS product_status,
                    COALESCE(m.clicks,0) AS clicks,COALESCE(m.conversions,0) AS conversions,
-                   COALESCE(m.commission,0) AS commission,COALESCE(m.cost,0) AS cost,m.recorded_at AS metrics_at
+                   COALESCE(m.commission,0) AS commission,COALESCE(m.cost,0) AS cost,m.recorded_at AS metrics_at,
+                   d.status AS pinterest_status,d.manifest_file AS pinterest_package_file,
+                   d.updated_at AS pinterest_updated_at
             FROM commerce_campaigns c JOIN commerce_products p ON p.id=c.product_id
             LEFT JOIN latest l ON l.campaign_id=c.id
             LEFT JOIN commerce_metrics m ON m.id=l.id
+            LEFT JOIN commerce_distributions d ON d.campaign_id=c.id AND d.destination='pinterest_video'
         """
         if where:
             sql += " WHERE " + where
@@ -249,6 +262,29 @@ class CommercialCenter:
         return {"campaign": self.get_campaign(campaign_id), "package": package,
                 "automatic_upload_allowed": False}
 
+    def prepare_pinterest(self, campaign_id: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+        campaign = self.get_campaign(campaign_id)
+        if not campaign.get("job_id"):
+            raise ValueError("Vincule uma produção aprovada antes de preparar o Video Pin")
+        product = self.get_product(campaign["product_id"])
+        if campaign.get("status") != "packaged":
+            self.prepare_campaign(campaign_id, int((data or {}).get("duration", 30)))
+            campaign = self.get_campaign(campaign_id)
+        package = self.pinterest.prepare(campaign, product, data)
+        timestamp = now()
+        settings = {key: (data or {}).get(key) for key in ("board_name", "title", "description", "alt_text")
+                    if (data or {}).get(key)}
+        with self.store.connect() as db:
+            db.execute("""
+                INSERT INTO commerce_distributions(campaign_id,destination,status,manifest_file,settings,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(campaign_id,destination) DO UPDATE SET status=excluded.status,
+                    manifest_file=excluded.manifest_file,settings=excluded.settings,updated_at=excluded.updated_at
+            """, (campaign_id, "pinterest_video", "prepared", "pinterest-package.json",
+                  json.dumps(settings, ensure_ascii=False), timestamp, timestamp))
+        return {"campaign": self.get_campaign(campaign_id), "package": package,
+                "automatic_upload_allowed": False, "login_required": True}
+
     def overview(self) -> dict[str, Any]:
         products = self.list_products()
         campaigns = self.list_campaigns()
@@ -263,6 +299,7 @@ class CommercialCenter:
                         "commission": commission, "cost": cost, "profit": round(commission - cost, 2)},
             "products": products, "campaigns": campaigns,
             "destinations": [{"id": key, "label": label, "available": True} for key, label in DESTINATIONS.items()] +
-                            [{"id": "pinterest_video", "label": "Pinterest Video Pin", "available": False}],
+                            [{"id": "pinterest_video", "label": "Pinterest Video Pin", "available": True,
+                              "automatic_upload_allowed": False, "login_required": True}],
             "safety": "Somente produtos, mídia e alegações validados entram em campanhas; nenhum upload é realizado.",
         }
