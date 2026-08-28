@@ -29,6 +29,8 @@ def main() -> None:
     generate.add_argument("--duration", type=int, default=30)
     generate.add_argument("--profile", choices=["youtube_long", "vertical_short", "preview"], default="youtube_long")
     generate.add_argument("--asset", help="Optional JPG/PNG/WebP source image")
+    generate.add_argument("--confirm-asset-rights", action="store_true",
+                          help="Confirm that the supplied asset may be used commercially")
     generate.add_argument("--narration", action="store_true")
     generate.add_argument("--no-subtitles", action="store_true")
     sub.add_parser("list", help="List queued jobs")
@@ -87,7 +89,8 @@ def main() -> None:
     commercial = CommercialCenter(store, CommercePackager(pipeline, store))
     if args.command == "generate":
         job_id = pipeline.create(args.topic, max(5, args.duration), args.narration, not args.no_subtitles,
-                                 args.profile, args.asset)
+                                 args.profile, args.asset,
+                                 source_asset_rights_confirmed=args.confirm_asset_rights)
         print(json.dumps(pipeline.run(job_id), ensure_ascii=False, indent=2))
     elif args.command == "list":
         print(json.dumps(store.list_jobs(), ensure_ascii=False, indent=2))

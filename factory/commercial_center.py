@@ -5,7 +5,7 @@ import secrets
 from typing import Any
 from urllib.parse import urlparse
 
-from .commerce import CommercePackager, validate_commerce_brief
+from .commerce import CommercePackager, official_domain, validate_commerce_brief
 from .pinterest import PinterestPackager
 from .store import Store, now
 
@@ -75,7 +75,7 @@ class CommercialCenter:
         url = str(value or "").strip()
         parsed = urlparse(url)
         host = (parsed.hostname or "").lower()
-        if parsed.scheme != "https" or not host.endswith("shopee.com.br"):
+        if parsed.scheme != "https" or not official_domain(host, "shopee.com.br"):
             return url, f"{label} precisa usar um endereço HTTPS oficial da Shopee Brasil"
         return url, None
 

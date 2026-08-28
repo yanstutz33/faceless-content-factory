@@ -1,0 +1,68 @@
+.thumb-placeholder,
+.preview-placeholder {
+  background:
+    radial-gradient(circle at 72% 25%, rgba(119, 224, 189, 0.13), transparent 28%),
+    linear-gradient(145deg, #14283b, #091421);
+}
+
+.preview-placeholder {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  border: 1px solid #304158;
+  border-radius: 12px;
+  color: #71849b;
+  font-size: 11px;
+}
+
+.error-summary {
+  border-color: #62343d;
+  background: #21161d;
+}
+
+.error-summary h4 {
+  color: #ffaaaa;
+}
+
+.error-summary details {
+  margin-top: 12px;
+}
+
+.error-summary pre {
+  max-height: 220px;
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 9px;
+  background: #090e17;
+  color: #9cabbc;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.asset-card {
+  padding: 16px;
+}
+
+.asset-card h3 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+}
+
+.asset-card p,
+.asset-card small {
+  color: #7d8ea5;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #77e0bd;
+  outline-offset: 3px;
+}

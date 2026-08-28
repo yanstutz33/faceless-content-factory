@@ -112,7 +112,8 @@ class CalendarScheduler:
                 break
             try:
                 job_id = self.pipeline.create(
-                    item["topic"], item["duration"], False, True, item["profile"], priority=2
+                    item["topic"], item["duration"], False, True, item["profile"], priority=2,
+                    team_id=item.get("team_id", DEFAULT_TEAM_ID),
                 )
                 self.store.link_calendar_job(item["id"], job_id)
                 self.store.event(job_id, "calendar", "Produção iniciada automaticamente pelo calendário")
@@ -411,6 +412,7 @@ class Handler(SimpleHTTPRequestHandler):
                     bool(data.get("narration", False)), bool(data.get("subtitles", True)),
                     data.get("profile", "youtube_long"), data.get("source_asset") or None, int(data.get("priority", 2)),
                     selected_assets, data.get("team_id", DEFAULT_TEAM_ID),
+                    bool(data.get("source_asset_rights_confirmed", False)),
                 )
                 self.runner.submit(job_id)
                 return self.send_json(self.store.get_job(job_id), HTTPStatus.ACCEPTED)

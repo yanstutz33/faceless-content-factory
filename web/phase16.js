@@ -19,6 +19,11 @@
     const available = data.teams.filter(team => team.creation_enabled);
     select.innerHTML = available.map(team => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.name)}</option>`).join('');
     select.value = data.default_team;
+    const calendarTeam = document.querySelector('#calendar-team');
+    if (calendarTeam) {
+      calendarTeam.innerHTML = available.map(team => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.name)}</option>`).join('');
+      calendarTeam.value = data.default_team;
+    }
     const help = document.querySelector('#production-team-help');
     const updateHelp = () => {
       const team = available.find(item => item.id === select.value);

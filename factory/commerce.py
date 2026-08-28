@@ -14,6 +14,13 @@ from .teams import apply_team_playbook
 ALLOWED_LICENSES = {"original", "commercial_license", "public_domain", "cc0", "provider_generated"}
 
 
+def official_domain(hostname: str | None, domain: str) -> bool:
+    """Accept an exact host or a real subdomain, never a look-alike suffix."""
+    host = (hostname or "").strip().lower().rstrip(".")
+    expected = domain.strip().lower().rstrip(".")
+    return host == expected or host.endswith(f".{expected}")
+
+
 def validate_commerce_brief(product: dict[str, Any]) -> dict[str, Any]:
     """Fail-closed validation before any affiliate video can enter rendering."""
     errors: list[str] = []
@@ -25,7 +32,7 @@ def validate_commerce_brief(product: dict[str, Any]) -> dict[str, Any]:
         errors.append("Título verificável do produto ausente")
     if parsed.scheme != "https" or not parsed.netloc:
         errors.append("URL HTTPS oficial do produto ausente")
-    elif not (parsed.hostname or "").lower().endswith("shopee.com.br"):
+    elif not official_domain(parsed.hostname, "shopee.com.br"):
         errors.append("A URL precisa apontar para o domínio oficial da Shopee Brasil")
     if not product.get("exact_product_confirmed"):
         errors.append("O vídeo precisa mostrar exatamente o produto vinculado")
@@ -36,7 +43,7 @@ def validate_commerce_brief(product: dict[str, Any]) -> dict[str, Any]:
         errors.append("Ao menos um asset rastreável é obrigatório")
     for asset in assets:
         source_host = (urlparse(str(asset.get("source_url", ""))).hostname or "").lower()
-        if source_host.endswith("pinterest.com") or source_host.endswith("pin.it"):
+        if official_domain(source_host, "pinterest.com") or official_domain(source_host, "pin.it"):
             errors.append(f"Pinterest pode inspirar a pesquisa, mas não comprova licença: {asset.get('name', 'sem nome')}")
         if not asset.get("approved") or asset.get("license_type") not in ALLOWED_LICENSES:
             errors.append(f"Asset sem direitos comerciais comprovados: {asset.get('name', 'sem nome')}")

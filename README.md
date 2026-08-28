@@ -88,7 +88,7 @@ Abra `http://127.0.0.1:8787`, clique em **Nova produção** e escolha o formato.
 ```powershell
 python app.py generate --topic "Biblioteca chuvosa à noite" --duration 3600 --profile youtube_long
 python app.py generate --topic "Cabana na neve" --duration 45 --profile vertical_short --narration
-python app.py generate --topic "Café ao amanhecer" --duration 12 --profile preview --asset "C:\Assets\cafe.jpg"
+python app.py generate --topic "Café ao amanhecer" --duration 12 --profile preview --asset "C:\Assets\cafe.jpg" --confirm-asset-rights
 python app.py doctor
 python app.py integrations
 python app.py backup
@@ -174,7 +174,7 @@ data/jobs/             pacotes gerados (ignorado pelo Git)
 
 O fluxo gera placeholders originais por padrão. Em **Biblioteca de assets**, registre nome, arquivo, licença, origem e observações e confirme os direitos comerciais. Em **Opções avançadas**, selecione até 12 imagens aprovadas; a fábrica divide o vídeo entre elas, aplica movimento suave e salva `asset-manifest.json` no pacote.
 
-Um caminho avulso ainda pode ser informado para testes rápidos, mas a biblioteca é o fluxo recomendado porque mantém a rastreabilidade. Não reutilize vídeos de outros canais sem permissão.
+Um caminho avulso ainda pode ser informado para testes rápidos, mas exige confirmação explícita de direitos na interface ou a opção `--confirm-asset-rights` na linha de comando. A biblioteca é o fluxo recomendado porque mantém a rastreabilidade. Não reutilize vídeos de outros canais sem permissão.
 
 ## Testes
 
@@ -182,7 +182,7 @@ Um caminho avulso ainda pode ser informado para testes rápidos, mas a bibliotec
 python -m unittest discover -s tests -v
 ```
 
-A suíte cobre agentes, validação, migração/estado da fila, retomada após reinício, calendário automático, insights por snapshot, catálogo de licenças, segurança da API, streaming por faixa, fallback de voz, thumbnails A/B, renderização simples, checksums e composição multicena real com FFmpeg. A interface também é validada em desktop e viewport móvel.
+A suíte cobre agentes, validação, migração/estado da fila, trava de render entre processos, retomada após reinício, calendário com equipe especializada, insights por snapshot, catálogo de licenças, domínios oficiais, segurança da API, cancelamentos de formulários, streaming por faixa, fallback de voz, thumbnails A/B, renderização simples, checksums e composição multicena real com FFmpeg. A interface também é validada em desktop e viewport móvel.
 
 Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Esses relatórios não publicam nada; servem para detectar pacotes incompletos antes da sua aprovação.
 

@@ -132,6 +132,23 @@ class CoreTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Centro de Afiliados"):
                 pipeline.create("Produto", 15, profile="vertical_short", team_id="affiliate_commerce")
 
+    def test_direct_asset_requires_explicit_commercial_rights(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image = root / "scene.jpg"
+            image.write_bytes(b"placeholder")
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            with self.assertRaisesRegex(ValueError, "direitos comerciais"):
+                pipeline.create("Cena própria", 5, profile="preview", source_asset=str(image))
+            job_id = pipeline.create(
+                "Cena própria", 5, profile="preview", source_asset=str(image),
+                source_asset_rights_confirmed=True,
+            )
+            asset = store.get_job(job_id)["source_assets"][0]
+            self.assertTrue(asset["approved"])
+            self.assertTrue(asset["rights_confirmed"])
+
     def test_optional_llm_keeps_local_plan_without_api_key(self):
         enhancer = OpenAIPlanEnhancer("")
         plan = ContentCrew(enhancer).run("Café silencioso", 1800, "youtube_long", False)
@@ -160,6 +177,16 @@ class CoreTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertTrue(any("Shopee Brasil" in error for error in result["errors"]))
         self.assertTrue(any("Pinterest" in error for error in result["errors"]))
+
+    def test_commerce_brief_rejects_lookalike_domains(self):
+        product = {"product_id": "123", "title": "Produto", "product_url": "https://evilshopee.com.br/item/123",
+                   "exact_product_confirmed": True, "affiliate_disclosure": True,
+                   "assets": [{"name": "Demo", "license_type": "original", "approved": True}]}
+        result = validate_commerce_brief(product)
+        self.assertFalse(result["passed"])
+        self.assertTrue(any("Shopee Brasil" in error for error in result["errors"]))
+        product["product_url"] = "https://loja.shopee.com.br/item/123"
+        self.assertTrue(validate_commerce_brief(product)["passed"])
 
     def test_commerce_packager_creates_manual_safe_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -385,7 +412,8 @@ class CoreTests(unittest.TestCase):
             root = Path(tmp)
             store = Store(root / "data" / "factory.db")
             pipeline = Pipeline(self.settings(root), store)
-            due_id = store.add_calendar_item("Due ambience", None, "preview", 5, "2020-01-01T10:00")
+            due_id = store.add_calendar_item("Due ambience", None, "preview", 5, "2020-01-01T10:00",
+                                             team_id="bilibili_lab")
             future_id = store.add_calendar_item("Future ambience", None, "preview", 5, "2099-01-01T10:00")
             runner = CapturingRunner()
             autopilot = Autopilot(self.settings(root), store)
@@ -395,6 +423,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(runner.submitted, created)
             self.assertEqual(calendar[due_id]["status"], "producing")
             self.assertEqual(calendar[due_id]["job_id"], created[0])
+            self.assertEqual(store.get_job(created[0])["team_id"], "bilibili_lab")
             self.assertEqual(calendar[future_id]["status"], "planned")
             self.assertEqual(store.get_job(created[0])["events"][-1]["stage"], "calendar")
             self.assertIsNone(store.claim_calendar_item(due_id))
@@ -683,6 +712,10 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(selected["metadata"]["selected_thumbnail"], "b")
             design = json.loads((Path(job["output_dir"]) / "thumbnail-design.json").read_text(encoding="utf-8"))
             self.assertEqual(design["selected"], "b")
+            selected_manifest = json.loads(
+                (Path(job["output_dir"]) / "artifact-manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("quality-gate.json", {item["name"] for item in selected_manifest["files"]})
             self.assertEqual(
                 (Path(job["output_dir"]) / "thumbnail.jpg").read_bytes(),
                 (Path(job["output_dir"]) / "thumbnail-b.jpg").read_bytes(),
@@ -722,6 +755,28 @@ class CoreTests(unittest.TestCase):
             self.assertTrue(first.claim_job(job_id))
             self.assertFalse(second.claim_job(job_id))
             self.assertEqual(second.get_job(job_id)["status"], "planning")
+
+    def test_render_lock_blocks_another_process_and_recovers_stale_owner(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            first = Pipeline(self.settings(root), store)
+            second = Pipeline(self.settings(root), store)
+            output = root / "data" / "jobs" / "locked"
+            output.mkdir(parents=True)
+            lock = first.acquire_job_lock(output)
+            self.assertIsNotNone(lock)
+            self.assertIsNone(second.acquire_job_lock(output))
+            first.release_job_lock(lock)
+            recovered = second.acquire_job_lock(output)
+            self.assertIsNotNone(recovered)
+            second.release_job_lock(recovered)
+            (output / ".render.lock").write_text(
+                json.dumps({"pid": 99999999, "token": "stale"}), encoding="utf-8"
+            )
+            recovered_stale = first.acquire_job_lock(output)
+            self.assertIsNotNone(recovered_stale)
+            first.release_job_lock(recovered_stale)
 
     def test_approval_blocks_video_changed_after_validation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -970,6 +1025,22 @@ class CoreTests(unittest.TestCase):
         self.assertIn("package_ready:'PACOTE LOCAL PRONTO'", integrations_ui)
         publishing_ui = (ROOT / "web" / "phase12.js").read_text(encoding="utf-8")
         self.assertIn("bilibili_manual", publishing_ui)
+
+    def test_frontend_dialogs_cannot_submit_when_cancelled(self):
+        index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn('method="dialog"', index)
+        self.assertNotRegex(
+            index,
+            r'<button(?![^>]*type="button")[^>]*(?:value="cancel"|data-dialog-close)',
+        )
+        self.assertIn("source_asset_rights_confirmed", index)
+        self.assertIn("source_asset_rights_confirmed", app)
+        self.assertIn("$('#new-asset').onclick", app)
+        self.assertIn("$('#asset-form').addEventListener('submit'", app)
+        self.assertIn("hasRenderedArtifacts", app)
+        calendar_ui = (ROOT / "web" / "phase2.js").read_text(encoding="utf-8")
+        self.assertIn("friendlyError(item.error)", calendar_ui)
 
     def test_artifact_endpoint_supports_byte_ranges(self):
         with tempfile.TemporaryDirectory() as tmp:

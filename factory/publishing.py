@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .bilibili import BilibiliPackager
-from .pipeline import Pipeline
+from .pipeline import Pipeline, SUPPORTED_ASSET_LICENSES
 from .store import Store
 
 
@@ -30,7 +30,10 @@ class PublishingCenter:
         if not isinstance(assets, list) or not assets:
             return False, "Nenhum asset rastreável no manifesto"
         valid = all(
-            isinstance(asset, dict) and asset.get("approved") is True and asset.get("license_type")
+            isinstance(asset, dict)
+            and asset.get("approved") is True
+            and asset.get("license_type") in SUPPORTED_ASSET_LICENSES
+            and (asset.get("license_type") != "user_confirmed" or asset.get("rights_confirmed") is True)
             for asset in assets
         )
         return (True, f"{len(assets)} asset(s) com origem aprovada") if valid else (

@@ -9,6 +9,16 @@ const statusLabels={queued:'Na fila',planning:'Planejamento',assets:'Assets',ren
 const activeStatuses=new Set(['queued','planning','assets','rendering','reviewing']);
 const toast=(message,tone='info')=>{const el=$('#toast');clearTimeout(toastTimer);el.textContent=message;el.dataset.tone=tone;el.classList.add('show');toastTimer=setTimeout(()=>el.classList.remove('show'),3200)};
 const registerJobDetailExtension=extension=>{if(typeof extension==='function')jobDetailExtensions.push(extension)};
+const hasRenderedArtifacts=job=>Boolean(job.metadata?.files?.video&&job.metadata?.files?.thumbnail);
+const friendlyError=error=>{
+  const message=String(error||'');
+  if(message.includes('decodificar'))return 'O arquivo de vídeo ficou corrompido e foi bloqueado antes da publicação. Execute novamente para gerar uma cópia íntegra.';
+  if(message.includes('FFmpeg falhou'))return 'A renderização foi interrompida. O trabalho pode ser executado novamente com segurança.';
+  if(message.includes('Controle de qualidade'))return 'O controle de qualidade encontrou um problema. Revise os detalhes e execute novamente.';
+  if(message.includes('acionamento involuntário'))return 'Esta produção foi interrompida durante uma auditoria e não gerou arquivos.';
+  return message.split('\n')[0].slice(0,280)||'A produção não foi concluída.';
+};
+const errorPanel=error=>error?`<div class="agent-output error-summary"><h4>ATENÇÃO</h4><p>${esc(friendlyError(error))}</p><details><summary>Ver detalhes técnicos</summary><pre>${esc(error)}</pre></details></div>`:'';
 const api=async(url,options={})=>{
   const {timeoutMs=30000,...fetchOptions}=options;
   const method=String(fetchOptions.method||'GET').toUpperCase();
@@ -42,7 +52,18 @@ function renderStats(){const s=state.summary;const cards=[['◫','Produções',s
 
 function renderOperation(){const op=state.operation||{};const queue=op.queue||{};const ready=!!op.ok;$('#operation-title').textContent=ready?'Estúdio operacional':'Atenção necessária';$('#operation-status').textContent=ready?`${queue.active?.length||0} renderizando · ${op.free_gb??'—'} GB livres`:'Abra o diagnóstico para corrigir';$('#operation-pulse').classList.toggle('warning',!ready);$('#health-shield').textContent=ready?'✓':'!';$('#health-title').textContent=ready?'Renderização verificada e publicação protegida.':'O estúdio encontrou uma dependência indisponível.';$('#health-detail').textContent=ready?`Validação de mídia: ${op.validation_engine||'ativa'} · ${op.free_gb??'—'} GB livres · envio automático desativado.`:'Confira o FFmpeg e o espaço disponível antes de gerar novos pacotes.'}
 
-function renderJobs(){let jobs=state.jobs;if(state.filter==='active')jobs=jobs.filter(j=>activeStatuses.has(j.status));if(state.filter==='review')jobs=jobs.filter(j=>['awaiting_approval','rejected','failed'].includes(j.status));const root=$('#jobs');if(!jobs.length){root.innerHTML='<div class="empty">Nenhuma produção neste filtro.</div>';return}root.innerHTML=jobs.map(j=>{const art=`/api/jobs/${encodeURIComponent(j.id)}/artifacts/thumbnail.jpg`;const thumb=['awaiting_approval','approved','rejected'].includes(j.status)?`<img class="thumb" src="${art}" alt="">`:'<div class="thumb"></div>';return `<article class="production" data-job="${esc(j.id)}" tabindex="0">${thumb}<div><h3>${esc(j.topic)}</h3><div class="meta">${esc((state.profiles[j.profile]||{}).label||j.profile)} · ${formatDuration(j.duration)}</div></div><div class="stage">${esc(statusLabels[j.status]||j.status)}<div class="progress"><span style="width:${j.progress||0}%"></span></div></div><span class="status ${esc(j.status)}">${esc(statusLabels[j.status]||j.status)}</span><div class="score">${j.quality_score?`<b>${j.quality_score}</b>/100`:'—'}</div><button class="more" aria-label="Abrir detalhes">›</button></article>`}).join('')}
+function renderJobs(){
+  let jobs=state.jobs;
+  if(state.filter==='active')jobs=jobs.filter(job=>activeStatuses.has(job.status));
+  if(state.filter==='review')jobs=jobs.filter(job=>['awaiting_approval','rejected','failed'].includes(job.status));
+  const root=$('#jobs');
+  if(!jobs.length){root.innerHTML='<div class="empty">Nenhuma produção neste filtro.</div>';return}
+  root.innerHTML=jobs.map(job=>{
+    const artwork=`/api/jobs/${encodeURIComponent(job.id)}/artifacts/thumbnail.jpg`;
+    const thumbnail=hasRenderedArtifacts(job)?`<img class="thumb" src="${artwork}" alt="Capa de ${esc(job.topic)}" loading="lazy">`:'<div class="thumb thumb-placeholder" aria-hidden="true"></div>';
+    return `<article class="production" data-job="${esc(job.id)}" tabindex="0">${thumbnail}<div><h3>${esc(job.topic)}</h3><div class="meta">${esc((state.profiles[job.profile]||{}).label||job.profile)} · ${formatDuration(job.duration)}</div></div><div class="stage">${esc(statusLabels[job.status]||job.status)}<div class="progress"><span style="width:${job.progress||0}%"></span></div></div><span class="status ${esc(job.status)}">${esc(statusLabels[job.status]||job.status)}</span><div class="score">${job.quality_score?`<b>${job.quality_score}</b>/100`:'—'}</div><button class="more" type="button" aria-label="Abrir detalhes">›</button></article>`;
+  }).join('');
+}
 
 function renderAgents(agents){$('#agent-grid').innerHTML=agents.map((a,i)=>`<article class="agent" style="--agent:${a.color}"><div class="agent-icon">${['⌁','⌖','✎','◈','↗','✓','✦'][i]||'✦'}</div><h3>${esc(a.name)}</h3><p>${esc(a.role)}</p><small>ENTREGA · ${esc(a.output)}</small></article>`).join('')}
 function renderRecommendations(){const recs=state.recommendations;$('#recommendations').innerHTML=recs.map(r=>`<article class="insight ${esc(r.tone)}"><h3>${esc(r.title)}</h3><p>${esc(r.body)}</p></article>`).join('');const first=recs[0];if(first){$('#next-title').textContent=first.title;$('#next-body').textContent=first.body}}
@@ -50,7 +71,34 @@ function renderProfiles(){const root=$('#profiles');root.innerHTML=Object.entrie
 
 async function load(){const sequence=++loadSequence;$('#last-sync').setAttribute('aria-busy','true');try{const [dashboard,profiles]=await Promise.all([api('/api/dashboard'),Object.keys(state.profiles).length?Promise.resolve(state.profiles):api('/api/profiles')]);if(sequence!==loadSequence)return;state.jobs=dashboard.jobs;state.summary=dashboard.summary;state.recommendations=dashboard.recommendations;state.operation=dashboard.operation||{};state.profiles=profiles;renderStats();renderJobs();renderRecommendations();renderOperation();if(!$('#profiles').children.length)renderProfiles();$('#last-sync').textContent=`Atualizado às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`}catch(error){if(sequence===loadSequence){$('#last-sync').textContent='Falha ao sincronizar';toast(error.message,'error')}}finally{if(sequence===loadSequence)$('#last-sync').removeAttribute('aria-busy')}}
 
-async function openJob(id){try{const j=await api(`/api/jobs/${encodeURIComponent(id)}`);const meta=j.metadata||{};const agents=meta.agents||{};const verify=meta.verification||{};const ready=['awaiting_approval','approved','rejected'].includes(j.status);const video=ready?`<video class="preview" controls preload="metadata" poster="/api/jobs/${j.id}/artifacts/thumbnail.jpg"><source src="/api/jobs/${j.id}/artifacts/video.mp4" type="video/mp4"></video>`:'<div class="preview"></div>';const warnings=(meta.quality?.warnings||[]).map(w=>`<li>${esc(w)}</li>`).join('');const events=j.events||[];const steps=['planning','assets','rendering','reviewing','awaiting_approval'];const done=Math.ceil((j.progress||0)/20);let actions='';if(j.status==='awaiting_approval')actions=`<button class="primary" data-action="approve">Aprovar para envio manual</button><button class="secondary danger" data-action="reject">Pedir ajustes</button>`;if(['failed','rejected'].includes(j.status))actions=`<button class="primary" data-action="retry">Executar novamente</button>`;const metrics=j.status==='approved'?`<form class="metric-form" id="metric-form"><select name="platform" aria-label="Plataforma"><option value="youtube">YouTube</option><option value="shorts">Shorts</option><option value="tiktok">TikTok</option><option value="reels">Reels</option><option value="shopee">Shopee</option></select><input name="views" type="number" min="0" placeholder="Views"><input name="likes" type="number" min="0" placeholder="Likes"><input name="watch_minutes" type="number" min="0" placeholder="Minutos"><button class="secondary">Registrar</button></form>`:'';const verification=verify.passed?`<div class="verification"><span>✓ ARQUIVO VALIDADO</span><b>${verify.video?.width||'—'}×${verify.video?.height||'—'} · ${verify.video?.codec||'vídeo'} + ${verify.audio?.codec||'áudio'}</b><small>${formatDuration(Math.round(verify.duration_seconds||j.duration))} · ${(Number(verify.size_bytes||0)/1048576).toFixed(1)} MB · checksum SHA-256</small></div>`:'';$('#job-detail').innerHTML=`<div class="dialog-head"><div><p class="kicker">${esc(statusLabels[j.status]||j.status)}</p><h2>${esc(j.topic)}</h2></div><button class="icon-button" data-close aria-label="Fechar">×</button></div><div class="detail-hero">${video}<div class="detail-title"><span class="tag">${esc((state.profiles[j.profile]||{}).label||j.profile)} · ${formatDuration(j.duration)}</span><h2>${esc(meta.title||'Planejamento em andamento')}</h2><p>${esc(meta.description||j.error||'Os agentes estão preparando este pacote.')}</p>${j.quality_score?`<div class="score"><b>${j.quality_score}</b>/100 · qualidade estimada</div>`:''}</div></div>${verification}<div class="timeline">${steps.map((_,i)=>`<span class="${i<done?'done':''}"></span>`).join('')}</div>${agents.strategy?`<div class="agent-output"><h4>NORTE · ESTRATÉGIA</h4><p>${esc(agents.strategy.promise)}</p><p><b>Objetivo:</b> ${esc(agents.strategy.primary_goal)} · <b>Ritmo:</b> ${esc(agents.strategy.cadence)}</p></div>`:''}${agents.visual?`<div class="agent-output"><h4>DIREÇÃO · VISUAL E SOM</h4><p>${esc(agents.visual.asset_brief)}</p><p>${esc(agents.visual.sound)}</p></div>`:''}${warnings?`<div class="agent-output"><h4>CRÍTICA · RECOMENDAÇÕES</h4><ul>${warnings}</ul></div>`:''}${j.error?`<div class="agent-output"><h4>ATENÇÃO</h4><p>${esc(j.error)}</p></div>`:''}<div class="detail-actions">${actions}${ready?`<a class="secondary" href="/api/jobs/${j.id}/artifacts/metadata.json" target="_blank" rel="noopener">Metadados</a><a class="secondary" href="/api/jobs/${j.id}/artifacts/render-report.json" target="_blank" rel="noopener">Relatório técnico</a><a class="secondary" href="/api/jobs/${j.id}/artifacts/artifact-manifest.json" target="_blank" rel="noopener">Checksums</a>`:''}</div>${metrics}<div class="agent-output"><h4>HISTÓRICO · ${events.length} EVENTOS</h4><p>${events.slice(-5).reverse().map(e=>`${esc(e.message)} · ${new Date(e.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`).join('<br>')}</p></div>`;const dialog=$('#job-dialog');dialog.showModal();dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('[data-action="approve"]')?.addEventListener('click',()=>jobAction(id,'approve'));dialog.querySelector('[data-action="reject"]')?.addEventListener('click',()=>jobAction(id,'reject'));dialog.querySelector('[data-action="retry"]')?.addEventListener('click',()=>jobAction(id,'retry'));dialog.querySelector('#metric-form')?.addEventListener('submit',e=>saveMetrics(e,id))}catch(error){toast(error.message)}}
+async function openJob(id){
+  try{
+    const job=await api(`/api/jobs/${encodeURIComponent(id)}`);
+    const metadata=job.metadata||{};
+    const agents=metadata.agents||{};
+    const verificationData=metadata.verification||{};
+    const ready=hasRenderedArtifacts(job)&&['awaiting_approval','approved','rejected'].includes(job.status);
+    const video=ready?`<video class="preview" controls preload="metadata" poster="/api/jobs/${encodeURIComponent(job.id)}/artifacts/thumbnail.jpg"><source src="/api/jobs/${encodeURIComponent(job.id)}/artifacts/video.mp4" type="video/mp4"></video>`:'<div class="preview preview-placeholder"><span>Prévia indisponível</span></div>';
+    const warnings=(metadata.quality?.warnings||[]).map(warning=>`<li>${esc(warning)}</li>`).join('');
+    const events=job.events||[];
+    const steps=['planning','assets','rendering','reviewing','awaiting_approval'];
+    const done=Math.ceil((job.progress||0)/20);
+    let actions='';
+    if(job.status==='awaiting_approval')actions='<button class="primary" type="button" data-action="approve">Aprovar para envio manual</button><button class="secondary danger" type="button" data-action="reject">Pedir ajustes</button>';
+    if(['failed','rejected'].includes(job.status))actions='<button class="primary" type="button" data-action="retry">Executar novamente</button>';
+    const metrics=job.status==='approved'?'<form class="metric-form" id="metric-form"><select name="platform" aria-label="Plataforma"><option value="youtube">YouTube</option><option value="shorts">Shorts</option><option value="tiktok">TikTok</option><option value="reels">Reels</option><option value="shopee">Shopee</option></select><input name="views" type="number" min="0" placeholder="Views"><input name="likes" type="number" min="0" placeholder="Likes"><input name="watch_minutes" type="number" min="0" placeholder="Minutos"><button class="secondary" type="submit">Registrar</button></form>':'';
+    const verification=verificationData.passed&&ready?`<div class="verification"><span>✓ ARQUIVO VALIDADO</span><b>${verificationData.video?.width||'—'}×${verificationData.video?.height||'—'} · ${verificationData.video?.codec||'vídeo'} + ${verificationData.audio?.codec||'áudio'}</b><small>${formatDuration(Math.round(verificationData.duration_seconds||job.duration))} · ${(Number(verificationData.size_bytes||0)/1048576).toFixed(1)} MB · checksum SHA-256</small></div>`:'';
+    const artifactLinks=ready?`<a class="secondary" href="/api/jobs/${encodeURIComponent(job.id)}/artifacts/metadata.json" target="_blank" rel="noopener">Metadados</a><a class="secondary" href="/api/jobs/${encodeURIComponent(job.id)}/artifacts/render-report.json" target="_blank" rel="noopener">Relatório técnico</a><a class="secondary" href="/api/jobs/${encodeURIComponent(job.id)}/artifacts/artifact-manifest.json" target="_blank" rel="noopener">Checksums</a>`:'';
+    $('#job-detail').innerHTML=`<div class="dialog-head"><div><p class="kicker">${esc(statusLabels[job.status]||job.status)}</p><h2>${esc(job.topic)}</h2></div><button class="icon-button" type="button" data-close aria-label="Fechar">×</button></div><div class="detail-hero">${video}<div class="detail-title"><span class="tag">${esc((state.profiles[job.profile]||{}).label||job.profile)} · ${formatDuration(job.duration)}</span><h2>${esc(metadata.title||'Planejamento em andamento')}</h2><p>${esc(metadata.description||friendlyError(job.error)||'Os agentes estão preparando este pacote.')}</p>${job.quality_score?`<div class="score"><b>${job.quality_score}</b>/100 · qualidade estimada</div>`:''}</div></div>${verification}<div class="timeline">${steps.map((_,index)=>`<span class="${index<done?'done':''}"></span>`).join('')}</div>${agents.strategy?`<div class="agent-output"><h4>NORTE · ESTRATÉGIA</h4><p>${esc(agents.strategy.promise)}</p><p><b>Objetivo:</b> ${esc(agents.strategy.primary_goal)} · <b>Ritmo:</b> ${esc(agents.strategy.cadence)}</p></div>`:''}${agents.visual?`<div class="agent-output"><h4>DIREÇÃO · VISUAL E SOM</h4><p>${esc(agents.visual.asset_brief)}</p><p>${esc(agents.visual.sound)}</p></div>`:''}${warnings?`<div class="agent-output"><h4>CRÍTICA · RECOMENDAÇÕES</h4><ul>${warnings}</ul></div>`:''}${errorPanel(job.error)}<div class="detail-actions">${actions}${artifactLinks}</div>${metrics}<div class="agent-output"><h4>HISTÓRICO · ${events.length} EVENTOS</h4><p>${events.slice(-5).reverse().map(event=>`${esc(friendlyError(event.message))} · ${new Date(event.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`).join('<br>')}</p></div>`;
+    const dialog=$('#job-dialog');
+    dialog.showModal();
+    dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+    dialog.querySelector('[data-action="approve"]')?.addEventListener('click',()=>jobAction(id,'approve'));
+    dialog.querySelector('[data-action="reject"]')?.addEventListener('click',()=>jobAction(id,'reject'));
+    dialog.querySelector('[data-action="retry"]')?.addEventListener('click',()=>jobAction(id,'retry'));
+    dialog.querySelector('#metric-form')?.addEventListener('submit',event=>saveMetrics(event,id));
+  }catch(error){toast(error.message,'error')}
+}
 
 function requestRevisionReason(){
   return new Promise(resolve=>{
@@ -69,9 +117,74 @@ async function saveMetrics(event,id){event.preventDefault();const f=new FormData
 
 $('#new-production').onclick=()=>$('#create-dialog').showModal();$('#next-action').onclick=()=>location.hash='production';
 $('#suggest-idea').onclick=async()=>{try{const ideas=await api('/api/ideas');const idea=ideas[Math.floor(Math.random()*ideas.length)];$('#generate-form [name=topic]').value=idea.topic;toast(`${idea.intent} · ${idea.why}`)}catch(error){toast(error.message)}};
-$('#generate-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;const f=new FormData(form);const button=$('#submit-production');button.disabled=true;button.textContent='Adicionando à fila…';$('#form-error').textContent='';try{await api('/api/jobs',{method:'POST',body:JSON.stringify({topic:f.get('topic'),duration:Number(f.get('duration')),profile:f.get('profile'),team_id:f.get('team_id'),priority:Number(f.get('priority')),subtitles:!!f.get('subtitles'),narration:!!f.get('narration'),source_asset:f.get('source_asset'),asset_ids:f.getAll('asset_ids').map(Number)})});$('#create-dialog').close();toast('Produção iniciada. Você pode continuar trabalhando.');location.hash='production';await load()}catch(error){$('#form-error').textContent=error.message}finally{button.disabled=false;button.innerHTML='Iniciar produção <span>→</span>'}});
+$('#generate-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const form=event.currentTarget;
+  const fields=new FormData(form);
+  const button=$('#submit-production');
+  const sourceAsset=String(fields.get('source_asset')||'').trim();
+  if(sourceAsset&&!fields.get('source_asset_rights_confirmed')){
+    $('#form-error').textContent='Confirme os direitos comerciais da imagem avulsa antes de iniciar.';
+    return;
+  }
+  button.disabled=true;
+  button.textContent='Adicionando à fila…';
+  $('#form-error').textContent='';
+  try{
+    await api('/api/jobs',{method:'POST',body:JSON.stringify({
+      topic:fields.get('topic'),duration:Number(fields.get('duration')),profile:fields.get('profile'),
+      team_id:fields.get('team_id'),priority:Number(fields.get('priority')),
+      subtitles:!!fields.get('subtitles'),narration:!!fields.get('narration'),source_asset:sourceAsset,
+      source_asset_rights_confirmed:!!fields.get('source_asset_rights_confirmed'),
+      asset_ids:fields.getAll('asset_ids').map(Number),
+    })});
+    $('#create-dialog').close();
+    toast('Produção iniciada. Você pode continuar trabalhando.');
+    location.hash='production';
+    await load();
+  }catch(error){$('#form-error').textContent=error.message}
+  finally{button.disabled=false;button.innerHTML='Iniciar produção <span>→</span>'}
+});
 $('#jobs').addEventListener('click',event=>{const row=event.target.closest('[data-job]');if(row)openJob(row.dataset.job)});$('#jobs').addEventListener('keydown',event=>{if(event.key==='Enter'){const row=event.target.closest('[data-job]');if(row)openJob(row.dataset.job)}});
 $('#filters').addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(!button)return;state.filter=button.dataset.filter;document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x===button));renderJobs()});
 document.querySelectorAll('.nav-item').forEach(item=>item.onclick=()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));item.classList.add('active')});
-$('#create-dialog').addEventListener('click',event=>{if(event.target===$('#create-dialog'))$('#create-dialog').close()});$('#job-dialog').addEventListener('click',event=>{if(event.target===$('#job-dialog'))$('#job-dialog').close()});
-Promise.all([load(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);
+document.addEventListener('click',event=>{
+  const closeButton=event.target.closest('[data-dialog-close]');
+  if(closeButton)closeButton.closest('dialog')?.close();
+});
+document.addEventListener('submit',event=>{
+  if(event.submitter?.value!=='cancel')return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  event.target.closest('dialog')?.close();
+},true);
+
+async function loadAssets(){
+  const assets=await api('/api/assets');
+  const grid=$('#asset-grid');
+  const select=$('#production-assets');
+  grid.innerHTML=assets.length?assets.map(asset=>`<article class="asset-card"><span class="tag">${esc(asset.license_type)}</span><h3>${esc(asset.name)}</h3><p>${esc(String(asset.path).split(/[\\/]/).pop())}</p><small>${asset.approved?'✓ Direitos confirmados':'Bloqueado'}</small></article>`).join(''):'<div class="empty">Nenhum asset registrado. Adicione imagens próprias ou licenciadas para ampliar as cenas.</div>';
+  select.innerHTML=assets.filter(asset=>asset.approved).map(asset=>`<option value="${Number(asset.id)}">${esc(asset.name)} · ${esc(asset.license_type)}</option>`).join('');
+}
+
+$('#new-asset').onclick=()=>$('#asset-dialog').showModal();
+$('#asset-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const form=event.currentTarget;
+  const fields=new FormData(form);
+  $('#asset-form-error').textContent='';
+  try{
+    await api('/api/assets',{method:'POST',body:JSON.stringify({
+      name:fields.get('name'),path:fields.get('path'),license_type:fields.get('license_type'),
+      source_url:fields.get('source_url'),notes:fields.get('notes'),rights_confirmed:!!fields.get('rights_confirmed'),
+    })});
+    form.reset();
+    $('#asset-dialog').close();
+    await loadAssets();
+    toast('Asset registrado e liberado para produções.','success');
+  }catch(error){$('#asset-form-error').textContent=error.message}
+});
+
+$('#create-dialog').addEventListener('click',event=>{if(event.target===$('#create-dialog'))$('#create-dialog').close()});
+$('#job-dialog').addEventListener('click',event=>{if(event.target===$('#job-dialog'))$('#job-dialog').close()});
+Promise.all([load(),loadAssets(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);

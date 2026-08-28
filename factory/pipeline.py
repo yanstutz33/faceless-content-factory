@@ -32,6 +32,11 @@ STARTER_SCENES = {
     "focus": ("lofi-cozy-study.jpg", "lofi-night-train.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg"),
 }
 
+SUPPORTED_ASSET_LICENSES = {
+    "original", "commercial_license", "public_domain", "cc0", "provider_generated",
+    "original_ai_generated", "user_confirmed",
+}
+
 
 def safe_slug(text: str) -> str:
     normalized = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
@@ -58,6 +63,56 @@ class Pipeline:
         proc = subprocess.run(args, cwd=self.settings.root, text=True, capture_output=True)
         if proc.returncode:
             raise RuntimeError(f"FFmpeg falhou ({proc.returncode}): {proc.stderr[-3000:]}")
+
+    @staticmethod
+    def _process_running(pid: int) -> bool:
+        if pid <= 0:
+            return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+        return True
+
+    def acquire_job_lock(self, out: Path) -> tuple[Path, str] | None:
+        """Reserve a job across server processes and recover abandoned locks."""
+        lock_path = out / ".render.lock"
+        token = uuid.uuid4().hex
+        for _ in range(2):
+            try:
+                descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                try:
+                    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+                    owner_pid = int(lock.get("pid", 0))
+                except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                    owner_pid = 0
+                if self._process_running(owner_pid):
+                    return None
+                lock_path.unlink(missing_ok=True)
+                continue
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump({"pid": os.getpid(), "token": token}, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            return lock_path, token
+        return None
+
+    @staticmethod
+    def release_job_lock(lock: tuple[Path, str] | None) -> None:
+        if not lock:
+            return
+        lock_path, token = lock
+        try:
+            current = json.loads(lock_path.read_text(encoding="utf-8"))
+            if current.get("token") == token:
+                lock_path.unlink(missing_ok=True)
+        except (OSError, json.JSONDecodeError):
+            return
 
     def diagnostics(self) -> dict[str, Any]:
         tools: dict[str, dict[str, Any]] = {}
@@ -551,7 +606,7 @@ class Pipeline:
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
                source_assets: list[dict[str, Any]] | None = None,
-               team_id: str = DEFAULT_TEAM_ID) -> str:
+               team_id: str = DEFAULT_TEAM_ID, source_asset_rights_confirmed: bool = False) -> str:
         topic = " ".join(topic.split()).strip()
         if len(topic) < 3:
             raise ValueError("Descreva um tema com pelo menos 3 caracteres")
@@ -563,10 +618,16 @@ class Pipeline:
         duration = max(5, min(int(duration), PROFILES[profile]["max_duration"]))
         assets = list(source_assets or [])
         if source_asset:
-            assets.append({"name": Path(source_asset).stem, "path": source_asset, "license_type": "fornecido pelo usuário",
-                           "source_url": None, "approved": True})
+            if not source_asset_rights_confirmed:
+                raise ValueError("Confirme os direitos comerciais da imagem avulsa antes de usá-la")
+            assets.append({"name": Path(source_asset).stem, "path": source_asset, "license_type": "user_confirmed",
+                           "source_url": None, "approved": True, "rights_confirmed": True})
         normalized_assets = []
         for asset in assets[:12]:
+            if asset.get("approved") is not True or asset.get("license_type") not in SUPPORTED_ASSET_LICENSES:
+                raise ValueError(f"Asset sem licença comercial aprovada: {asset.get('name', 'sem nome')}")
+            if asset.get("license_type") == "user_confirmed" and asset.get("rights_confirmed") is not True:
+                raise ValueError("A imagem avulsa precisa de confirmação explícita de direitos")
             source = Path(str(asset.get("path", ""))).expanduser().resolve()
             if not source.is_file() or source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
                 raise ValueError(f"Asset inválido: {source}")
@@ -623,6 +684,10 @@ class Pipeline:
                 self.command([self.settings.ffmpeg, "-y", "-f", "lavfi", "-i",
                               f"color=c=#071426:s={width}x{height},geq=r='8+18*Y/H':g='18+36*Y/H':b='38+50*Y/H',noise=alls=7:allf=t+u",
                               "-frames:v", "1", str(background)])
+                (out / "asset-manifest.json").write_text(json.dumps([{
+                    "name": "procedural-fallback", "path": str(background),
+                    "license_type": "original_ai_generated", "source_url": None, "approved": True,
+                }], ensure_ascii=False, indent=2), encoding="utf-8")
             backgrounds.append(background)
             self.store.event(job["id"], "assets", f"Cena visual original '{starter_name}' aplicada automaticamente")
         return backgrounds
@@ -662,8 +727,14 @@ class Pipeline:
             return self.store.get_job(job_id) or job
         job = self.store.get_job(job_id) or job
         out = Path(job["output_dir"])
+        job_lock = self.acquire_job_lock(out)
+        if not job_lock:
+            self.store.event(job_id, "render_lock", "Execução duplicada ignorada; a produção já está ativa em outro processo")
+            return self.store.get_job(job_id) or job
         profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
-        render_candidate = out / "video.rendering.mp4"
+        for stale_candidate in out.glob("video.rendering*.mp4"):
+            stale_candidate.unlink(missing_ok=True)
+        render_candidate = out / f"video.rendering-{uuid.uuid4().hex}.mp4"
         try:
             self.store.update(job_id, "planning", progress=8)
             plan = self.generate_plan(job["topic"], job["duration"], job.get("profile", "youtube_long"),
@@ -831,6 +902,8 @@ class Pipeline:
             self.store.update(job_id, "failed", error=str(exc), progress=0)
             self.store.event(job_id, "failed", str(exc))
             raise
+        finally:
+            self.release_job_lock(job_lock)
 
     def approve(self, job_id: str) -> None:
         job = self.store.get_job(job_id)
@@ -997,7 +1070,11 @@ class Pipeline:
             design = json.loads(design_path.read_text(encoding="utf-8"))
             design["selected"] = variant
             design_path.write_text(json.dumps(design, ensure_ascii=False, indent=2), encoding="utf-8")
-        manifest = self.artifact_manifest(out, ["video.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json"])
+        manifest = self.artifact_manifest(out, [
+            "video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg",
+            "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json",
+            "publication-package.json", "render-report.json", "quality-gate.json",
+        ])
         (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         self.store.set_thumbnail_variant(job_id, variant)
         self.store.update(job_id, job["status"], metadata, progress=job["progress"], quality_score=job.get("quality_score"))
