@@ -64,55 +64,54 @@ class Pipeline:
         if proc.returncode:
             raise RuntimeError(f"FFmpeg falhou ({proc.returncode}): {proc.stderr[-3000:]}")
 
-    @staticmethod
-    def _process_running(pid: int) -> bool:
-        if pid <= 0:
-            return False
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        except OSError:
-            return False
-        return True
-
-    def acquire_job_lock(self, out: Path) -> tuple[Path, str] | None:
-        """Reserve a job across server processes and recover abandoned locks."""
+    def acquire_job_lock(self, out: Path) -> tuple[Path, Any] | None:
+        """Reserve a job with an OS lock that is released if its process exits."""
         lock_path = out / ".render.lock"
-        token = uuid.uuid4().hex
-        for _ in range(2):
-            try:
-                descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except FileExistsError:
-                try:
-                    lock = json.loads(lock_path.read_text(encoding="utf-8"))
-                    owner_pid = int(lock.get("pid", 0))
-                except (OSError, ValueError, TypeError, json.JSONDecodeError):
-                    owner_pid = 0
-                if self._process_running(owner_pid):
-                    return None
-                lock_path.unlink(missing_ok=True)
-                continue
-            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"pid": os.getpid(), "token": token}, handle)
+        handle = lock_path.open("a+b")
+        try:
+            # Windows byte-range locks require the byte to exist. Keeping the
+            # file between runs also avoids antivirus races around unlink().
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"\0")
                 handle.flush()
-                os.fsync(handle.fileno())
-            return lock_path, token
-        return None
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, BlockingIOError):
+            handle.close()
+            return None
+
+        handle.seek(0)
+        handle.truncate()
+        handle.write(json.dumps({"pid": os.getpid(), "token": uuid.uuid4().hex}).encode("utf-8"))
+        handle.flush()
+        os.fsync(handle.fileno())
+        return lock_path, handle
 
     @staticmethod
-    def release_job_lock(lock: tuple[Path, str] | None) -> None:
+    def release_job_lock(lock: tuple[Path, Any] | None) -> None:
         if not lock:
             return
-        lock_path, token = lock
+        _lock_path, handle = lock
         try:
-            current = json.loads(lock_path.read_text(encoding="utf-8"))
-            if current.get("token") == token:
-                lock_path.unlink(missing_ok=True)
-        except (OSError, json.JSONDecodeError):
-            return
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
 
     def diagnostics(self) -> dict[str, Any]:
         tools: dict[str, dict[str, Any]] = {}
