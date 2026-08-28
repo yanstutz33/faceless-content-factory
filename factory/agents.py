@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .llm import OpenAIPlanEnhancer
+from .teams import DEFAULT_TEAM_ID, apply_team_playbook
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,8 @@ class ContentCrew:
             {"topic": "Jardim de inverno com chuva no telhado de vidro", "intent": "calma e meditação", "why": "Paisagem sonora rica e visual sereno"},
         ]
 
-    def run(self, topic: str, duration: int, profile_id: str, narration: bool) -> dict[str, Any]:
+    def run(self, topic: str, duration: int, profile_id: str, narration: bool,
+            team_id: str = DEFAULT_TEAM_ID) -> dict[str, Any]:
         profile = PROFILES.get(profile_id, PROFILES["youtube_long"])
         topic_lower = topic.lower()
         mood = "acolhedor" if any(x in topic_lower for x in ("cabana", "café", "biblioteca", "lareira")) else "imersivo"
@@ -150,5 +152,6 @@ class ContentCrew:
             "review": review,
             "production": {"profile": profile_id, "format": profile["label"], "resolution": f"{profile['width']}x{profile['height']}", "fps": profile["fps"], "duration_seconds": duration},
         }
+        plan = apply_team_playbook(plan, team_id)
         return self.enhancer.enhance(topic, duration, profile_id, plan)
 

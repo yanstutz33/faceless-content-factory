@@ -73,7 +73,8 @@ class NightShift:
             if not item:
                 break
             try:
-                job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"], priority=1)
+                job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"],
+                                              priority=1, team_id=item.get("team_id", "youtube_ambient"))
                 self.store.link_calendar_job(item["id"], job_id)
                 self.store.event(job_id, "night_shift", "Produção antecipada pela operação noturna segura")
                 self.runner.submit(job_id)

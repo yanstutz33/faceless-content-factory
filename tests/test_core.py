@@ -29,6 +29,7 @@ from factory.nightshift import NightShift
 from factory.pipeline import Pipeline, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
 from factory.store import Store
+from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
 from factory.web import CalendarScheduler, create_server
 from factory.vault import SecureVault
 
@@ -59,6 +60,38 @@ class CoreTests(unittest.TestCase):
         self.assertIn("lo-fi", plan["visual"]["sound"].lower())
         self.assertIn("Lo-fi", plan["seo"]["title"])
         self.assertGreaterEqual(len(ContentCrew().ideas()), 5)
+
+    def test_specialized_teams_execute_distinct_playbooks(self):
+        youtube = ContentCrew().run("Café noturno", 1800, "youtube_long", False, "youtube_ambient")
+        vertical = ContentCrew().run("Café noturno", 30, "vertical_short", True, "tiktok_experiments")
+        bilibili = ContentCrew().run("Café noturno", 1800, "youtube_long", False, "bilibili_lab")
+        self.assertEqual(youtube["strategy"]["primary_goal"], "watch_time")
+        self.assertEqual(vertical["strategy"]["primary_goal"], "completion_and_shares")
+        self.assertIn("experiment", vertical["strategy"])
+        self.assertEqual(bilibili["seo"]["localized"]["locale"], "zh-CN")
+        self.assertTrue(set(SHARED_SKILLS).issubset(youtube["team"]["skills_executed"]))
+
+    def test_team_and_skill_catalogs_are_consistent(self):
+        teams = team_catalog()
+        skills = skill_catalog()
+        skill_ids = {item["id"] for item in skills}
+        self.assertEqual(len(teams), 4)
+        self.assertEqual(len(skill_ids), len(skills))
+        self.assertEqual(next(team for team in teams if team["id"] == "tiktok_experiments")["recommended_profile"],
+                         "vertical_short")
+        for team in teams:
+            self.assertTrue(set(team["shared_skills"]).issubset(skill_ids))
+            self.assertTrue(set(team["skills"]).issubset(skill_ids))
+
+    def test_pipeline_persists_selected_team_and_blocks_commerce_entrypoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Gancho vertical", 15, profile="vertical_short", team_id="tiktok_experiments")
+            self.assertEqual(store.get_job(job_id)["team_id"], "tiktok_experiments")
+            with self.assertRaisesRegex(ValueError, "Centro de Afiliados"):
+                pipeline.create("Produto", 15, profile="vertical_short", team_id="affiliate_commerce")
 
     def test_optional_llm_keeps_local_plan_without_api_key(self):
         enhancer = OpenAIPlanEnhancer("")
@@ -111,6 +144,8 @@ class CoreTests(unittest.TestCase):
                 package = CommercePackager(pipeline, store).prepare(job_id, product, 5)
             self.assertFalse(package["automatic_upload_allowed"])
             self.assertEqual(package["platform"], "shopee")
+            self.assertEqual(package["team"]["id"], "affiliate_commerce")
+            self.assertIn("product_truth", package["team"]["skills_executed"])
             self.assertEqual(package["product"]["affiliate_url"], "https://s.shopee.com.br/abc")
             self.assertTrue((output / "commerce-package.json").is_file())
 

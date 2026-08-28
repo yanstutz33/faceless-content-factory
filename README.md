@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.8
+# Faceless Content Factory — Studio MVP 1.9
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -101,6 +101,15 @@ O tempo e o espaço de renderização crescem com a duração. Faça uma prévia
 
 ## Como os agentes trabalham
 
+O Studio 1.9 organiza os agentes em equipes por objetivo, sem criar quatro sistemas duplicados:
+
+- **YouTube Ambient:** pesquisa, retenção de longa duração, direção de atmosfera e pacote de canal.
+- **Vertical Experiments:** gancho, ritmo para tela vertical e hipótese de teste para TikTok, Shorts e Reels.
+- **Affiliate Commerce:** verdade do produto, transparência de afiliado e pacote de conversão; opera exclusivamente pelo Centro de Afiliados.
+- **Bilibili Lab:** seleção editorial, localização em chinês simplificado e revisão cultural obrigatória.
+
+Todas compartilham as skills de direitos, controle de qualidade e publicação segura. Cada produção salva `team_id`, agentes participantes e `skills_executed` em `agents.json` e `metadata.json`, deixando a decisão auditável. A API `GET /api/agent-teams` expõe o catálogo usado pela interface.
+
 Cada produção salva `agents.json` com entregas auditáveis:
 
 1. **Radar** identifica público, intenção e palavras-chave.
@@ -200,6 +209,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 11. **Pinterest Video Pin:** entregue no Studio 1.6 como pacote local com vídeo, capa, texto alternativo, link, board-alvo e payload da API; login e upload continuam bloqueados.
 12. **Renderização protegida:** entregue no Studio 1.7 com reserva atômica de cada produção, arquivo temporário isolado, promoção somente depois do quality gate e checksum obrigatório antes de aprovar ou reutilizar.
 13. **Bilibili localizada:** entregue no Studio 1.8 com classificação editorial conservadora, metadados bilíngues, capa sem texto em português e SRTs separados; a revisão humana da primeira localização continua obrigatória.
+14. **Equipes e skills especializadas:** entregue no Studio 1.9 com playbooks reais para YouTube, verticais, afiliados e Bilibili, seleção por produção, persistência no calendário e rastreio das skills executadas.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 

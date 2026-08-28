@@ -105,6 +105,7 @@ class Autopilot:
             item_id = self.store.add_calendar_item(
                 topic, series_id, "youtube_long", int(config["duration"]),
                 scheduled.isoformat(timespec="minutes"), "autopilot",
+                SERIES[series_id].get("team_id", "youtube_ambient"),
             )
             created.append({"id": item_id, "topic": topic, "scheduled_for": scheduled.isoformat(timespec="minutes")})
         return created

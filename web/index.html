@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#09111f"><title>Faceless Factory</title>
-  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css"><link rel="stylesheet" href="/phase4.css"><link rel="stylesheet" href="/phase5.css"><link rel="stylesheet" href="/phase6.css"><link rel="stylesheet" href="/phase7.css"><link rel="stylesheet" href="/phase9.css"><link rel="stylesheet" href="/phase11.css"><link rel="stylesheet" href="/phase12.css"><link rel="stylesheet" href="/phase14.css"><link rel="stylesheet" href="/phase15.css">
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/responsive.css"><link rel="stylesheet" href="/idea.css"><link rel="stylesheet" href="/phase2.css"><link rel="stylesheet" href="/phase3.css"><link rel="stylesheet" href="/phase4.css"><link rel="stylesheet" href="/phase5.css"><link rel="stylesheet" href="/phase6.css"><link rel="stylesheet" href="/phase7.css"><link rel="stylesheet" href="/phase9.css"><link rel="stylesheet" href="/phase11.css"><link rel="stylesheet" href="/phase12.css"><link rel="stylesheet" href="/phase14.css"><link rel="stylesheet" href="/phase15.css"><link rel="stylesheet" href="/phase16.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -77,7 +77,10 @@
     </section>
 
     <section id="agents" class="section">
-      <div class="section-heading"><div><p class="kicker">EQUIPE DIGITAL</p><h2>Agentes especializados</h2></div><p class="section-copy">Cada agente entrega uma parte auditável do pacote.</p></div>
+      <div class="section-heading"><div><p class="kicker">EQUIPES DIGITAIS</p><h2>Agentes por objetivo</h2></div><p class="section-copy">Cada canal recebe estratégia e skills próprias; direitos e qualidade são compartilhados.</p></div>
+      <div class="team-grid" id="team-grid"><div class="skeleton"></div></div>
+      <div class="skill-library"><div><p class="kicker">BIBLIOTECA REUTILIZÁVEL</p><h3>Skills instaladas</h3></div><div class="skill-chips" id="skill-library"></div></div>
+      <div class="mini-heading"><div><span class="tag">NÚCLEO COMPARTILHADO</span><h3>Fluxo editorial base</h3></div></div>
       <div class="agent-grid" id="agent-grid"></div>
     </section>
 
@@ -98,6 +101,7 @@
       <div class="dialog-head"><div><p class="kicker">NOVA PRODUÇÃO</p><h2>O que vamos criar?</h2></div><button class="icon-button" value="cancel" aria-label="Fechar">×</button></div>
       <label class="field"><span>Tema e atmosfera</span><textarea name="topic" rows="3" placeholder="Ex.: biblioteca japonesa com chuva suave e lareira" required>Biblioteca chuvosa à noite</textarea><small>Descreva lugar, clima e intenção. Os agentes cuidam do restante.</small></label>
       <button type="button" class="idea-button" id="suggest-idea">✦ Sugerir uma oportunidade</button>
+      <label class="field"><span>Equipe responsável</span><select name="team_id" id="production-team"><option value="youtube_ambient">YouTube Ambient</option></select><small id="production-team-help">A equipe muda o objetivo, o ritmo e os controles aplicados ao plano.</small></label>
       <fieldset><legend>Formato de saída</legend><div class="profile-grid" id="profiles"></div></fieldset>
       <div class="form-grid"><label class="field"><span>Duração em segundos</span><input name="duration" type="number" min="5" value="30" required></label><label class="field"><span>Prioridade</span><select name="priority"><option value="3">Alta</option><option value="2" selected>Normal</option><option value="1">Baixa</option></select></label></div>
       <details><summary>Opções avançadas</summary><div class="advanced"><label class="toggle"><input name="subtitles" type="checkbox" checked><span></span> Criar legendas</label><label class="toggle"><input name="narration" type="checkbox"><span></span> Narração neural</label><label class="field"><span>Cenas aprovadas da biblioteca</span><select name="asset_ids" id="production-assets" multiple size="4"></select><small>Selecione várias cenas com Ctrl/Cmd para criar uma composição multicena.</small></label><label class="field"><span>Imagem avulsa (caminho local, opcional)</span><input name="source_asset" placeholder="C:\Assets\cena.jpg"></label></div></details>
@@ -118,5 +122,5 @@
   <dialog id="revision-dialog" class="modal"><form class="dialog-shell" id="revision-form"><div class="dialog-head"><div><p class="kicker">PEDIDO DE AJUSTE</p><h2>O que precisa mudar?</h2></div><button class="icon-button" type="button" data-revision-close aria-label="Fechar pedido de ajuste">×</button></div><label class="field"><span>Orientação para os agentes</span><textarea name="reason" rows="4" required></textarea><small>Seja específico sobre imagem, movimento, áudio ou abertura.</small></label><div class="dialog-actions"><button class="secondary" type="button" data-revision-close>Cancelar</button><button class="primary" type="submit">Enviar para ajustes</button></div></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <noscript><p class="noscript">Ative o JavaScript para operar o Faceless Factory.</p></noscript>
-  <script src="/app.js"></script><script src="/phase2.js"></script><script src="/phase3.js"></script><script src="/phase6.js"></script><script src="/phase7.js"></script><script src="/phase8.js"></script><script src="/phase9.js"></script><script src="/phase10.js"></script><script src="/phase11.js"></script><script src="/phase12.js"></script><script src="/phase14.js"></script><script src="/phase15.js"></script><script src="/phase13.js"></script>
+  <script src="/app.js"></script><script src="/phase2.js"></script><script src="/phase3.js"></script><script src="/phase6.js"></script><script src="/phase7.js"></script><script src="/phase8.js"></script><script src="/phase9.js"></script><script src="/phase10.js"></script><script src="/phase11.js"></script><script src="/phase12.js"></script><script src="/phase14.js"></script><script src="/phase15.js"></script><script src="/phase16.js"></script><script src="/phase13.js"></script>
 </body></html>

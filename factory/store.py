@@ -89,6 +89,7 @@ class Store:
                 "quality_score": "INTEGER",
                 "source_assets": "TEXT NOT NULL DEFAULT '[]'",
                 "thumbnail_variant": "TEXT NOT NULL DEFAULT 'a'",
+                "team_id": "TEXT NOT NULL DEFAULT 'youtube_ambient'",
             }
             for column, definition in additions.items():
                 if column not in existing:
@@ -109,6 +110,7 @@ class Store:
                 "error": "TEXT",
                 "updated_at": "TEXT",
                 "origin": "TEXT NOT NULL DEFAULT 'manual'",
+                "team_id": "TEXT NOT NULL DEFAULT 'youtube_ambient'",
             }.items():
                 if column not in calendar_existing:
                     db.execute(f"ALTER TABLE calendar ADD COLUMN {column} {definition}")
@@ -128,12 +130,13 @@ class Store:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO jobs(id,topic,status,duration,narration,subtitles,output_dir,metadata,
-                   profile,priority,progress,source_asset,source_assets,created_at,updated_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   profile,priority,progress,source_asset,source_assets,team_id,created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (job["id"], job["topic"], "queued", job["duration"], int(job["narration"]),
                  int(job["subtitles"]), job["output_dir"], "{}", job.get("profile", "youtube_long"),
                  int(job.get("priority", 2)), 0, job.get("source_asset"),
-                 json.dumps(job.get("source_assets", []), ensure_ascii=False), timestamp, timestamp),
+                 json.dumps(job.get("source_assets", []), ensure_ascii=False),
+                 job.get("team_id", "youtube_ambient"), timestamp, timestamp),
             )
         self.event(job["id"], "queued", "Produção adicionada à fila")
 
@@ -330,12 +333,13 @@ class Store:
         return [dict(row) for row in rows]
 
     def add_calendar_item(self, topic: str, series_id: str | None, profile: str, duration: int,
-                          scheduled_for: str, origin: str = "manual") -> int:
+                          scheduled_for: str, origin: str = "manual",
+                          team_id: str = "youtube_ambient") -> int:
         if not topic.strip() or not scheduled_for:
             raise ValueError("Tema e data são obrigatórios")
         with self.connect() as db:
-            cursor = db.execute("INSERT INTO calendar(topic,series_id,profile,duration,scheduled_for,origin,created_at) VALUES(?,?,?,?,?,?,?)",
-                                (topic.strip(), series_id, profile, duration, scheduled_for, origin, now()))
+            cursor = db.execute("INSERT INTO calendar(topic,series_id,profile,duration,scheduled_for,origin,team_id,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                                (topic.strip(), series_id, profile, duration, scheduled_for, origin, team_id, now()))
             return int(cursor.lastrowid)
 
     def list_calendar(self) -> list[dict[str, Any]]:

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .agents import ContentCrew, PROFILES
+from .teams import DEFAULT_TEAM_ID, get_team
 from .config import Settings
 from .llm import OpenAIPlanEnhancer
 from .store import Store
@@ -68,7 +69,7 @@ class Pipeline:
         usage = shutil.disk_usage(self.settings.data_dir)
         return {
             "ok": tools["ffmpeg"]["ok"] and usage.free > 512 * 1024 * 1024,
-            "studio_version": "1.8",
+            "studio_version": "1.9",
             "tools": tools,
             "validation_engine": "ffprobe" if tools["ffprobe"]["ok"] else "ffmpeg-fallback",
             "data_dir": str(self.settings.data_dir),
@@ -508,12 +509,16 @@ class Pipeline:
 
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
-               source_assets: list[dict[str, Any]] | None = None) -> str:
+               source_assets: list[dict[str, Any]] | None = None,
+               team_id: str = DEFAULT_TEAM_ID) -> str:
         topic = " ".join(topic.split()).strip()
         if len(topic) < 3:
             raise ValueError("Descreva um tema com pelo menos 3 caracteres")
         if profile not in PROFILES:
             raise ValueError("Perfil de saída inválido")
+        team = get_team(team_id)
+        if not team.creation_enabled:
+            raise ValueError("Esta equipe trabalha pelo Centro de Afiliados")
         duration = max(5, min(int(duration), PROFILES[profile]["max_duration"]))
         assets = list(source_assets or [])
         if source_asset:
@@ -530,12 +535,14 @@ class Pipeline:
         output_dir.mkdir(parents=True)
         self.store.create_job({"id": job_id, "topic": topic, "duration": duration, "narration": narration,
                                "subtitles": subtitles, "profile": profile, "priority": priority,
+                               "team_id": team.id,
                                "source_asset": normalized_assets[0]["path"] if normalized_assets else None,
                                "source_assets": normalized_assets, "output_dir": str(output_dir)})
         return job_id
 
-    def generate_plan(self, topic: str, duration: int, profile: str = "youtube_long", narration: bool = False) -> dict[str, Any]:
-        return self.crew.run(topic, duration, profile, narration)
+    def generate_plan(self, topic: str, duration: int, profile: str = "youtube_long", narration: bool = False,
+                      team_id: str = DEFAULT_TEAM_ID) -> dict[str, Any]:
+        return self.crew.run(topic, duration, profile, narration, team_id)
 
     def _create_backgrounds(self, job: dict[str, Any], out: Path, width: int, height: int,
                             sound_profile: str = "focus") -> list[Path]:
@@ -601,14 +608,15 @@ class Pipeline:
         render_candidate = out / "video.rendering.mp4"
         try:
             self.store.update(job_id, "planning", progress=8)
-            plan = self.generate_plan(job["topic"], job["duration"], job.get("profile", "youtube_long"), job["narration"])
+            plan = self.generate_plan(job["topic"], job["duration"], job.get("profile", "youtube_long"),
+                                      job["narration"], job.get("team_id", DEFAULT_TEAM_ID))
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
             metadata = {**plan["seo"], "chapters": plan["script"]["chapters"], "production": plan["production"],
                         "agents": plan, "quality": plan["review"]}
             (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "script.txt").write_text(plan["script"]["intro"] + "\n", encoding="utf-8")
-            for agent in ("research", "strategy", "script", "visual", "seo", "compliance"):
-                self.store.event(job_id, agent, f"Agente {agent} concluiu sua entrega")
+            for agent in plan["team"]["agents"]:
+                self.store.event(job_id, agent["id"], f"{agent['name']} concluiu sua entrega")
             self.store.update(job_id, "planning", metadata=metadata, progress=28)
 
             if job["subtitles"]:

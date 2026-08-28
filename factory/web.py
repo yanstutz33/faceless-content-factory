@@ -26,6 +26,7 @@ from .publishing import PublishingCenter
 from .nightshift import NightShift
 from .store import Store
 from .templates import SERIES, series_catalog
+from .teams import DEFAULT_TEAM_ID, skill_catalog, team_catalog
 
 
 class JobRunner:
@@ -313,6 +314,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.store.list_jobs(max(1, min(limit, 500))))
         if path == "/api/agents":
             return self.send_json(self.pipeline.crew.catalog())
+        if path == "/api/agent-teams":
+            return self.send_json({"default_team": DEFAULT_TEAM_ID, "teams": team_catalog(), "skills": skill_catalog()})
         if path == "/api/ideas":
             return self.send_json(self.pipeline.crew.ideas())
         if path == "/api/profiles":
@@ -399,7 +402,7 @@ class Handler(SimpleHTTPRequestHandler):
                     data.get("topic", "Biblioteca chuvosa à noite"), int(data.get("duration", 30)),
                     bool(data.get("narration", False)), bool(data.get("subtitles", True)),
                     data.get("profile", "youtube_long"), data.get("source_asset") or None, int(data.get("priority", 2)),
-                    selected_assets,
+                    selected_assets, data.get("team_id", DEFAULT_TEAM_ID),
                 )
                 self.runner.submit(job_id)
                 return self.send_json(self.store.get_job(job_id), HTTPStatus.ACCEPTED)
@@ -415,7 +418,8 @@ class Handler(SimpleHTTPRequestHandler):
                     job_id = self.pipeline.create(str(topic), int(data.get("duration") or series.get("duration", 30)),
                                                   bool(data.get("narration", series.get("narration", False))),
                                                   bool(data.get("subtitles", True)), data.get("profile") or series.get("profile", "youtube_long"),
-                                                  None, int(data.get("priority", 1)))
+                                                  None, int(data.get("priority", 1)), None,
+                                                  data.get("team_id") or series.get("team_id", DEFAULT_TEAM_ID))
                     self.runner.submit(job_id)
                     created.append(job_id)
                 return self.send_json({"created": created, "count": len(created)}, HTTPStatus.ACCEPTED)
@@ -430,7 +434,8 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError("Data e hora inválidas") from exc
                 item_id = self.store.add_calendar_item(str(data.get("topic", "")), data.get("series_id"),
                                                        profile, max(5, min(int(data.get("duration", 1800)), PROFILES[profile]["max_duration"])),
-                                                       scheduled_for)
+                                                       scheduled_for, "manual",
+                                                       data.get("team_id") or SERIES.get(str(data.get("series_id", "")), {}).get("team_id", DEFAULT_TEAM_ID))
                 return self.send_json({"id": item_id}, HTTPStatus.CREATED)
             if path == "/api/autopilot":
                 status = self.autopilot.configure(data)
@@ -459,7 +464,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if not item:
                     raise ValueError("Item já iniciado ou não encontrado")
                 try:
-                    job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"])
+                    job_id = self.pipeline.create(item["topic"], item["duration"], False, True, item["profile"],
+                                                  team_id=item.get("team_id", DEFAULT_TEAM_ID))
                     self.store.link_calendar_job(item_id, job_id)
                     self.runner.submit(job_id)
                     return self.send_json({"job_id": job_id}, HTTPStatus.ACCEPTED)

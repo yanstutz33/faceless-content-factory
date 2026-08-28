@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from .pipeline import Pipeline
 from .store import Store
+from .teams import apply_team_playbook
 
 
 ALLOWED_LICENSES = {"original", "commercial_license", "public_domain", "cc0", "provider_generated"}
@@ -74,6 +75,11 @@ class CommercePackager:
             self.pipeline.prepare_vertical_package(job_id, duration)
         claims = [{"text": str(item.get("text", "")).strip(), "source": str(item.get("source", "")).strip()}
                   for item in product.get("claims") or []]
+        commerce_plan = apply_team_playbook({
+            "strategy": {}, "script": {}, "visual": {}, "seo": {},
+            "compliance": {"checks": [], "risks": [], "passed": True},
+            "review": {"warnings": [], "next_action": ""},
+        }, "affiliate_commerce")
         package = {
             "mode": "prepared_not_uploaded",
             "created_at": datetime.now(UTC).isoformat(),
@@ -89,6 +95,7 @@ class CommercePackager:
                      "call_to_action": "Confira preço, disponibilidade e condições atuais no link oficial."},
             "claims": claims,
             "validation": validation,
+            "team": commerce_plan["team"],
             "automatic_upload_allowed": False,
             "manual_checks": ["Confirmar que o vídeo mostra o produto exato", "Vincular o item correto na plataforma",
                               "Revalidar preço e disponibilidade antes de publicar"],
