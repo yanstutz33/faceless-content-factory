@@ -286,6 +286,7 @@ class Handler(SimpleHTTPRequestHandler):
             summary = self.store.summary()
             jobs = self.store.list_jobs(100)
             insights = self.store.performance_insights()
+            creative = self.pipeline.creative_status()
             autopilot = self.autopilot.status()
             recommendations = []
             if summary["awaiting_approval"]:
@@ -298,17 +299,24 @@ class Handler(SimpleHTTPRequestHandler):
                     "tone": "info", "title": "Repita o padrão que já atraiu público",
                     "body": f"{leader['topic']} lidera com {leader['views']} views em {leader['platform']}. Crie uma variação do mesmo clima e formato.",
                 })
+            if creative["learning"]["evidence_count"]:
+                recommendations.append({
+                    "tone": "safe", "title": "Aprendizado criativo ativo",
+                    "body": f"{creative['learning']['evidence_count']} resultado(s) real(is) já influenciam os próximos DNAs sem repetir cegamente o vencedor.",
+                })
             if autopilot["mode"] == "paused":
                 recommendations.append({"tone": "action", "title": "Piloto pausado para proteger a operação", "body": autopilot["blockers"][0]})
             elif autopilot["mode"] == "active":
                 recommendations.append({"tone": "safe", "title": "Semana sendo cuidada automaticamente", "body": f"{autopilot['planned']} conteúdo(s) já estão planejados e serão repostos pelo piloto."})
             recommendations.append({"tone": "safe", "title": "Publicação protegida", "body": "O sistema prepara os arquivos, mas não envia nada automaticamente."})
             return self.send_json({"summary": summary, "jobs": jobs, "recommendations": recommendations,
-                                   "operation": self.runner.health()})
+                                   "operation": self.runner.health(), "creative": creative})
         if path == "/api/insights":
             return self.send_json(self.store.performance_insights())
         if path == "/api/thumbnail-insights":
             return self.send_json(self.store.thumbnail_insights())
+        if path == "/api/creative-system":
+            return self.send_json(self.pipeline.creative_status())
         if path == "/api/jobs":
             limit = int(parse_qs(parsed.query).get("limit", ["100"])[0])
             return self.send_json(self.store.list_jobs(max(1, min(limit, 500))))

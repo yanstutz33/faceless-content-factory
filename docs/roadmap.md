@@ -19,6 +19,24 @@ O projeto terá duas linhas independentes que compartilham agentes, assets, rend
 - quality gate, aprovação, pacotes YouTube/Shorts/Reels/TikTok e métricas;
 - conectores preparados até o ponto anterior ao login.
 
+### Entregue — escala criativa (Studio 2.0)
+
+- 48 candidatos avaliados por produção e 25.600 combinações-base por cena;
+- detector histórico de repetição para imagem, composição, movimento e som;
+- oito tratamentos visuais, cinco enquadramentos e 16 movimentos localizados com câmera fixa;
+- oito arranjos lo-fi, quatro progressões, camadas de baixo/melodia e cinco texturas;
+- aprendizado conservador por retenção, CTR e engajamento: métricas pesam 20% e novidade pesa 80%;
+- painel de originalidade e rastreabilidade completa no DNA criativo.
+
+### Planejada — cortes inteligentes
+
+- reutilizar apenas vídeos já aprovados, sem alterar o original;
+- combinar capítulos, batidas, legendas e sinais de retenção;
+- produzir candidatos 9:16 diferentes para Shorts, TikTok e Reels;
+- executar quality gate e manter aprovação manual antes de qualquer entrega.
+
+Contrato técnico: [smart-cuts-architecture.md](smart-cuts-architecture.md).
+
 ### Próxima — contas oficiais atuais
 
 - concluir manualmente OAuth de YouTube, TikTok e Instagram;
@@ -67,8 +85,10 @@ Referências: [Pinterest Content API](https://developers.pinterest.com/docs/work
 
 ## Ordem aprovada
 
-1. Concluir logins das plataformas que já estão preparadas.
-2. Central comercial e catálogo Shopee — concluídos no Studio 1.5.
-3. Pacote Pinterest para mídia própria — concluído no Studio 1.6; login oficial pendente.
-4. Adicionar o pacote manual localizado para Bilibili — concluído no Studio 1.8.
-5. Automatizar publicações individualmente somente após testes, aprovação das APIs e confirmação humana.
+1. Escala criativa, detector de repetição e aprendizado conservador — concluídos no Studio 2.0.
+2. Concluir logins das plataformas que já estão preparadas.
+3. Central comercial e catálogo Shopee — concluídos no Studio 1.5.
+4. Pacote Pinterest para mídia própria — concluído no Studio 1.6; login oficial pendente.
+5. Adicionar o pacote manual localizado para Bilibili — concluído no Studio 1.8.
+6. Implementar cortes inteligentes depois que houver vídeos aprovados e sinais suficientes para avaliação.
+7. Automatizar publicações individualmente somente após testes, aprovação das APIs e confirmação humana.

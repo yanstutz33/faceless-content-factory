@@ -1,4 +1,4 @@
-# Faceless Content Factory — Studio MVP 1.9
+# Faceless Content Factory — Studio MVP 2.0
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
@@ -101,7 +101,7 @@ O tempo e o espaço de renderização crescem com a duração. Faça uma prévia
 
 ## Como os agentes trabalham
 
-O Studio 1.9 organiza os agentes em equipes por objetivo, sem criar quatro sistemas duplicados:
+O Studio 2.0 organiza os agentes em equipes por objetivo e adiciona um diretor criativo com memória, sem criar sistemas duplicados:
 
 - **YouTube Ambient:** pesquisa, retenção de longa duração, direção de atmosfera e pacote de canal.
 - **Vertical Experiments:** gancho, ritmo para tela vertical e hipótese de teste para TikTok, Shorts e Reels.
@@ -189,7 +189,9 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 ## Estado do roadmap
 
 0. **Operação noturna:** turno configurável, execução antecipada de até cinco itens do calendário, uma rodada por noite, recuperação após reinício e pausa automática por fila, espaço ou trabalhos ativos.
-0. **Variedade criativa:** sete cenas-mestre originais, seleção por tema, três arranjos musicais, progressões rotativas e partículas variadas pela seed editorial. Cada pacote registra sua impressão digital criativa.
+0. **Escala criativa:** o diretor avalia 48 receitas por produção e combina cenas originais, oito tratamentos, cinco composições, 16 movimentos localizados, oito arranjos musicais, quatro progressões e cinco texturas. Cada pacote registra um DNA criativo reproduzível.
+0. **Detector de repetição:** compara cena, imagem, composição, movimento, música, progressão, textura, BPM e proximidade temática com todo o histórico; a novidade pesa 80% da decisão.
+0. **Aprendizado automático seguro:** retenção, CTR e engajamento alimentam preferências com peso de 20%, preservando exploração e evitando que um vencedor transforme toda a fábrica em cópias.
 0. **Quality gate automático:** cada render é amostrado e bloqueado antes da aprovação se houver tela preta, ausência de movimento, câmera não fixa, áudio inaudível/clipping, duração ou decodificação inválida.
 0. **Reaproveitamento vertical:** produções aprovadas agora geram um recorte 9:16 validado e pacotes manuais para Shorts, Reels e TikTok, sem upload automático.
 0. **Centro de publicação segura:** reúne vídeos aprovados, bloqueia mídia sem direitos ou auditoria e prepara os pacotes de YouTube/vertical com um clique, sem acessar contas.
@@ -210,6 +212,8 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 12. **Renderização protegida:** entregue no Studio 1.7 com reserva atômica de cada produção, arquivo temporário isolado, promoção somente depois do quality gate e checksum obrigatório antes de aprovar ou reutilizar.
 13. **Bilibili localizada:** entregue no Studio 1.8 com classificação editorial conservadora, metadados bilíngues, capa sem texto em português e SRTs separados; a revisão humana da primeira localização continua obrigatória.
 14. **Equipes e skills especializadas:** entregue no Studio 1.9 com playbooks reais para YouTube, verticais, afiliados e Bilibili, seleção por produção, persistência no calendário e rastreio das skills executadas.
+15. **DNA criativo e aprendizagem:** entregue no Studio 2.0 com 25.600 combinações-base por cena, detector de repetição, biblioteca sonora ampliada, movimento localizado e painel de originalidade.
+16. **Cortes inteligentes:** arquitetura preparada para uma fase posterior; trabalhará somente sobre vídeos aprovados, preservará o original e usará capítulos, batidas e retenção para criar versões verticais.
 
 `ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 

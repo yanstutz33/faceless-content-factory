@@ -23,6 +23,7 @@ from factory.bilibili import BilibiliPackager
 from factory.config import Settings
 from factory.commerce import CommercePackager, validate_commerce_brief
 from factory.commercial_center import CommercialCenter
+from factory.creative import CreativeDirector, MUSIC_ARRANGEMENTS
 from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationManager
 from factory.llm import OpenAIPlanEnhancer
 from factory.nightshift import NightShift
@@ -82,6 +83,44 @@ class CoreTests(unittest.TestCase):
         for team in teams:
             self.assertTrue(set(team["shared_skills"]).issubset(skill_ids))
             self.assertTrue(set(team["skills"]).issubset(skill_ids))
+
+    def test_creative_director_avoids_repeating_a_previous_recipe(self):
+        director = CreativeDirector()
+        scenes = ("janela-chuvosa", "cidade-noturna", "cafe-vazio")
+        first = director.plan("Café noturno para estudar", "cozy", "preview", scenes, [], [])
+        history = [{
+            "id": "old-job", "topic": "Café noturno para estudar",
+            "metadata": {"creative_fingerprint": first},
+        }]
+        second = director.plan("Café noturno para estudar", "cozy", "preview", scenes, history, [])
+        similarity, _ = director.similarity(first, second)
+        self.assertLess(similarity, .72)
+        self.assertNotEqual(
+            (first["scene"], first["music_arrangement"], first["motion_effect"]),
+            (second["scene"], second["music_arrangement"], second["motion_effect"]),
+        )
+        self.assertEqual(second["novelty"]["closest_job_id"], "old-job")
+        self.assertEqual(second["novelty"]["candidates_evaluated"], 48)
+
+    def test_creative_learning_uses_metrics_without_overriding_novelty(self):
+        director = CreativeDirector()
+        insights = [{
+            "retention_rate": 78, "ctr": 8.5, "engagement_rate": 6.0,
+            "music_arrangement": "night_rhodes", "treatment": "teal_noir",
+            "motion_effect": "dust_motes",
+        }]
+        dna = director.plan("Foco depois da meia-noite", "focus", "preview", ("studio",), [], insights)
+        self.assertEqual(dna["learning"]["mode"], "measured")
+        self.assertEqual(dna["learning"]["evidence_count"], 1)
+        self.assertEqual(dna["learning"]["preferred"]["music_arrangement"], "night_rhodes")
+        self.assertGreaterEqual(dna["novelty"]["score"], 99)
+
+    def test_creative_status_exposes_scale_and_future_cuts_boundary(self):
+        status = CreativeDirector().status([], [])
+        self.assertEqual(status["engine"], "creative_dna_v2")
+        self.assertEqual(status["catalog"]["music_arrangements"], len(MUSIC_ARRANGEMENTS))
+        self.assertGreaterEqual(status["catalog"]["candidate_space"], 25_000)
+        self.assertEqual(status["future_modules"]["smart_cuts"]["status"], "planned")
 
     def test_pipeline_persists_selected_team_and_blocks_commerce_entrypoint(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -616,8 +655,13 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["metadata"]["motion"]["cycle_seconds"], 12)
             self.assertEqual(job["metadata"]["motion"]["camera_motion"], "none")
             self.assertTrue(job["metadata"]["creative_fingerprint"]["scene"])
-            self.assertIn(job["metadata"]["creative_fingerprint"]["music_arrangement"],
-                          {"dusty_keys", "felt_piano", "warm_tape_synth"})
+            fingerprint = job["metadata"]["creative_fingerprint"]
+            self.assertIn(fingerprint["music_arrangement"], {item["name"] for item in MUSIC_ARRANGEMENTS})
+            self.assertIn(fingerprint["treatment"], {"nocturne_blue", "amber_glow", "violet_dream", "teal_noir",
+                                                       "soft_film", "moonlit_silver", "dusk_mauve", "emerald_night"})
+            self.assertEqual(fingerprint["novelty"]["candidates_evaluated"], 48)
+            self.assertGreaterEqual(fingerprint["novelty"]["score"], 0)
+            self.assertGreaterEqual(len(job["metadata"]["music"]["layers"]), 4)
             self.assertTrue((Path(job["output_dir"]) / "motion-overlay.mp4").exists())
             assets = json.loads((Path(job["output_dir"]) / "asset-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(assets[0]["license_type"], "original_ai_generated")
@@ -768,6 +812,9 @@ class CoreTests(unittest.TestCase):
                 dashboard = json.load(urllib.request.urlopen(base + "/api/dashboard"))
                 self.assertEqual(dashboard["summary"]["total"], 0)
                 self.assertTrue(dashboard["operation"]["ok"])
+                self.assertEqual(dashboard["creative"]["engine"], "creative_dna_v2")
+                creative = json.load(urllib.request.urlopen(base + "/api/creative-system"))
+                self.assertGreaterEqual(creative["catalog"]["candidate_space"], 25_000)
                 series = json.load(urllib.request.urlopen(base + "/api/series"))
                 self.assertGreaterEqual(len(series), 4)
                 insights = json.load(urllib.request.urlopen(base + "/api/insights"))
