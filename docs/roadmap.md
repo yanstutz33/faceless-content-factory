@@ -1,94 +1,142 @@
-# Roadmap consolidado
+# Roadmap executivo — Faceless Content Factory
 
-O projeto terá duas linhas independentes que compartilham agentes, assets, renderização, fila, aprovação e métricas. Nenhuma fase futura habilita publicação automática por padrão.
+Última revisão: 29/08/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão.
 
-### Confiabilidade operacional — Studio 1.7
+## Estado atual verificável
 
-- uma produção só pode ser reservada por um worker/processo de cada vez;
-- a renderização escreve em arquivo temporário e só substitui o vídeo final depois da validação;
-- início, meio e fim do vídeo são decodificados quando o FFprobe não está disponível;
-- aprovação e reaproveitamento conferem novamente o checksum SHA-256 do vídeo.
+### Base operacional concluída
 
-## Linha editorial
+- pipeline Python com fila, reserva exclusiva de trabalho, renderização atômica e validação de integridade;
+- vídeos longos públicos limitados a 30 ou 60 minutos, com bloqueio de artefatos menores;
+- biblioteca de músicas próprias/licenciadas, ingestão local, catálogo, checksums e rastreabilidade de direitos;
+- composição com câmera fixa, movimentos localizados e tratamento de imagem sem tremor artificial;
+- agentes de planejamento, criação, áudio, montagem, qualidade, aprovação e empacotamento;
+- detector histórico de repetição e DNA criativo para imagem, composição, movimento e som;
+- quality gate, aprovação manual, pacotes de publicação e registro local de métricas;
+- Hub responsivo com navegação direta, acessibilidade automatizada, feedback de erro e tema editorial;
+- conectores preparados somente até o ponto anterior à autenticação das plataformas.
 
-### Entregue — fábrica de ambientação
+### Limites atuais
 
-- vídeos longos e verticais;
-- cenas originais, música lo-fi e efeitos localizados;
-- agentes, calendário, piloto automático e operação noturna;
-- quality gate, aprovação, pacotes YouTube/Shorts/Reels/TikTok e métricas;
-- conectores preparados até o ponto anterior ao login.
+- variedade real de áudio depende de uma biblioteca com faixas diferentes e direitos documentados;
+- a fábrica não deve prometer diversidade visual antes de ampliar e validar o catálogo de cenas;
+- YouTube, TikTok, Instagram, Pinterest, Shopee e Bilibili ainda exigem login/configuração manual;
+- nenhuma plataforma recebe upload automático antes de um piloto privado aprovado.
 
-### Entregue — escala criativa (Studio 2.0)
+## Próximas fases, em ordem
 
-- 48 candidatos avaliados por produção e 25.600 combinações-base por cena;
-- detector histórico de repetição para imagem, composição, movimento e som;
-- oito tratamentos visuais, cinco enquadramentos e 16 movimentos localizados com câmera fixa;
-- oito arranjos lo-fi, quatro progressões, camadas de baixo/melodia e cinco texturas;
-- aprendizado conservador por retenção, CTR e engajamento: métricas pesam 20% e novidade pesa 80%;
-- painel de originalidade e rastreabilidade completa no DNA criativo.
+### Fase 1 — Catálogo criativo de produção
 
-### Planejada — cortes inteligentes
+Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- reutilizar apenas vídeos já aprovados, sem alterar o original;
-- combinar capítulos, batidas, legendas e sinais de retenção;
-- produzir candidatos 9:16 diferentes para Shorts, TikTok e Reels;
-- executar quality gate e manter aprovação manual antes de qualquer entrega.
+- importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida;
+- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes;
+- criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
+- impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
+- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo.
 
-Contrato técnico: [smart-cuts-architecture.md](smart-cuts-architecture.md).
+Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
-### Próxima — contas oficiais atuais
+Automação: completa depois que músicas e imagens licenciadas estiverem na biblioteca. A escolha/importação inicial dos arquivos é humana.
 
-- concluir manualmente OAuth de YouTube, TikTok e Instagram;
-- ativar coleta oficial de métricas;
-- manter confirmação humana antes de cada publicação durante o período de validação.
+### Fase 2 — Piloto automático sem publicação
 
-### Entregue — pacote Bilibili manual
+Objetivo: provar que a fábrica consegue trabalhar sozinha de ponta a ponta.
 
-1. Perfil de destino e fluxo manual seguro — concluído no Studio 1.8.
-2. Títulos, descrições, capa neutra e legendas em inglês e chinês simplificado — concluído.
-3. Classificação conservadora por cena e intenção, sem tradução literal cega — concluído.
-4. Pacote `bilibili-upload.json` para revisão e upload manual — concluído.
-5. Registro de métricas Bilibili no histórico editorial — concluído.
-6. Primeiro login, categoria e validação cultural final — etapa manual.
-7. Automação de upload somente se houver acesso oficial estável, autorizado e testado.
+- gerar pauta, roteiro leve/metadados, composição, thumbnail e pacote de publicação em lote;
+- executar renderização noturna com retomada segura após falha;
+- priorizar automaticamente ideias com maior novidade e menor risco de repetição;
+- criar um relatório diário simples: concluídos, bloqueados, motivo e ação recomendada;
+- manter todos os resultados na fila de aprovação local.
 
-Referência: [Bilibili Studio para criadores](https://member.bilibili.com/creator/home).
+Critério de conclusão: três lotes consecutivos terminam sem intervenção e sem artefatos inválidos.
 
-## Linha comercial
+Automação: completa, sem publicar externamente.
 
-### Entregue — base segura Shopee
+### Fase 3 — YouTube privado e métricas reais
 
-- validação de produto exato, mídia licenciada, alegações e `#publicidade`;
-- pacote vertical comercial sem upload;
-- bloqueio explícito de mídia de terceiros obtida no Pinterest.
+Objetivo: validar o canal principal com risco mínimo.
 
-### Entregue — central de campanhas
+- configurar projeto OAuth e conectar a conta oficial do YouTube;
+- enviar inicialmente como privado ou não listado;
+- confirmar título, descrição, thumbnail, duração, áudio e processamento da plataforma;
+- importar impressões, CTR, retenção e tempo de exibição;
+- manter confirmação humana antes de tornar um vídeo público durante o piloto.
 
-1. Campanhas comerciais separadas das séries editoriais.
-2. Produto e link de afiliado importados por formulário revisável e validação oficial de domínio.
-3. Produto exato, direitos, divulgação e alegações verificados antes da campanha.
-4. Criativo associado ao produto e à produção aprovada para gerar o pacote manual.
-5. Cliques, conversões, comissão, custo, lucro e ROI persistidos por campanha.
+Critério de conclusão: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube.
 
-### Em andamento — Shopee + Pinterest
+Automação: preparação, upload privado e coleta de métricas. Manual: login inicial e confirmação de publicação.
 
-1. Reutilizar o vídeo comercial original em formato Video Pin — concluído no Studio 1.6.
-2. Registrar app Pinterest e OAuth da conta Business.
-3. Gerar payload local com board, vídeo, capa e texto alternativo — concluído no Studio 1.6.
-4. Publicar em boards comerciais usando somente a API oficial após login.
-5. Conectar o Pin ao link rastreável permitido e registrar a origem da campanha.
-6. Coletar métricas orgânicas e comparar Pinterest, Shopee Video e formatos verticais.
-7. Nunca baixar ou republicar automaticamente vídeos de outros Pins.
+### Fase 4 — Aprendizado criativo controlado
 
-Referências: [Pinterest Content API](https://developers.pinterest.com/docs/work-with-organic-content-and-users/create-boards-and-pins/) e [Pinterest Organic Analytics](https://developers.pinterest.com/docs/analytics-and-reports/organic-reporting/).
+Objetivo: aprender com desempenho sem transformar todos os vídeos em cópias do vencedor.
 
-## Ordem aprovada
+- registrar CTR, retenção por trecho, tempo de exibição e retorno de audiência;
+- comparar cena, faixa, paleta, título e thumbnail por coortes;
+- manter novidade com peso dominante e limitar a influência de métricas recentes;
+- sugerir testes A/B, nunca substituir criativos aprovados silenciosamente;
+- exibir a justificativa de cada recomendação no Hub.
 
-1. Escala criativa, detector de repetição e aprendizado conservador — concluídos no Studio 2.0.
-2. Concluir logins das plataformas que já estão preparadas.
-3. Central comercial e catálogo Shopee — concluídos no Studio 1.5.
-4. Pacote Pinterest para mídia própria — concluído no Studio 1.6; login oficial pendente.
-5. Adicionar o pacote manual localizado para Bilibili — concluído no Studio 1.8.
-6. Implementar cortes inteligentes depois que houver vídeos aprovados e sinais suficientes para avaliação.
-7. Automatizar publicações individualmente somente após testes, aprovação das APIs e confirmação humana.
+Critério de conclusão: recomendações reproduzíveis, auditáveis e baseadas em volume mínimo de dados.
+
+### Fase 5 — Cortes inteligentes verticais
+
+Objetivo: reutilizar apenas vídeos longos já aprovados em Shorts, TikTok e Reels.
+
+- detectar capítulos, mudanças musicais, regiões seguras e possíveis ganchos;
+- gerar candidatos 9:16 específicos por plataforma, sem alterar o original;
+- adaptar legenda, título, duração e enquadramento para cada destino;
+- executar quality gate próprio e manter aprovação manual.
+
+Critério de conclusão: cada corte preserva o assunto principal, não corta texto/rosto e possui origem rastreável. Contrato: [smart-cuts-architecture.md](smart-cuts-architecture.md).
+
+### Fase 6 — TikTok e Instagram
+
+Objetivo: conectar os fluxos verticais somente depois do piloto de cortes.
+
+- concluir contas, OAuth e permissões oficiais;
+- testar upload privado/rascunho onde a API permitir;
+- coletar retenção, conclusão, compartilhamentos e cliques;
+- criar estratégias separadas por plataforma, sem replicação cega.
+
+Automação: pacote, validação e métricas. Manual: login e publicação onde não houver API oficial adequada.
+
+### Fase 7 — Shopee + Pinterest comercial
+
+Objetivo: operar afiliados sem misturar o catálogo editorial com campanhas.
+
+- importar produto exato, link rastreável, preço e mídia autorizada;
+- gerar vídeo comercial original e reutilizá-lo como Video Pin;
+- validar alegações, direitos e divulgação `#publicidade`;
+- conectar Pinterest Business e recursos oficiais disponíveis da Shopee;
+- registrar cliques, conversões, comissão, custo, lucro e ROI;
+- nunca baixar nem republicar automaticamente vídeos de outros Pins.
+
+Critério de conclusão: produto, criativo e origem de mídia rastreáveis; nenhuma campanha é publicada sem revisão.
+
+### Fase 8 — Bilibili localizado
+
+Objetivo: testar distribuição sem tradução literal ou automação frágil.
+
+- revisar títulos, descrição, capa e legendas em inglês e chinês simplificado;
+- validar categoria, contexto cultural e direitos do conteúdo;
+- usar primeiro o pacote manual `bilibili-upload.json`;
+- automatizar upload somente com acesso oficial estável, autorizado e testado;
+- registrar métricas separadamente das plataformas ocidentais.
+
+## Portas de qualidade para publicação
+
+Um lote só avança quando todas as condições abaixo forem verdadeiras:
+
+1. nenhum vídeo longo tem menos de 30 minutos;
+2. início, meio e fim decodificam corretamente;
+3. faixa e cena não repetem a janela configurada;
+4. imagem, movimento e efeitos respeitam a lógica física da cena;
+5. música e imagens possuem origem e direitos registrados;
+6. título, descrição, thumbnail e arquivo final pertencem à mesma produção;
+7. testes automatizados e CI estão verdes;
+8. publicação permanece manual até o piloto específico da plataforma ser aprovado.
+
+## Próxima ação recomendada
+
+Começar pela Fase 1: preencher a biblioteca com faixas e cenas autorizadas, gerar o lote de dez vídeos e usar esse lote como prova de qualidade. Conectar plataformas antes disso apenas levaria conteúdo repetitivo para produção mais rápido.

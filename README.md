@@ -222,7 +222,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 15. **DNA criativo e aprendizagem:** entregue no Studio 2.0 com 25.600 combinações-base por cena, detector de repetição, biblioteca sonora ampliada, movimento localizado e painel de originalidade.
 16. **Cortes inteligentes:** arquitetura preparada para uma fase posterior; trabalhará somente sobre vídeos aprovados, preservará o original e usará capítulos, batidas e retenção para criar versões verticais.
 
-`ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os únicos bloqueios externos restantes; nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
+`ALLOW_PLATFORM_PUBLISH=false` permanece o padrão. Credenciais, OAuth e acesso oficial às contas são os bloqueios externos; antes de conectá-los, o lote criativo de validação descrito no [roadmap executivo](docs/roadmap.md) ainda precisa comprovar variedade e qualidade em produção. Nenhum conteúdo é tornado público sem confirmação. A seção **Publicação** do painel mostra exatamente o que está liberado e o que ainda precisa de revisão.
 
 As telas, callbacks e validações anteriores ao login já estão preparados. Use [docs/platform-setup.md](docs/platform-setup.md) para registrar as URLs de retorno e concluir cada login quando quiser. Até lá, o botão **Pré-validar** apenas prepara a entrega local e confirma bloqueios; ele não chama a plataforma.
 

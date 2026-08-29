@@ -38,8 +38,7 @@ test('direct publishing link lands on the publishing center after data loads', a
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
 });
 
-test('editorial theme follows the system while preserving the supplied tokens', async ({ page }) => {
-  await page.emulateMedia({ colorScheme: 'light' });
+test('editorial theme preserves the supplied tokens and can be toggled', async ({ page }) => {
   await page.goto('/');
   const light = await page.locator('html').evaluate(element => {
     const style = getComputedStyle(element);
@@ -47,12 +46,23 @@ test('editorial theme follows the system while preserving the supplied tokens', 
   });
   expect(light).toEqual(['#f4efe4', '#7b5cff', '#141018']);
 
-  await page.emulateMedia({ colorScheme: 'dark' });
+  const texture = await page.locator('body').evaluate(element => getComputedStyle(element).backgroundImage);
+  expect(texture).toContain('radial-gradient');
+  const card = await page.locator('.stat').first().evaluate(element => {
+    const style = getComputedStyle(element);
+    return [style.borderTopWidth, style.borderTopStyle, style.boxShadow];
+  });
+  expect(card[0]).toBe('2px');
+  expect(card[1]).toBe('solid');
+  expect(card[2]).toContain('rgb(123, 92, 255)');
+
+  await page.getByRole('button', { name: /usar tema escuro/i }).click();
   const dark = await page.locator('html').evaluate(element => {
     const style = getComputedStyle(element);
     return [style.getPropertyValue('--papel').trim(), style.getPropertyValue('--marca').trim(), style.getPropertyValue('--tinta').trim()];
   });
   expect(dark).toEqual(['#141018', '#9c85ff', '#f4efe4']);
+  await expect(page.getByRole('button', { name: /usar tema claro/i })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('direct library link stays anchored after asynchronous sections expand', async ({ page }) => {
