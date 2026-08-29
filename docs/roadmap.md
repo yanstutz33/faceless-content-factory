@@ -36,9 +36,9 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **a validação técnica passou, mas o lote musical precisa ser refeito com as novas faixas**;
 - manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
 - migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
-- preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: integração oficial com Lyria 3 pela Gemini API, chave criptografada, 12 prompts distintos, alternativa manual pelo Flow Music e montagem local automática**.
+- preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: Flow Music Bridge com abertura oficial protegida pelo Google, importação rastreável do lote Starter, substituição reversível do catálogo sintético, integração opcional com Lyria 3 pela Gemini API e montagem local automática**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as nove capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. A geração musical já pode ser automatizada por chave de API, mas a diversidade ainda depende de gerar e ouvir o primeiro lote Lyria antes do aceite humano. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. O primeiro lote de 12 músicas do Flow Music Starter foi gerado pelo usuário e está pronto para validação/importação; a aprovação auditiva humana continua obrigatória. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 

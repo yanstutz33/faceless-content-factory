@@ -29,6 +29,8 @@
   --ponto: rgba(20, 16, 24, .10);
   --sombra-editorial: 5px 6px 0 var(--marca);
   --sombra-editorial-menor: 3px 3px 0 var(--marca);
+  --chuva: #4d7cff;
+  --brasa: #ffb15c;
 }
 
 :root[data-theme="dark"] {
@@ -48,6 +50,8 @@
     --marca-suave: #251c3d;
     --contorno: #f4efe4;
     --ponto: rgba(244, 239, 228, .075);
+    --chuva: #75a7ff;
+    --brasa: #ffbd72;
 }
 
 html { background: var(--papel); }
@@ -90,14 +94,28 @@ fieldset legend,
 .nav-item,
 .side-foot { color: var(--suave); }
 .brand b, .kicker, .text-button { color: var(--marca); }
+.brand { position: relative; gap: 13px; font-weight: 850; }
+.brand::after { content: "FF/01"; position: absolute; right: 8px; bottom: 13px; color: var(--tenue); font: 700 7px/1 var(--mono); letter-spacing: .12em; }
 .brand-mark {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
   color: #fffdf8;
   background: var(--contorno);
   border: 2px solid var(--contorno);
-  border-radius: 4px;
-  box-shadow: 3px 3px 0 var(--marca);
+  border-radius: 2px;
+  box-shadow: 4px 4px 0 var(--marca);
 }
-.brand { font-weight: 850; }
+.brand-mark::after { content: ""; position: absolute; inset: auto 0 0; height: 3px; background: linear-gradient(90deg,var(--chuva) 0 48%,var(--brasa) 48%); }
+.brand-mark i { display: grid; place-items: center; font: 900 15px/1 Inter,sans-serif; font-style: normal; }
+.brand-mark i:first-child { color: var(--papel); border-right: 1px solid color-mix(in srgb,var(--papel) 28%,transparent); }
+.brand-mark i:last-child { color: var(--marca); transform: scaleX(-1); }
+.brand-copy { display: grid; gap: 4px; }
+.brand-copy b { color: var(--tinta); font: 900 13px/.9 Inter,sans-serif; letter-spacing: .08em; }
+.brand-copy small { color: var(--marca); font: 700 7px/1 var(--mono); letter-spacing: .18em; }
 .nav-item { border-radius: 3px; border-left: 3px solid transparent; }
 .nav-item:hover,
 .nav-item.active { color: var(--tinta); background: var(--marca-suave); border-left-color: var(--marca); }
@@ -123,14 +141,32 @@ fieldset legend,
 .theme-toggle:hover { color: var(--marca); }
 .theme-toggle:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--marca); }
 
-.topbar { border-bottom: 2px solid var(--contorno); }
+.topbar { position: relative; min-height: 224px; overflow: hidden; border-bottom: 2px solid var(--contorno); }
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(32vw, 390px);
+  opacity: .7;
+  background:
+    linear-gradient(90deg, transparent 0 9%, var(--marca) 9% 10%, transparent 10% 22%, var(--chuva) 22% 23%, transparent 23%),
+    repeating-linear-gradient(90deg, transparent 0 15px, color-mix(in srgb,var(--tinta) 8%,transparent) 15px 16px),
+    linear-gradient(135deg, transparent 48%, var(--marca-suave) 48% 70%, transparent 70%);
+  clip-path: polygon(20% 0,100% 0,100% 100%,0 100%);
+  pointer-events: none;
+}
+.topbar::after { content: "MOOD / MEDIA / MOTION"; position: absolute; right: 0; bottom: 12px; color: var(--tenue); font: 700 8px/1 var(--mono); letter-spacing: .22em; }
+.hero-copy { position: relative; z-index: 1; max-width: 810px; }
 .topbar h1,
 .section-heading h2 {
   font-family: Inter, "Arial Black", "Segoe UI", sans-serif;
   font-weight: 900;
   letter-spacing: -.045em;
 }
-.topbar h1 { line-height: .98; }
+.topbar h1 { line-height: .93; text-wrap: balance; }
+.topbar h1 em { color: var(--marca); font-style: normal; }
+.hero-lede { max-width: 540px; margin: 17px 0 0; color: var(--suave); font: 600 12px/1.6 var(--mono); letter-spacing: .02em; }
+.top-actions { position: relative; z-index: 1; }
 .section-heading > span,
 .section-copy,
 .field small,
@@ -276,6 +312,12 @@ textarea:focus-visible,
   .sidebar { border-right: 0 !important; border-bottom: 2px solid var(--contorno) !important; }
   .theme-toggle { width: auto; min-width: 44px; margin: 0 8px 0 auto; padding-inline: 12px; }
   .theme-toggle b { display: none; }
+  .brand::after { display: none; }
+  .brand-copy { display: none; }
+  .brand-mark i { display: grid !important; }
+  .topbar { min-height: 0; overflow: visible; }
+  .topbar::before,.topbar::after { display: none; }
+  .hero-lede { font-size: 10px; }
   :is(
     .stat, .focus-card, .safety-card, .production, .agent, .insight,
     .series-card, .calendar-item, .autopilot-card, .night-card,

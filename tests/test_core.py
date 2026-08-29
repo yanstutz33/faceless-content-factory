@@ -86,7 +86,7 @@ class CoreTests(unittest.TestCase):
 
     def test_flow_music_guide_offers_distinct_safe_prompts(self):
         guide = flow_music_guide()
-        self.assertEqual(guide["mode"], "api_or_manual_safe")
+        self.assertEqual(guide["mode"], "official_link_bridge_with_api_option")
         self.assertEqual(len(FLOW_MUSIC_PROMPTS), 12)
         self.assertEqual(len({item["name"] for item in FLOW_MUSIC_PROMPTS}), 12)
         self.assertEqual(len({item["prompt"] for item in FLOW_MUSIC_PROMPTS}), 12)
@@ -671,6 +671,24 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(metadata["style"], "licensed_music_library")
             self.assertEqual(metadata["selection"], "least_used_rotation")
 
+    def test_flow_catalog_can_reversibly_replace_synthetic_rotation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "factory.db")
+            synthetic = root / "synthetic.wav"
+            flow = root / "flow.mp3"
+            synthetic.touch()
+            flow.touch()
+            source = "generated-locally://faceless-factory/original-lofi-v1"
+            synthetic_id = store.add_music_asset("Synthetic", str(synthetic), "original", source, None, True)
+            flow_id = store.add_music_asset("Flow", str(flow), "provider_generated",
+                                            "https://www.flowmusic.app/", "Google AI Plus", True)
+            self.assertEqual(store.archive_music_assets_by_source(source), 1)
+            active = {item["id"] for item in store.list_music_assets(approved_only=True)}
+            self.assertNotIn(synthetic_id, active)
+            self.assertIn(flow_id, active)
+            self.assertTrue(synthetic.is_file())
+
     def test_public_interface_only_offers_long_videos_and_friendly_artifacts(self):
         index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
@@ -679,6 +697,8 @@ class CoreTests(unittest.TestCase):
         self.assertIn('1 hora · recomendado', index)
         self.assertIn('30 minutos', index)
         self.assertIn('data-artifact="metadata.json"', app)
+        self.assertIn('FFACTORY — Autonomous Mood Studio', index)
+        self.assertIn('https://www.flowmusic.app/', app)
         self.assertIn('/api/music-assets/${Number(track.id)}/preview', app)
         self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
 

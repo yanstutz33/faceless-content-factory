@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 
 test('studio loads, navigates and keeps dialogs keyboard-safe', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /direção clara/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /atmosferas que trabalham/i })).toBeVisible();
   await expect(page.locator('#operation-title')).not.toHaveText('Verificando estúdio');
 
   await page.getByRole('link', { name: /produções/i }).click();
@@ -72,14 +72,12 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.getByRole('heading', { name: /biblioteca criativa/i })).toBeVisible();
   await expect(page.locator('#catalog-readiness')).toContainText(/lote piloto/i);
   await expect(page.locator('#catalog-readiness')).toContainText(/faixas lo-fi distintas/i);
-  await expect(page.locator('#flow-music-guide')).toContainText(/Google Lyria 3/i);
-  await page.getByRole('button', { name: /conectar chave de api/i }).click();
-  await expect(page.locator('#lyria-key-dialog')).toBeVisible();
+  await expect(page.locator('#flow-music-guide')).toContainText(/Flow Music Bridge/i);
+  await expect(page.getByRole('link', { name: /abrir flow music/i })).toHaveAttribute('href', 'https://www.flowmusic.app/');
   await expect(page.locator('#lyria-key-form [name=api_key]')).toHaveAttribute('type', 'password');
-  await page.keyboard.press('Escape');
-  await page.locator('#flow-music-guide details').click();
+  await page.locator('#flow-music-guide summary').click();
   await expect(page.locator('#flow-music-guide [data-copy-flow]')).toHaveCount(12);
-  await page.getByRole('button', { name: /^importar áudio$/i }).click();
+  await page.getByRole('button', { name: /importar downloads/i }).click();
   await expect(page.locator('#music-dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   const previews = page.locator('#music-grid audio source');

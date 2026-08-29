@@ -536,6 +536,17 @@ class Store:
             item["approved"] = bool(item["approved"])
         return items
 
+    def archive_music_assets_by_source(self, source_url: str) -> int:
+        """Remove a catalog from rotation without deleting its files or history."""
+        if not source_url.strip():
+            raise ValueError("A origem do catálogo é obrigatória")
+        with self.connect() as db:
+            cursor = db.execute(
+                "UPDATE music_assets SET approved=0 WHERE source_url=? AND approved=1",
+                (source_url.strip(),),
+            )
+            return int(cursor.rowcount)
+
     def get_music_asset(self, asset_id: int) -> dict[str, Any] | None:
         with self.connect() as db:
             row = db.execute("SELECT * FROM music_assets WHERE id=? AND approved=1", (asset_id,)).fetchone()

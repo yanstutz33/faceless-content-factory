@@ -593,7 +593,13 @@ class Handler(SimpleHTTPRequestHandler):
                     name = str(data.get("name") or candidate.stem) if len(candidates) == 1 else candidate.stem
                     imported.append(self.store.add_music_asset(name, str(candidate), license_type,
                                                                data.get("source_url"), data.get("notes"), True))
-                return self.send_json({"ids": imported, "count": len(imported)}, HTTPStatus.CREATED)
+                archived = 0
+                if imported and bool(data.get("replace_synthetic_catalog", False)):
+                    archived = self.store.archive_music_assets_by_source(
+                        "generated-locally://faceless-factory/original-lofi-v1"
+                    )
+                return self.send_json({"ids": imported, "count": len(imported), "archived": archived},
+                                      HTTPStatus.CREATED)
             if path == "/api/music-sources/lyria/configure":
                 return self.send_json(self.pipeline.lyria.configure(str(data.get("api_key", ""))))
             if path == "/api/music-sources/lyria/disconnect":
