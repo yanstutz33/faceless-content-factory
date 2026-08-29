@@ -10,6 +10,7 @@ data/jobs/
 data/private/
 data/backups/
 data/archive/
+data/library/
 data/integration-audit.jsonl
 data/deliveries.json
 data/*.log

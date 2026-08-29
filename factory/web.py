@@ -260,6 +260,55 @@ class Handler(SimpleHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 return
 
+    def send_music_preview(self, asset_id: int) -> None:
+        track = self.store.get_music_asset(asset_id)
+        path = Path(str(track.get("path", ""))) if track else Path()
+        if not track or not path.is_file():
+            return self.send_api_error("Música não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        size = path.stat().st_size
+        start, end = 0, size - 1
+        status = HTTPStatus.OK
+        range_header = self.headers.get("Range")
+        if range_header:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+            if not match or (not match.group(1) and not match.group(2)):
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.end_headers()
+                return
+            if match.group(1):
+                start = int(match.group(1))
+                end = int(match.group(2)) if match.group(2) else size - 1
+            else:
+                start = max(0, size - int(match.group(2)))
+            end = min(end, size - 1)
+            if start > end or start >= size:
+                self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.end_headers()
+                return
+            status = HTTPStatus.PARTIAL_CONTENT
+        length = end - start + 1
+        self.send_response(status)
+        self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "audio/wav")
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        if status == HTTPStatus.PARTIAL_CONTENT:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.end_headers()
+        with path.open("rb") as file:
+            file.seek(start)
+            remaining = length
+            try:
+                while remaining:
+                    chunk = file.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > 1_000_000:
@@ -341,6 +390,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.store.list_assets())
         if path == "/api/music-assets":
             return self.send_json(self.store.list_music_assets())
+        if path == "/api/library/readiness":
+            return self.send_json(self.pipeline.library_readiness())
         if path == "/api/publishing":
             return self.send_json(self.publishing.queue())
         if path == "/api/platforms":
@@ -361,6 +412,8 @@ class Handler(SimpleHTTPRequestHandler):
             label = html.escape(platform.title())
             return self.send_html(f"<!doctype html><meta charset='utf-8'><title>Conta conectada</title><style>body{{font:16px system-ui;background:#09111f;color:#eef3fb;display:grid;place-items:center;min-height:100vh}}main{{max-width:520px;padding:32px;background:#101a2b;border-radius:18px}}a{{color:#77e0bd}}</style><main><h1>{label} conectado</h1><p>A autorização foi guardada no cofre local. Nenhum conteúdo foi publicado.</p><a href='/#connections'>Voltar ao Studio</a></main>")
         parts = path.strip("/").split("/")
+        if len(parts) == 4 and parts[:2] == ["api", "music-assets"] and parts[3] == "preview":
+            return self.send_music_preview(int(parts[2]))
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
         if len(parts) == 3 and parts[:2] == ["api", "jobs"]:
@@ -496,6 +549,8 @@ class Handler(SimpleHTTPRequestHandler):
                     imported.append(self.store.add_music_asset(name, str(candidate), license_type,
                                                                data.get("source_url"), data.get("notes"), True))
                 return self.send_json({"ids": imported, "count": len(imported)}, HTTPStatus.CREATED)
+            if path == "/api/music-assets/bootstrap":
+                return self.send_json(self.pipeline.bootstrap_original_music_catalog(), HTTPStatus.CREATED)
             if path.startswith("/api/calendar/") and path.endswith("/produce"):
                 item_id = int(path.split("/")[-2])
                 item = self.store.claim_calendar_item(item_id)

@@ -389,10 +389,12 @@ class Pipeline:
         return 440.0 * (2.0 ** ((note - 69) / 12.0))
 
     def create_lofi_loop(self, output: Path, sound_profile: str, seed_text: str = "",
-                         creative_dna: dict[str, Any] | None = None) -> dict[str, Any]:
+                         creative_dna: dict[str, Any] | None = None,
+                         loop_seconds: int = 16) -> dict[str, Any]:
         """Create a deterministic original music loop without copyrighted source audio."""
         creative_dna = creative_dna or {}
-        sample_rate, loop_seconds = 22_050, 16
+        sample_rate = 22_050
+        loop_seconds = max(2, min(180, int(loop_seconds)))
         seed = int(creative_dna.get("seed") or int(hashlib.sha256(f"{sound_profile}:{seed_text}".encode()).hexdigest()[:8], 16))
         rng = random.Random(seed)
         progressions = {
@@ -437,9 +439,11 @@ class Pipeline:
         hat_gain = .006 if rhythm == "brushes" else .012
         for index in range(total):
             t = index / sample_rate
-            chord_index = min(3, int(t / (loop_seconds / 4)))
-            chord_time = t % (loop_seconds / 4)
-            chord_span = loop_seconds / 4
+            phrase_time = t % 16
+            phrase_index = int(t / 16)
+            chord_index = (min(3, int(phrase_time / 4)) + phrase_index) % 4
+            chord_time = phrase_time % 4
+            chord_span = 4
             pad_envelope = min(1.0, chord_time / 0.35, max(0.0, (chord_span - chord_time) / 0.45))
             chord = chords[chord_index]
             music = 0.0
@@ -494,6 +498,92 @@ class Pipeline:
                 "rhythm_pattern": rhythm,
                 "key_shift": transpose, "melody_density": melody_density, "swing": swing,
                 "texture": texture, "layers": layers}
+
+    def library_readiness(self) -> dict[str, Any]:
+        """Measure whether the local catalog can produce a genuinely varied pilot batch."""
+        starter_dir = self.settings.root / "assets" / "starter"
+        starter_scenes = sorted(path for path in starter_dir.glob("*.jpg") if path.is_file())
+        custom_scenes = [item for item in self.store.list_assets(approved_only=True)
+                         if Path(str(item.get("path", ""))).is_file()]
+        tracks = [item for item in self.store.list_music_assets(approved_only=True)
+                  if Path(str(item.get("path", ""))).is_file()]
+        licenses = {"original", "commercial_license", "public_domain", "cc0", "provider_generated"}
+        rights_ok = all(item.get("license_type") in licenses for item in tracks)
+        track_goal, scene_goal = 12, 12
+        checks = [
+            {"id": "music", "label": "Faixas lo-fi distintas", "value": len(tracks),
+             "target": track_goal, "passed": len(tracks) >= track_goal},
+            {"id": "scenes", "label": "Cenas-base disponíveis", "value": len(starter_scenes) + len(custom_scenes),
+             "target": scene_goal, "passed": len(starter_scenes) + len(custom_scenes) >= scene_goal},
+            {"id": "rights", "label": "Direitos rastreáveis", "value": len(tracks),
+             "target": len(tracks), "passed": bool(tracks) and rights_ok},
+        ]
+        blockers = []
+        if len(tracks) < track_goal:
+            blockers.append(f"Faltam {track_goal - len(tracks)} faixas para garantir uma música diferente por vídeo.")
+        if len(starter_scenes) + len(custom_scenes) < scene_goal:
+            blockers.append(f"Faltam {scene_goal - len(starter_scenes) - len(custom_scenes)} cenas para o lote criativo.")
+        if tracks and not rights_ok:
+            blockers.append("Há faixas sem uma licença comercial aceita.")
+        return {
+            "ready": all(check["passed"] for check in checks), "checks": checks, "blockers": blockers,
+            "music_tracks": len(tracks), "starter_scenes": len(starter_scenes),
+            "custom_scenes": len(custom_scenes), "pilot_size": 10,
+            "policy": "10 vídeos longos; nenhuma faixa repetida no lote; publicação manual",
+        }
+
+    def bootstrap_original_music_catalog(self, target_count: int = 12,
+                                         duration_seconds: int = 120) -> dict[str, Any]:
+        """Generate a traceable original catalog with one distinct arrangement per track."""
+        target_count = max(1, min(len(MUSIC_ARRANGEMENTS), int(target_count)))
+        duration_seconds = max(16, min(180, int(duration_seconds)))
+        catalog_dir = self.settings.data_dir / "library" / "original-lofi-v1"
+        catalog_dir.mkdir(parents=True, exist_ok=True)
+        profiles = ("focus", "rain", "cozy", "cosmic")
+        textures = ("clean_room", "soft_tape", "vinyl_dust", "warm_noise", "air_hiss")
+        created, registered, manifest_tracks = [], [], []
+        for index, arrangement in enumerate(MUSIC_ARRANGEMENTS[:target_count]):
+            number = index + 1
+            path = catalog_dir / f"{number:02d}-{arrangement['name']}.wav"
+            profile = profiles[index % len(profiles)]
+            dna = {
+                "seed": 810_000 + number * 7_919,
+                "music_arrangement": arrangement["name"],
+                "progression_variant": index % 4,
+                "bpm": 68 + (index * 3) % 17,
+                "texture": textures[index % len(textures)],
+                "key_shift": (-2, 0, 2)[index % 3],
+                "melody_density": .42 + (index % 4) * .11,
+                "swing": .03 + (index % 5) * .018,
+            }
+            if not path.is_file() or path.stat().st_size < 10_000:
+                metadata = self.create_lofi_loop(path, profile, f"catalog-v1-{number}", dna,
+                                                 loop_seconds=duration_seconds)
+                created.append(str(path))
+            else:
+                metadata = {"arrangement": arrangement["name"], "bpm": dna["bpm"],
+                            "texture": dna["texture"], "loop_seconds": duration_seconds,
+                            "rhythm_pattern": arrangement["rhythm"]}
+            title = f"Original Lo-fi {number:02d} · {arrangement['name'].replace('_', ' ').title()}"
+            asset_id = self.store.add_music_asset(
+                title, str(path), "original", "generated-locally://faceless-factory/original-lofi-v1",
+                f"Síntese original determinística; arranjo={arrangement['name']}; catálogo=v1", True,
+            )
+            registered.append(asset_id)
+            manifest_tracks.append({
+                "id": asset_id, "name": title, "file": path.name, "license": "original",
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), **metadata,
+            })
+        manifest = {
+            "catalog": "original-lofi-v1", "generator": "Faceless Content Factory",
+            "source_policy": "locally_synthesized_original_audio", "track_count": len(manifest_tracks),
+            "tracks": manifest_tracks,
+        }
+        (catalog_dir / "catalog-manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"created": len(created), "registered": len(registered),
+                "manifest": str(catalog_dir / "catalog-manifest.json"),
+                "readiness": self.library_readiness()}
 
     def create_ambient_audio(self, output: Path, duration: int, sound_profile: str, seed_text: str = "",
                              creative_dna: dict[str, Any] | None = None) -> dict[str, Any]:

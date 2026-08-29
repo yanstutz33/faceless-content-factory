@@ -149,6 +149,7 @@ fieldset legend,
   .commerce-safety, .commerce-roadmap, .creative-lab, .creative-lab-main,
   .creative-kpis article, .learning-strip, .thumbnail-test, .agent-output,
   .verification, .artifact-summary article
+  , .catalog-readiness
 ) {
   color: var(--tinta);
   background: var(--sup) !important;

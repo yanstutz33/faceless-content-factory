@@ -502,6 +502,37 @@ class CoreTests(unittest.TestCase):
             self.assertGreater(asset_id, 0)
             self.assertTrue(store.list_assets(approved_only=True)[0]["approved"])
 
+    def test_library_readiness_requires_real_files_and_variety_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            starter = root / "assets" / "starter"
+            starter.mkdir(parents=True)
+            for index in range(12):
+                (starter / f"scene-{index:02}.jpg").write_bytes(b"original-scene")
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            for index in range(12):
+                track = root / f"track-{index:02}.wav"
+                track.write_bytes(b"original-track")
+                store.add_music_asset(f"Track {index}", str(track), "original", None, None, True)
+            readiness = pipeline.library_readiness()
+            self.assertTrue(readiness["ready"])
+            self.assertEqual(readiness["music_tracks"], 12)
+            self.assertEqual(readiness["starter_scenes"], 12)
+
+    def test_original_music_bootstrap_registers_distinct_traceable_tracks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            result = pipeline.bootstrap_original_music_catalog(target_count=2, duration_seconds=16)
+            tracks = store.list_music_assets(approved_only=True)
+            manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+            self.assertEqual(result["registered"], 2)
+            self.assertEqual(len(tracks), 2)
+            self.assertEqual(len({item["sha256"] for item in manifest["tracks"]}), 2)
+            self.assertTrue(all(item["license"] == "original" for item in manifest["tracks"]))
+
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_music_library_rotates_least_used_tracks_and_renders(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -535,6 +566,7 @@ class CoreTests(unittest.TestCase):
         self.assertIn('1 hora · recomendado', index)
         self.assertIn('30 minutos', index)
         self.assertIn('data-artifact="metadata.json"', app)
+        self.assertIn('/api/music-assets/${Number(track.id)}/preview', app)
         self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
 
     def test_queue_profile_summary_and_plan(self):

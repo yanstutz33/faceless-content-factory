@@ -172,8 +172,25 @@ async function loadMusicAssets(){
   const tracks=await api('/api/music-assets');
   const grid=$('#music-grid');const select=$('#production-music');
   $('#music-library-summary').textContent=tracks.length?`${tracks.length} faixa(s) · rotação por menor uso`:'Nenhuma faixa importada';
-  grid.innerHTML=tracks.length?tracks.map(track=>`<article class="asset-card music-card"><span class="tag">${esc(track.license_type)}</span><h3>${esc(track.name)}</h3><p>${esc(String(track.path).split(/[\\/]/).pop())}</p><small>Usada em ${Number(track.use_count||0)} vídeo(s) · ${track.approved?'✓ liberada':'bloqueada'}</small></article>`).join(''):'<div class="empty"><b>Sua biblioteca musical está vazia.</b><p>Clique em “Importar músicas” e informe uma pasta com suas faixas lo-fi licenciadas.</p></div>';
+  grid.innerHTML=tracks.length?tracks.map(track=>`<article class="asset-card music-card"><span class="tag">${esc(track.license_type)}</span><h3>${esc(track.name)}</h3><p>${esc(String(track.path).split(/[\\/]/).pop())}</p><audio controls preload="none" aria-label="Ouvir ${esc(track.name)}"><source src="/api/music-assets/${Number(track.id)}/preview" type="audio/wav"></audio><small>Usada em ${Number(track.use_count||0)} vídeo(s) · ${track.approved?'✓ liberada':'bloqueada'}</small></article>`).join(''):'<div class="empty"><b>Sua biblioteca musical está vazia.</b><p>Clique em “Importar músicas” e informe uma pasta com suas faixas lo-fi licenciadas.</p></div>';
   select.innerHTML='<option value="">Automática · usar primeiro a menos repetida</option>'+tracks.filter(track=>track.approved).map(track=>`<option value="${Number(track.id)}">${esc(track.name)} · usada ${Number(track.use_count||0)}x</option>`).join('');
+}
+
+async function loadCatalogReadiness(){
+  const data=await api('/api/library/readiness');
+  const panel=$('#catalog-readiness');
+  panel.dataset.ready=String(!!data.ready);
+  panel.innerHTML=`<div><p class="kicker">LOTE PILOTO · ${data.ready?'PRONTO':'PREPARAÇÃO'}</p><h3>${data.ready?'Catálogo com variedade mínima':'Complete o catálogo antes de renderizar em escala'}</h3><p>${esc(data.ready?data.policy:(data.blockers||[]).join(' '))}</p></div><div class="catalog-checks">${(data.checks||[]).map(check=>`<span class="${check.passed?'pass':'planned'}"><b>${check.passed?'✓':'!'}</b> ${esc(check.label)} · ${Number(check.value)}/${Number(check.target)}</span>`).join('')}</div>${data.music_tracks<12?'<button class="primary" id="bootstrap-music" type="button">Criar 12 músicas originais</button>':'<span class="catalog-ready-badge">✓ rotação liberada</span>'}`;
+  $('#bootstrap-music')?.addEventListener('click',bootstrapMusicCatalog);
+}
+
+async function bootstrapMusicCatalog(event){
+  const button=event.currentTarget;button.disabled=true;button.textContent='Compondo catálogo…';
+  try{
+    const result=await api('/api/music-assets/bootstrap',{method:'POST',timeoutMs:600000,body:'{}'});
+    apiCache.clear();await Promise.all([loadMusicAssets(),loadCatalogReadiness()]);
+    toast(`${result.registered} músicas originais prontas para rotação.`,'success');
+  }catch(error){toast(error.message,'error');button.disabled=false;button.textContent='Criar 12 músicas originais'}
 }
 
 $('#new-music').onclick=()=>$('#music-dialog').showModal();
@@ -234,4 +251,4 @@ $('#asset-form').addEventListener('submit',async event=>{
 
 $('#create-dialog').addEventListener('click',event=>{if(event.target===$('#create-dialog'))$('#create-dialog').close()});
 $('#job-dialog').addEventListener('click',event=>{if(event.target===$('#job-dialog'))$('#job-dialog').close()});
-Promise.all([load(),loadAssets(),loadMusicAssets(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);
+Promise.all([load(),loadAssets(),loadMusicAssets(),loadCatalogReadiness(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);

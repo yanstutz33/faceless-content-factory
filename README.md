@@ -191,6 +191,8 @@ npm run test:e2e
 
 A suíte cobre agentes, validação, migração/estado da fila, trava de render entre processos, retomada após reinício, calendário com equipe especializada, insights por snapshot, catálogo de licenças, rotação da biblioteca musical, domínios oficiais, segurança da API, streaming por faixa, TTS, thumbnails A/B, renderização otimizada, checksums e composição multicena real com FFmpeg. Playwright e axe-core validam navegação, teclado, acessibilidade, biblioteca musical, limite público de 30/60 minutos e ausência de overflow em desktop e celular no GitHub Actions.
 
+A Biblioteca também pode criar um catálogo inicial de 12 músicas lo-fi originais no próprio computador. As faixas usam arranjos, ritmos, progressões, BPM, texturas e sementes diferentes, recebem manifesto SHA-256 e podem ser ouvidas no Hub antes do lote piloto. Arquivos gerados permanecem locais em `data/library/`; o código publicado no GitHub consegue recriá-los sem distribuir binários de áudio no repositório.
+
 Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Na interface, os botões **Resumo do vídeo**, **Relatório técnico**, **Controle de qualidade** e **Integridade dos arquivos** abrem explicações legíveis; os JSON permanecem apenas como registro interno auditável.
 
 ## Estado do roadmap

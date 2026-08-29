@@ -70,6 +70,10 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await page.waitForTimeout(2100);
   await expect(page.locator('#library')).toBeInViewport();
   await expect(page.getByRole('heading', { name: /biblioteca criativa/i })).toBeVisible();
+  await expect(page.locator('#catalog-readiness')).toContainText(/lote piloto/i);
+  await expect(page.locator('#catalog-readiness')).toContainText(/faixas lo-fi distintas/i);
+  const previews = page.locator('#music-grid audio source');
+  if (await previews.count()) await expect(previews.first()).toHaveAttribute('src', /\/api\/music-assets\/\d+\/preview/);
 });
 
 test('public production only offers 30 or 60 minutes and opens the music library', async ({ page }) => {

@@ -29,11 +29,13 @@
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida;
-- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes;
+- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **concluído: 12 faixas originais locais, 120 s e hashes distintos**;
+- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 12 cenas-base disponíveis**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
 - gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo.
+
+Progresso atual: o Hub confirma 12/12 músicas, 12/12 cenas e 12/12 registros de direitos. Cada música pode ser ouvida diretamente na Biblioteca. Próximo passo: renderizar e revisar o lote piloto de dez vídeos.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
