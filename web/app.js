@@ -164,8 +164,8 @@ async function loadAssets(){
   const assets=await api('/api/assets');
   const grid=$('#asset-grid');
   const select=$('#production-assets');
-  grid.innerHTML=assets.length?assets.map(asset=>`<article class="asset-card"><span class="tag">${esc(asset.license_type)}</span><h3>${esc(asset.name)}</h3><p>${esc(String(asset.path).split(/[\\/]/).pop())}</p><small>${asset.approved?'✓ Direitos confirmados':'Bloqueado'}</small></article>`).join(''):'<div class="empty">Nenhum asset registrado. Adicione imagens próprias ou licenciadas para ampliar as cenas.</div>';
-  select.innerHTML=assets.filter(asset=>asset.approved).map(asset=>`<option value="${Number(asset.id)}">${esc(asset.name)} · ${esc(asset.license_type)}</option>`).join('');
+  grid.innerHTML=assets.length?assets.map(asset=>`<article class="asset-card image-card">${asset.available?`<img class="asset-cover-preview" src="/api/assets/${Number(asset.id)}/preview" alt="Prévia de ${esc(asset.name)}" loading="lazy">`:'<div class="asset-cover-preview asset-unavailable">Imagem indisponível</div>'}<div class="asset-body"><span class="tag">${String(asset.notes||'').includes('nocturnal_rain_v1')?'PADRÃO OFICIAL':esc(asset.license_type)}</span><h3>${esc(asset.name)}</h3><p>${esc(String(asset.path).split(/[\\/]/).pop())}</p><small>${asset.available?(asset.approved?'✓ Direitos confirmados':'Bloqueado'):'! Arquivo precisa ser localizado'}</small></div></article>`).join(''):'<div class="empty">Nenhum asset registrado. Adicione imagens próprias ou licenciadas para ampliar as cenas.</div>';
+  select.innerHTML=assets.filter(asset=>asset.approved&&asset.available&&!String(asset.notes||'').includes('nocturnal_rain_v1')).map(asset=>`<option value="${Number(asset.id)}">${esc(asset.name)} · ${esc(asset.license_type)}</option>`).join('');
 }
 
 async function loadMusicAssets(){

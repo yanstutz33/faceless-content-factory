@@ -492,7 +492,17 @@ class Store:
             items = [dict(row) for row in db.execute(query)]
             for item in items:
                 item["approved"] = bool(item["approved"])
+                item["available"] = Path(str(item.get("path", ""))).is_file()
             return items
+
+    def get_asset(self, asset_id: int) -> dict[str, Any] | None:
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM assets WHERE id=? AND approved=1", (asset_id,)).fetchone()
+        item = dict(row) if row else None
+        if item:
+            item["approved"] = bool(item["approved"])
+            item["available"] = Path(str(item.get("path", ""))).is_file()
+        return item
 
     def get_assets(self, asset_ids: list[int]) -> list[dict[str, Any]]:
         if not asset_ids:

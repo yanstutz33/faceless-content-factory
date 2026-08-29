@@ -25,17 +25,18 @@
 
 ## Próximas fases, em ordem
 
-### Fase 1 — Catálogo criativo de produção — concluída
+### Fase 1 — Catálogo criativo de produção — em revisão musical
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **concluído: 12 faixas originais locais, 120 s e hashes distintos**;
+- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **pendente de aceite perceptivo: as 12 faixas locais têm hashes distintos, mas foram rejeitadas por soarem semelhantes; aguardando a biblioteca enviada pelo usuário**;
 - ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 12 cenas-base disponíveis**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
-- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **concluído: dez vídeos de 30 minutos aprovados localmente**.
+- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **a validação técnica passou, mas o lote musical precisa ser refeito com as novas faixas**;
+- manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: oito referências únicas em `nocturnal_rain_v1`, sem banners, títulos longos ou câmera artificial**.
 
-Resultado: o Hub confirma 12/12 músicas, 12/12 cenas e 12/12 registros de direitos. O lote validado possui dez músicas diferentes, oito cenas coerentes com os temas, câmera fixa, duração real de 1.800 s, arquivos decodificados e nota 92/100. Cada música pode ser ouvida diretamente na Biblioteca. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as oito capas aprovadas já estão visíveis na Biblioteca e serão escolhidas por tema. A diversidade musical ainda não recebeu aceite humano e, portanto, não libera a fase seguinte. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
@@ -141,4 +142,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Começar pela Fase 2: executar três lotes automáticos consecutivos, produzir o relatório diário de operação e comprovar retomada segura sem intervenção. Somente depois disso iniciar o piloto privado do YouTube.
+Importar e auditar as novas músicas enviadas pelo usuário, desativar a coleção sintética rejeitada e renderizar um lote curto de conferência sonora. Com a diversidade musical aprovada, concluir a Fase 1 e então executar os três lotes automáticos da Fase 2. Somente depois disso iniciar o piloto privado do YouTube.

@@ -112,7 +112,11 @@ class ContentCrew:
             "sound": sound_direction,
             "sound_profile": sound_profile,
             "asset_brief": f"Cena original de {topic_lower}, sem marcas, sem personagens identificáveis, composição cinematográfica",
-            "thumbnail": {"eyebrow": "AMBIENTE IMERSIVO", "headline": topic, "composition": "cena ampla, faixa escura inferior e tipografia editorial"},
+            "thumbnail": {
+                "style_id": "nocturnal_rain_v1",
+                "headline": "",
+                "composition": "cena 16:9 limpa, noturna e cinematográfica; texto curto central opcional",
+            },
         }
         minutes = max(1, math.ceil(duration / 60))
         duration_label = f"{duration} s" if duration < 60 else f"{minutes} min"

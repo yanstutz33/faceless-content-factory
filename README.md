@@ -27,7 +27,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Cinco templates de séries, geração em lote e calendário editorial
 - Início automático dos itens vencidos do calendário, com fila resiliente e publicação ainda manual
 - Biblioteca de imagens e músicas com licença, confirmação de direitos, rotação automática de faixas e composição multicena
-- Duas thumbnails editoriais por vídeo, comparação A/B e seleção persistente da capa final
+- Duas capas cinematográficas por vídeo no padrão `nocturnal_rain_v1`, comparação A/B e seleção persistente da capa final
 - Direcionamento editorial alimentado pelas métricas mais recentes de cada plataforma
 - CTR por capa, retenção média, impressões, cliques, conversões e receita por snapshot
 - Recomendação da capa vencedora por série sem troca automática arriscada
@@ -64,6 +64,8 @@ A série opcional `Anime Nights original` usa uma personagem adulta criada exclu
 A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva mascarada nas janelas ou no plano externo em cenas internas e pontos de luz no cosmic. Em vídeos com 24 segundos ou mais, esse ciclo é codificado uma única vez e repetido por remux, evitando recodificar horas de quadros iguais. Perfil, atmosfera, zona do efeito e estratégia de render ficam registrados em `metadata.json`.
 
 Na **Biblioteca criativa**, o botão **Importar músicas** registra um arquivo ou uma pasta inteira de WAV, MP3, M4A, AAC, FLAC, OGG ou OPUS. A confirmação de direitos comerciais é obrigatória. A cada produção, a fábrica escolhe a faixa aprovada menos utilizada, registra a escolha no pacote e intercala o catálogo automaticamente; também é possível fixar uma faixa nas opções avançadas. Se a biblioteca estiver vazia, o sistema usa como fallback uma trilha sintetizada localmente, cujo tema determina instrumentação, progressão, BPM, melodia, textura e família rítmica.
+
+As capas seguem a coleção oficial `assets/covers/nocturnal-rain-v1`: 16:9, noite chuvosa, azul/verde profundo, luz âmbar pontual e acabamento anime-realista cinematográfico. O gerador não adiciona mais faixa escura, selo, eyebrow ou título longo. O teste A/B compara duas referências tematicamente próximas; cada variação usa imagem limpa ou texto curto já integrado à arte. A direção reproduzível e o prompt-base ficam em `factory/visual_style.py`.
 
 O backend, os lotes, o calendário, o piloto automático, a interface pública e a linha de comando aceitam somente 1.800 ou 3.600 segundos. Qualquer solicitação abaixo de uma hora é normalizada para 30 minutos; solicitações de uma hora ou mais são normalizadas para 60 minutos. Conteúdos históricos abaixo desse limite podem ser arquivados com `python scripts/archive_short_productions.py`, que preserva uma cópia recuperável do banco e dos pacotes removidos da fila ativa.
 

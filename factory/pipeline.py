@@ -9,7 +9,6 @@ import re
 import shutil
 import subprocess
 import sys
-import textwrap
 import unicodedata
 import uuid
 import wave
@@ -23,6 +22,7 @@ from .config import Settings
 from .creative import CreativeDirector, MOTION_LABELS, MUSIC_ARRANGEMENTS
 from .llm import OpenAIPlanEnhancer
 from .store import Store
+from .visual_style import COVER_STYLE_ID, cover_assets, select_cover_references, visual_direction
 
 
 STARTER_SCENES = {
@@ -73,6 +73,9 @@ class Pipeline:
         self.crew = crew or ContentCrew(OpenAIPlanEnhancer(settings.openai_api_key, settings.openai_model))
         self.creative = CreativeDirector()
         (settings.data_dir / "jobs").mkdir(parents=True, exist_ok=True)
+        for asset in cover_assets(settings.root):
+            self.store.add_asset(asset["name"], asset["path"], asset["license_type"],
+                                 asset["source_url"], asset["notes"], asset["approved"])
 
     def command(self, args: list[str]) -> None:
         proc = subprocess.run(args, cwd=self.settings.root, text=True, capture_output=True)
@@ -793,35 +796,14 @@ class Pipeline:
             "width": round(pw / width, 3), "height": round(ph / height, 3),
         }
 
-    def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any], variant: str = "a") -> None:
-        title_file = output.parent / "thumbnail-title.txt"
-        eyebrow_file = output.parent / "thumbnail-eyebrow.txt"
-        wrapped = "\n".join(textwrap.wrap(title.upper(), width=26 if variant == "b" else 30, max_lines=3, placeholder="…"))
-        title_file.write_text(wrapped, encoding="utf-8")
-        eyebrow_file.write_text(str(design.get("eyebrow", "AMBIENTE IMERSIVO")), encoding="utf-8")
-        font_bold = self.filter_path(Path("C:/Windows/Fonts/georgiab.ttf"))
-        font_ui = self.filter_path(Path("C:/Windows/Fonts/segoeuib.ttf"))
-        title_path = self.filter_path(title_file)
-        eyebrow_path = self.filter_path(eyebrow_file)
-        font_size = max(30, round(height / 15))
-        eyebrow_size = max(14, round(height / 42))
-        if variant == "b":
-            vf = (
-                f"scale={width}:{height},drawbox=x=0:y=0:w=iw:h=ih:color=black@0.20:t=fill,"
-                f"drawbox=x=iw*0.045:y=ih*0.08:w=iw*0.62:h=ih*0.52:color=#07101e@0.82:t=fill,"
-                f"drawbox=x=iw*0.075:y=ih*0.18:w=iw*0.11:h=5:color=#ffb36a:t=fill,"
-                f"drawtext=fontfile='{font_ui}':textfile='{eyebrow_path}':fontcolor=#ffb36a:fontsize={eyebrow_size}:x=w*0.075:y=h*0.12,"
-                f"drawtext=fontfile='{font_bold}':textfile='{title_path}':fontcolor=white:fontsize={font_size}:x=w*0.075:y=h*0.25:line_spacing=10"
-            )
-        else:
-            vf = (
-                f"scale={width}:{height},drawbox=x=0:y=0:w=iw:h=ih:color=black@0.12:t=fill,"
-                f"drawbox=x=0:y=ih*0.48:w=iw:h=ih*0.52:color=#07101e@0.78:t=fill,"
-                f"drawbox=x=iw*0.06:y=ih*0.58:w=iw*0.08:h=5:color=#77e0bd:t=fill,"
-                f"drawtext=fontfile='{font_ui}':textfile='{eyebrow_path}':fontcolor=#77e0bd:fontsize={eyebrow_size}:x=w*0.06:y=h*0.52,"
-                f"drawtext=fontfile='{font_bold}':textfile='{title_path}':fontcolor=white:fontsize={font_size}:x=w*0.06:y=h*0.64:line_spacing=10"
-            )
-        self.command([self.settings.ffmpeg, "-y", "-i", str(source), "-vf", vf, "-frames:v", "1", "-q:v", "2", str(output)])
+    def create_thumbnail(self, source: Path, output: Path, width: int, height: int) -> None:
+        """Create a clean 16:9 cover without adding the legacy title panels."""
+        vf = (
+            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},setsar=1"
+        )
+        self.command([self.settings.ffmpeg, "-y", "-i", str(source), "-vf", vf,
+                      "-frames:v", "1", "-q:v", "2", str(output)])
 
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
@@ -1105,14 +1087,25 @@ class Pipeline:
             thumbnail_a = out / "thumbnail-a.jpg"
             thumbnail_b = out / "thumbnail-b.jpg"
             thumbnail = out / "thumbnail.jpg"
-            self.create_thumbnail(backgrounds[0], thumbnail_a, job["topic"], width, height, plan["visual"]["thumbnail"], "a")
-            self.create_thumbnail(backgrounds[0], thumbnail_b, job["topic"], width, height, plan["visual"]["thumbnail"], "b")
+            cover_pair = select_cover_references(self.settings.root, job["topic"])
+            if cover_pair:
+                cover_a, cover_b = cover_pair
+                cover_source_a, cover_source_b = Path(cover_a["path"]), Path(cover_b["path"])
+            else:
+                cover_a = cover_b = {"id": "production-scene", "embedded_text": None}
+                cover_source_a = cover_source_b = backgrounds[0]
+            self.create_thumbnail(cover_source_a, thumbnail_a, width, height)
+            self.create_thumbnail(cover_source_b, thumbnail_b, width, height)
             shutil.copy2(thumbnail_a, thumbnail)
             thumbnail_design = {
                 "selected": "a",
+                "style_id": COVER_STYLE_ID,
+                "direction": visual_direction(),
                 "variants": [
-                    {"id": "a", "file": "thumbnail-a.jpg", "style": "editorial inferior", "accent": "#77e0bd"},
-                    {"id": "b", "file": "thumbnail-b.jpg", "style": "cartaz superior", "accent": "#ffb36a"},
+                    {"id": "a", "file": "thumbnail-a.jpg", "style": "cinematográfica limpa",
+                     "reference_id": cover_a["id"], "embedded_text": cover_a["embedded_text"]},
+                    {"id": "b", "file": "thumbnail-b.jpg", "style": "cinematográfica alternativa",
+                     "reference_id": cover_b["id"], "embedded_text": cover_b["embedded_text"]},
                 ],
                 "brief": plan["visual"]["thumbnail"],
             }

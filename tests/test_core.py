@@ -36,6 +36,7 @@ from factory.store import Store
 from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
 from factory.web import CalendarScheduler, create_server
 from factory.vault import SecureVault
+from factory.visual_style import COVER_STYLE_ID, cover_assets, select_cover_references, visual_direction
 
 
 ROOT = Path(__file__).parents[1]
@@ -64,6 +65,21 @@ class CoreTests(unittest.TestCase):
         self.assertIn("lo-fi", plan["visual"]["sound"].lower())
         self.assertIn("Lo-fi", plan["seo"]["title"])
         self.assertGreaterEqual(len(ContentCrew().ideas()), 5)
+        self.assertEqual(plan["visual"]["thumbnail"]["style_id"], COVER_STYLE_ID)
+        self.assertNotIn("faixa escura", plan["visual"]["thumbnail"]["composition"])
+
+    def test_approved_cover_collection_is_semantic_and_minimal(self):
+        assets = cover_assets(ROOT)
+        self.assertEqual(len(assets), 8)
+        pair = select_cover_references(ROOT, "Café japonês sob chuva para descansar")
+        self.assertIsNotNone(pair)
+        assert pair is not None
+        self.assertNotEqual(pair[0]["id"], pair[1]["id"])
+        self.assertTrue(any("cafe" in item["id"] or "konbini" in item["id"] for item in pair))
+        direction = visual_direction()
+        self.assertEqual(direction["id"], COVER_STYLE_ID)
+        self.assertIn("single short lowercase word", direction["typography"])
+        self.assertIn("rain belongs outdoors", direction["weather"])
 
     def test_specialized_teams_execute_distinct_playbooks(self):
         youtube = ContentCrew().run("Café noturno", 1800, "youtube_long", False, "youtube_ambient")
@@ -798,6 +814,9 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(selected["thumbnail_variant"], "b")
             self.assertEqual(selected["metadata"]["selected_thumbnail"], "b")
             design = json.loads((Path(job["output_dir"]) / "thumbnail-design.json").read_text(encoding="utf-8"))
+            self.assertEqual(design["style_id"], COVER_STYLE_ID)
+            self.assertEqual({item["style"] for item in design["variants"]},
+                             {"cinematográfica limpa", "cinematográfica alternativa"})
             self.assertEqual(design["selected"], "b")
             selected_manifest = json.loads(
                 (Path(job["output_dir"]) / "artifact-manifest.json").read_text(encoding="utf-8")

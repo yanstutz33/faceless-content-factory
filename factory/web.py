@@ -309,6 +309,21 @@ class Handler(SimpleHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 return
 
+    def send_asset_preview(self, asset_id: int) -> None:
+        asset = self.store.get_asset(asset_id)
+        path = Path(str(asset.get("path", ""))) if asset else Path()
+        if not asset or not path.is_file():
+            return self.send_api_error("Imagem não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        body = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "image/jpeg")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > 1_000_000:
@@ -412,6 +427,8 @@ class Handler(SimpleHTTPRequestHandler):
             label = html.escape(platform.title())
             return self.send_html(f"<!doctype html><meta charset='utf-8'><title>Conta conectada</title><style>body{{font:16px system-ui;background:#09111f;color:#eef3fb;display:grid;place-items:center;min-height:100vh}}main{{max-width:520px;padding:32px;background:#101a2b;border-radius:18px}}a{{color:#77e0bd}}</style><main><h1>{label} conectado</h1><p>A autorização foi guardada no cofre local. Nenhum conteúdo foi publicado.</p><a href='/#connections'>Voltar ao Studio</a></main>")
         parts = path.strip("/").split("/")
+        if len(parts) == 4 and parts[:2] == ["api", "assets"] and parts[3] == "preview":
+            return self.send_asset_preview(int(parts[2]))
         if len(parts) == 4 and parts[:2] == ["api", "music-assets"] and parts[3] == "preview":
             return self.send_music_preview(int(parts[2]))
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
