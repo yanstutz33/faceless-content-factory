@@ -38,6 +38,30 @@ test('direct publishing link lands on the publishing center after data loads', a
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
 });
 
+test('editorial theme follows the system while preserving the supplied tokens', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  const light = await page.locator('html').evaluate(element => {
+    const style = getComputedStyle(element);
+    return [style.getPropertyValue('--papel').trim(), style.getPropertyValue('--marca').trim(), style.getPropertyValue('--tinta').trim()];
+  });
+  expect(light).toEqual(['#f4efe4', '#7b5cff', '#141018']);
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dark = await page.locator('html').evaluate(element => {
+    const style = getComputedStyle(element);
+    return [style.getPropertyValue('--papel').trim(), style.getPropertyValue('--marca').trim(), style.getPropertyValue('--tinta').trim()];
+  });
+  expect(dark).toEqual(['#141018', '#9c85ff', '#f4efe4']);
+});
+
+test('direct library link stays anchored after asynchronous sections expand', async ({ page }) => {
+  await page.goto('/#library');
+  await page.waitForTimeout(2100);
+  await expect(page.locator('#library')).toBeInViewport();
+  await expect(page.getByRole('heading', { name: /biblioteca criativa/i })).toBeVisible();
+});
+
 test('public production only offers 30 or 60 minutes and opens the music library', async ({ page }) => {
   await page.goto('/#production');
   await page.getByRole('button', { name: /nova produção/i }).click();

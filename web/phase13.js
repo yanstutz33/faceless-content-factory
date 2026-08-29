@@ -40,7 +40,11 @@ function syncConnectionState(){
 }
 
 window.addEventListener('hashchange',()=>syncNavigation(true));
-window.addEventListener('load',()=>setTimeout(()=>syncNavigation(true),500));
+window.addEventListener('load',()=>{
+  // The sections above the target grow while their API data arrives. Re-anchor
+  // direct links after those layout shifts so #library really opens Library.
+  [150,800,1800].forEach(delay=>setTimeout(()=>syncNavigation(true),delay));
+});
 window.addEventListener('online',syncConnectionState);
 window.addEventListener('offline',syncConnectionState);
 syncNavigation();
