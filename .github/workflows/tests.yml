@@ -13,9 +13,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: "11.19.0"
       - name: Install FFmpeg and Python dependencies
         shell: pwsh
         run: |
@@ -34,6 +31,7 @@ jobs:
           }
       - name: Install browser test dependencies
         run: |
+          npm install --global pnpm@11.19.0
           pnpm install --frozen-lockfile
           pnpm exec playwright install chromium
       - name: Run browser and accessibility tests
