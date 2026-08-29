@@ -105,6 +105,14 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(second["novelty"]["closest_job_id"], "old-job")
         self.assertEqual(second["novelty"]["candidates_evaluated"], 48)
 
+    def test_creative_director_keeps_the_semantic_scene_priority(self):
+        director = CreativeDirector()
+        dna = director.plan(
+            "Trem noturno para foco", "rain", "youtube_long",
+            ("lofi-night-train.jpg", "lofi-rooftop-greenhouse.jpg", "lofi-rainy-cafe.jpg"), [], [],
+        )
+        self.assertEqual(dna["scene"], "lofi-night-train.jpg")
+
     def test_creative_learning_uses_metrics_without_overriding_novelty(self):
         director = CreativeDirector()
         insights = [{
@@ -651,6 +659,7 @@ class CoreTests(unittest.TestCase):
 
     def test_starter_scene_selection_is_topic_aware(self):
         self.assertEqual(Pipeline.select_starter_scene("Trem noturno sob chuva", "rain"), "lofi-night-train.jpg")
+        self.assertEqual(Pipeline.select_starter_scene("Café silencioso ao amanhecer", "focus"), "lofi-rainy-cafe.jpg")
         self.assertEqual(Pipeline.select_starter_scene("Cabana junto ao lago", "cozy"), "lofi-lakeside-cabin.jpg")
         self.assertEqual(Pipeline.select_starter_scene("Observatório lunar", "cosmic"), "lofi-lunar-observatory.jpg")
         self.assertEqual(Pipeline.select_starter_scene("Apartamento anime original sob chuva", "rain"), "lofi-anime-rainy-apartment.jpg")

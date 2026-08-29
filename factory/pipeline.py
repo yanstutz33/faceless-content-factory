@@ -930,6 +930,7 @@ class Pipeline:
         normalized = safe_slug(topic)
         keyword_scenes = (
             (("anime", "personagem"), "lofi-anime-rainy-apartment.jpg"),
+            (("cafe", "cafeteria"), "lofi-rainy-cafe.jpg"),
             (("trem", "train", "vagao"), "lofi-night-train.jpg"),
             (("lago", "cabana", "lake"), "lofi-lakeside-cabin.jpg"),
             (("disco", "vinil", "record", "loja"), "lofi-record-store.jpg"),

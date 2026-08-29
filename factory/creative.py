@@ -134,7 +134,9 @@ class CreativeDirector:
         bpm = rng.randrange(66, 88)
         return {
             "version": "creative_dna_v2", "seed": seed, "attempt": attempt,
-            "scene": scenes[rng.randrange(len(scenes))],
+            # The first scene is selected semantically by the pipeline. Novelty may vary every
+            # other creative dimension, but must not turn a train topic into a greenhouse.
+            "scene": scenes[0],
             "treatment": treatment["id"], "treatment_label": treatment["label"],
             "visual_filter": treatment["filter"],
             "composition": composition["id"], "composition_label": composition["label"],
