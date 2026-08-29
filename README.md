@@ -7,14 +7,14 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Tema digitado, sugerido pelos agentes ou recebido pela linha de comando
 - Oito agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade, crítica e reaproveitamento
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade
-- Oito cenas-mestre lo-fi originais incluídas, com a linha opcional Anime Nights totalmente autoral
+- Doze cenas-mestre lo-fi originais incluídas, com a linha opcional Anime Nights totalmente autoral
 - Seleção automática da cena conforme o tema quando nenhum asset próprio é informado
 - Loop visual ambiente de 12 segundos com câmera fixa e efeitos atmosféricos localizados
 - Fumaça sobre a xícara, chuva ou estrelas pulsantes conforme o perfil, codificadas no MP4 em vez de GIF pesado
-- Música chill/lo-fi original gerada localmente com acordes, beat, BPM e variação determinística por tema
+- Música chill/lo-fi original gerada localmente com 12 instrumentações e sete famílias rítmicas, incluindo faixas sem bateria
 - Chuva apenas como camada discreta nos temas correspondentes; cozy, cosmic e focus não recebem chuva
 - Ingestão opcional de JPG/PNG/WebP próprio com enquadramento automático
-- Perfis YouTube longo (16:9), vertical (9:16) e prévia rápida
+- Perfis YouTube longo (16:9, mínimo de 30 minutos), vertical (9:16) e prévia rápida não publicável
 - Renderização H.264/AAC com FFmpeg
 - Legenda SRT opcional e thumbnail JPG
 - Fila assíncrona persistente em SQLite: a interface não fica bloqueada durante a renderização
@@ -61,9 +61,11 @@ Produções antigas não são modificadas retroativamente. Os primeiros testes s
 
 A série opcional `Anime Nights original` usa uma personagem adulta criada exclusivamente para o projeto, sem copiar franquias, personagens ou artistas. Ela só é escolhida quando o tema menciona explicitamente anime ou personagem; as demais séries continuam sem personagens.
 
-A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva no perfil rain e pontos de luz no cosmic. Em vídeos com 24 segundos ou mais, esse ciclo é codificado uma única vez e repetido por remux, evitando recodificar horas de quadros iguais. Perfil, atmosfera, efeito e estratégia de render ficam registrados em `metadata.json`.
+A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva mascarada nas janelas ou no plano externo em cenas internas e pontos de luz no cosmic. Em vídeos com 24 segundos ou mais, esse ciclo é codificado uma única vez e repetido por remux, evitando recodificar horas de quadros iguais. Perfil, atmosfera, zona do efeito e estratégia de render ficam registrados em `metadata.json`.
 
-O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, uma entre 12 instrumentações, progressão, BPM, melodia e textura. Os detalhes ficam em `metadata.json` no campo `music`. O starter pack contém 12 cenas originais e rastreadas.
+O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, uma entre 12 instrumentações, progressão, BPM, melodia, textura e uma entre sete famílias rítmicas (`boom_bap`, escovas, quebrado, meio-tempo, swing, pulso ou sem bateria). Os detalhes ficam em `metadata.json` no campo `music`. O starter pack contém 12 cenas originais e rastreadas.
+
+O backend, o calendário e o piloto automático elevam qualquer solicitação de YouTube longo abaixo de 1.800 segundos para 30 minutos. Prévias e testes históricos permanecem disponíveis para conferência, mas são excluídos automaticamente da central de publicação.
 
 ## Início rápido (Windows / PowerShell)
 

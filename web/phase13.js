@@ -21,13 +21,17 @@ openJob=async function(id){
   }catch(error){toast(error.message,'error')}
 };
 
-function syncNavigation(){
+function syncNavigation(scroll=false){
   const hash=location.hash||'#overview';
   document.querySelectorAll('.nav-item').forEach(item=>{
     const active=item.getAttribute('href')===hash;
     item.classList.toggle('active',active);
     if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
   });
+  if(scroll){
+    const section=document.getElementById(hash.slice(1));
+    if(section)section.scrollIntoView({behavior:'auto',block:'start'});
+  }
 }
 
 function syncConnectionState(){
@@ -35,7 +39,8 @@ function syncConnectionState(){
   if(!navigator.onLine)toast('Sem conexão com o Studio. As alterações aguardam o serviço voltar.','error');
 }
 
-window.addEventListener('hashchange',syncNavigation);
+window.addEventListener('hashchange',()=>syncNavigation(true));
+window.addEventListener('load',()=>setTimeout(()=>syncNavigation(true),500));
 window.addEventListener('online',syncConnectionState);
 window.addEventListener('offline',syncConnectionState);
 syncNavigation();

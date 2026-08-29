@@ -44,18 +44,18 @@ MOTION_LABELS = {
 }
 
 MUSIC_ARRANGEMENTS = (
-    {"name": "dusty_keys", "pad": .055, "harmonic": .009, "pluck": .085, "decay": 4.8, "snare": .075, "bass": .095, "melody": "steps"},
-    {"name": "felt_piano", "pad": .047, "harmonic": .015, "pluck": .105, "decay": 6.2, "snare": .052, "bass": .075, "melody": "sparse"},
-    {"name": "warm_tape_synth", "pad": .064, "harmonic": .005, "pluck": .065, "decay": 3.7, "snare": .063, "bass": .105, "melody": "pulse"},
-    {"name": "night_rhodes", "pad": .050, "harmonic": .018, "pluck": .078, "decay": 5.5, "snare": .047, "bass": .090, "melody": "late"},
-    {"name": "glass_mallets", "pad": .040, "harmonic": .022, "pluck": .112, "decay": 7.1, "snare": .036, "bass": .065, "melody": "sparkle"},
-    {"name": "deep_focus_pad", "pad": .074, "harmonic": .004, "pluck": .042, "decay": 3.2, "snare": .030, "bass": .115, "melody": "minimal"},
-    {"name": "cassette_guitar", "pad": .044, "harmonic": .012, "pluck": .096, "decay": 4.3, "snare": .058, "bass": .082, "melody": "syncopated"},
-    {"name": "sleepy_chimes", "pad": .052, "harmonic": .020, "pluck": .070, "decay": 8.0, "snare": .025, "bass": .060, "melody": "floating"},
-    {"name": "rainy_vibraphone", "pad": .046, "harmonic": .024, "pluck": .082, "decay": 7.4, "snare": .034, "bass": .072, "melody": "droplets"},
-    {"name": "midnight_wurlitzer", "pad": .058, "harmonic": .013, "pluck": .073, "decay": 5.0, "snare": .044, "bass": .102, "melody": "afterhours"},
-    {"name": "hollow_body_dream", "pad": .041, "harmonic": .016, "pluck": .092, "decay": 6.6, "snare": .040, "bass": .078, "melody": "gentle_arpeggio"},
-    {"name": "analog_clouds", "pad": .080, "harmonic": .007, "pluck": .038, "decay": 4.1, "snare": .022, "bass": .110, "melody": "slow_orbit"},
+    {"name": "dusty_keys", "pad": .055, "harmonic": .009, "pluck": .085, "decay": 4.8, "snare": .075, "bass": .095, "melody": "steps", "rhythm": "boom_bap"},
+    {"name": "felt_piano", "pad": .047, "harmonic": .015, "pluck": .105, "decay": 6.2, "snare": .052, "bass": .075, "melody": "sparse", "rhythm": "brushes"},
+    {"name": "warm_tape_synth", "pad": .064, "harmonic": .005, "pluck": .065, "decay": 3.7, "snare": .063, "bass": .105, "melody": "pulse", "rhythm": "broken"},
+    {"name": "night_rhodes", "pad": .050, "harmonic": .018, "pluck": .078, "decay": 5.5, "snare": .047, "bass": .090, "melody": "late", "rhythm": "half_time"},
+    {"name": "glass_mallets", "pad": .040, "harmonic": .022, "pluck": .112, "decay": 7.1, "snare": .036, "bass": .065, "melody": "sparkle", "rhythm": "no_drums"},
+    {"name": "deep_focus_pad", "pad": .074, "harmonic": .004, "pluck": .042, "decay": 3.2, "snare": .030, "bass": .115, "melody": "minimal", "rhythm": "pulse_only"},
+    {"name": "cassette_guitar", "pad": .044, "harmonic": .012, "pluck": .096, "decay": 4.3, "snare": .058, "bass": .082, "melody": "syncopated", "rhythm": "swing_break"},
+    {"name": "sleepy_chimes", "pad": .052, "harmonic": .020, "pluck": .070, "decay": 8.0, "snare": .025, "bass": .060, "melody": "floating", "rhythm": "no_drums"},
+    {"name": "rainy_vibraphone", "pad": .046, "harmonic": .024, "pluck": .082, "decay": 7.4, "snare": .034, "bass": .072, "melody": "droplets", "rhythm": "brushes"},
+    {"name": "midnight_wurlitzer", "pad": .058, "harmonic": .013, "pluck": .073, "decay": 5.0, "snare": .044, "bass": .102, "melody": "afterhours", "rhythm": "half_time"},
+    {"name": "hollow_body_dream", "pad": .041, "harmonic": .016, "pluck": .092, "decay": 6.6, "snare": .040, "bass": .078, "melody": "gentle_arpeggio", "rhythm": "broken"},
+    {"name": "analog_clouds", "pad": .080, "harmonic": .007, "pluck": .038, "decay": 4.1, "snare": .022, "bass": .110, "melody": "slow_orbit", "rhythm": "pulse_only"},
 )
 
 TEXTURES = ("clean_room", "soft_tape", "vinyl_dust", "warm_noise", "air_hiss")

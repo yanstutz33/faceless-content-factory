@@ -30,3 +30,10 @@ test('mobile layout does not create horizontal overflow', async ({ page }) => {
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 1);
   await expect(page.getByRole('button', { name: /nova produção/i })).toBeVisible();
 });
+
+test('direct publishing link lands on the publishing center after data loads', async ({ page }) => {
+  await page.goto('/#publishing');
+  await expect(page.locator('#publishing')).toBeInViewport();
+  await expect(page.getByRole('link', { name: /publicação/i })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
+});

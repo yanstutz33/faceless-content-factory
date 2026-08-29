@@ -45,6 +45,11 @@ class PublishingCenter:
         metadata = job.get("metadata") or {}
         rights_ok, rights_detail = self._asset_rights(out)
         checks = [
+            {"id": "format", "label": "Formato publicável",
+             "passed": job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800,
+             "detail": "YouTube longo com pelo menos 30 minutos" if
+             job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800 else
+             "Prévia ou teste curto não entra na publicação"},
             {"id": "approval", "label": "Aprovação editorial", "passed": job.get("status") == "approved",
              "detail": "Aprovado" if job.get("status") == "approved" else "Aguardando aprovação humana"},
             {"id": "technical", "label": "Validação técnica", "passed": bool(metadata.get("verification", {}).get("passed")),
@@ -80,7 +85,8 @@ class PublishingCenter:
 
     def queue(self) -> dict[str, Any]:
         rows = [self.audit(job) for job in self.store.list_jobs(500)
-                if job.get("status") in {"approved", "awaiting_approval"}]
+                if job.get("status") in {"approved", "awaiting_approval"}
+                and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
         rows.sort(key=lambda row: (not row["eligible"], not row["release_ready"], row["topic"].lower()))
         return {
             "mode": "manual-safe",

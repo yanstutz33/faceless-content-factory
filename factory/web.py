@@ -443,7 +443,9 @@ class Handler(SimpleHTTPRequestHandler):
                 except ValueError as exc:
                     raise ValueError("Data e hora inválidas") from exc
                 item_id = self.store.add_calendar_item(str(data.get("topic", "")), data.get("series_id"),
-                                                       profile, max(5, min(int(data.get("duration", 1800)), PROFILES[profile]["max_duration"])),
+                                                       profile, max(PROFILES[profile]["min_duration"],
+                                                                    min(int(data.get("duration", PROFILES[profile]["default_duration"])),
+                                                                        PROFILES[profile]["max_duration"])),
                                                        scheduled_for, "manual",
                                                        data.get("team_id") or SERIES.get(str(data.get("series_id", "")), {}).get("team_id", DEFAULT_TEAM_ID))
                 return self.send_json({"id": item_id}, HTTPStatus.CREATED)

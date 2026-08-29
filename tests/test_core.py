@@ -448,7 +448,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual({item["origin"] for item in calendar}, {"autopilot"})
             self.assertEqual({item["series_id"] for item in calendar}, {"rainy_places", "cozy_worlds"})
             self.assertEqual(len({item["topic"] for item in calendar}), 3)
-            self.assertTrue(all(item["duration"] == 1200 for item in calendar))
+            self.assertTrue(all(item["duration"] == 1800 for item in calendar))
 
     def test_night_shift_runs_bounded_batch_and_never_publishes(self):
         class FakeRunner:
@@ -574,6 +574,10 @@ class CoreTests(unittest.TestCase):
             pipeline = Pipeline(self.settings(root), store)
             job_id = pipeline.create("Vertical rain", 9999, profile="vertical_short")
             self.assertEqual(store.get_job(job_id)["duration"], PROFILES["vertical_short"]["max_duration"])
+            long_id = pipeline.create("Nunca menos de trinta minutos", 30, profile="youtube_long")
+            preview_id = pipeline.create("Prévia curta", 1, profile="preview")
+            self.assertEqual(store.get_job(long_id)["duration"], 1800)
+            self.assertEqual(store.get_job(preview_id)["duration"], 5)
 
     def test_starter_scene_selection_is_topic_aware(self):
         self.assertEqual(Pipeline.select_starter_scene("Trem noturno sob chuva", "rain"), "lofi-night-train.jpg")
@@ -727,27 +731,13 @@ class CoreTests(unittest.TestCase):
             pipeline.approve(job_id)
             publishing = PublishingCenter(pipeline, store)
             before = publishing.audit(store.get_job(job_id))
-            self.assertTrue(before["eligible"])
+            self.assertFalse(before["eligible"])
             self.assertFalse(before["release_ready"])
-            release = publishing.prepare(job_id, 5)
-            self.assertEqual(release["mode"], "prepared_not_uploaded")
-            self.assertFalse(release["automatic_upload_allowed"])
-            self.assertEqual(release["destinations"]["youtube"]["privacy"], "private")
-            self.assertEqual(release["destinations"]["bilibili"]["upload"], "manual")
-            self.assertTrue((Path(job["output_dir"]) / "release-manifest.json").is_file())
-            vertical = json.loads((Path(job["output_dir"]) / "vertical-package.json").read_text(encoding="utf-8"))
-            self.assertEqual(vertical["resolution"], "720x1280")
-            self.assertEqual(vertical["mode"], "prepared_not_uploaded")
-            self.assertFalse(vertical["automatic_upload_allowed"])
-            self.assertTrue(vertical["validation"]["passed"])
-            self.assertEqual(vertical["platforms"]["youtube_shorts"]["upload"], "manual")
-            self.assertTrue((Path(job["output_dir"]) / "vertical-short.mp4").is_file())
-            self.assertTrue((Path(job["output_dir"]) / "vertical-thumbnail.jpg").is_file())
-            self.assertTrue((Path(job["output_dir"]) / "bilibili-cover.jpg").is_file())
-            self.assertTrue((Path(job["output_dir"]) / "bilibili-upload.json").is_file())
+            self.assertIn("Prévia ou teste curto não entra na publicação", before["blockers"])
+            with self.assertRaisesRegex(ValueError, "Prévia ou teste curto"):
+                publishing.prepare(job_id, 5)
             queue = publishing.queue()
-            self.assertEqual(queue["summary"]["ready"], 1)
-            self.assertTrue(queue["items"][0]["release_ready"])
+            self.assertEqual(queue["summary"]["total"], 0)
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_long_render_reuses_encoded_visual_loop(self):
@@ -843,6 +833,43 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(recipes[profile]["source_policy"], "original_or_commercially_licensed")
         self.assertEqual(len(set(recipe["effects"][0] for recipe in recipes.values())), 3)
         self.assertEqual(recipes["cosmic"]["atmosphere"], "estrelas pulsantes")
+
+    def test_rain_is_masked_to_scene_windows(self):
+        rainy_filter, rainy_zone = Pipeline.effect_plate_filter(
+            1280, 720, "lofi-rainy-cafe", "angled_rain"
+        )
+        steam_filter, steam_zone = Pipeline.effect_plate_filter(
+            1280, 720, "lofi-rainy-cafe", "cup_steam"
+        )
+        self.assertIn("crop=", rainy_filter)
+        self.assertIn("pad=1280:720", rainy_filter)
+        self.assertEqual(rainy_zone["mode"], "window_mask")
+        self.assertLess(rainy_zone["width"], 1)
+        self.assertNotIn("crop=", steam_filter)
+        self.assertEqual(steam_zone["mode"], "effect_native")
+
+    def test_music_arrangements_use_distinct_rhythm_families(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            hashes = set()
+            rhythms = set()
+            layer_sets = []
+            for index, arrangement in enumerate(("dusty_keys", "night_rhodes", "glass_mallets", "cassette_guitar")):
+                output = root / f"rhythm-{index}.wav"
+                music = pipeline.create_lofi_loop(output, "focus", arrangement, {
+                    "seed": 1000 + index, "music_arrangement": arrangement, "bpm": 74,
+                    "progression_variant": 0, "key_shift": 0, "melody_density": .7,
+                    "swing": .08, "texture": "soft_tape",
+                })
+                hashes.add(hashlib.sha256(output.read_bytes()).hexdigest())
+                rhythms.add(music["rhythm_pattern"])
+                layer_sets.append(set(music["layers"]))
+            self.assertEqual(len(hashes), 4)
+            self.assertEqual(rhythms, {"boom_bap", "half_time", "no_drums", "swing_break"})
+            self.assertNotIn("kick", layer_sets[2])
+            self.assertNotIn("snare", layer_sets[2])
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_narration_failure_falls_back_to_ambient(self):

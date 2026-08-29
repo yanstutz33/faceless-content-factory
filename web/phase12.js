@@ -28,7 +28,7 @@ async function loadPublishing(){
           ?`<button class="primary" data-release-job="${esc(item.job_id)}">Preparar pacote completo</button>`
           :`<button class="secondary" data-review-job="${esc(item.job_id)}">Abrir para revisar</button>`;
       return `<article class="publish-item ${status.tone}"><img src="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/thumbnail.jpg" alt="" loading="lazy"><div class="publish-main"><div class="publish-title"><span class="tag">${status.label}</span><h3>${esc(item.title)}</h3><p>${esc(item.topic)} · ${formatDuration(item.duration)}</p></div><ul class="publish-checks">${checks}</ul><div class="package-row">${packages}</div></div><div class="publish-action">${action}<small>Envio sempre manual</small></div></article>`;
-    }).join(''):'<div class="publish-empty"><b>Nenhuma produção chegou à central.</b><p>Aprove um vídeo na fila de produções para preparar a publicação.</p></div>';
+    }).join(''):'<div class="publish-empty"><b>Nenhum vídeo longo está pronto para publicação.</b><p>Prévias e testes abaixo de 30 minutos ficam fora desta central automaticamente.</p></div>';
   }catch(error){toast(error.message)}
 }
 

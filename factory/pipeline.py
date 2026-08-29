@@ -36,6 +36,16 @@ STARTER_SCENES = {
               "lofi-forest-glass-cabin.jpg"),
 }
 
+RAIN_ZONES = {
+    "lofi-rainy-cafe": (.42, .00, .58, .72),
+    "lofi-night-train": (.30, .03, .68, .72),
+    "lofi-record-store": (.48, .02, .50, .68),
+    "lofi-rooftop-greenhouse": (.08, .00, .86, .72),
+    "lofi-coastal-laundromat": (.02, .05, .62, .66),
+    "lofi-forest-glass-cabin": (.42, .00, .58, .86),
+    "lofi-anime-rainy-apartment": (.48, .00, .52, .76),
+}
+
 SUPPORTED_ASSET_LICENSES = {
     "original", "commercial_license", "public_domain", "cc0", "provider_generated",
     "original_ai_generated", "user_confirmed",
@@ -401,11 +411,29 @@ class Pipeline:
         melody_density = float(creative_dna.get("melody_density", .68))
         swing = float(creative_dna.get("swing", .07))
         texture = str(creative_dna.get("texture", "soft_tape"))
+        rhythm = str(arrangement.get("rhythm", "boom_bap"))
         beat = 60.0 / bpm
         phase_offsets = [rng.random() * math.tau for _ in range(4)]
         samples = array("h")
         noise_state = seed or 1
         total = sample_rate * loop_seconds
+        melody_shapes = {
+            "steps": (0, 1, 2, 1, 3, 2, 1, 0), "sparse": (0, 0, 2, 0, 3, 0, 1, 0),
+            "pulse": (0, 2, 0, 2, 1, 3, 1, 3), "late": (0, 0, 1, 2, 0, 3, 2, 1),
+            "sparkle": (3, 1, 2, 0, 3, 2, 1, 2), "minimal": (0, 0, 0, 2, 0, 0, 1, 0),
+            "syncopated": (0, 2, 1, 3, 1, 0, 3, 2), "floating": (0, 3, 1, 2, 3, 1, 0, 2),
+            "droplets": (2, 0, 3, 1, 0, 2, 1, 3), "afterhours": (0, 1, 0, 3, 2, 1, 3, 0),
+            "gentle_arpeggio": (0, 1, 2, 3, 2, 1, 0, 2), "slow_orbit": (0, 2, 3, 2, 1, 3, 1, 0),
+        }
+        melody_shape = melody_shapes.get(str(arrangement.get("melody")), melody_shapes["steps"])
+        drum_patterns = {
+            "boom_bap": ({0, 4}, {2, 6}, True), "brushes": ({0}, {2, 6}, True),
+            "broken": ({0, 3, 5}, {2, 7}, True), "half_time": ({0, 5}, {4}, True),
+            "swing_break": ({0, 3, 6}, {2, 5}, True), "pulse_only": ({0, 4}, set(), False),
+            "no_drums": (set(), set(), False),
+        }
+        kick_steps, snare_steps, hats = drum_patterns.get(rhythm, drum_patterns["boom_bap"])
+        hat_gain = .006 if rhythm == "brushes" else .012
         for index in range(total):
             t = index / sample_rate
             chord_index = min(3, int(t / (loop_seconds / 4)))
@@ -423,7 +451,7 @@ class Pipeline:
 
             beat_index = int(t / beat)
             beat_time = (t + (swing * beat if beat_index % 2 else 0)) % beat
-            melody_note = chord[(beat_index + seed) % len(chord)] + 12
+            melody_note = chord[melody_shape[beat_index % len(melody_shape)] % len(chord)] + 12
             pluck = math.sin(math.tau * self._midi_frequency(melody_note + transpose) * beat_time)
             melody_on = (((beat_index * 1_103_515_245 + seed) & 0xFFFF) / 0xFFFF) <= melody_density
             if melody_on:
@@ -431,15 +459,17 @@ class Pipeline:
             bass_note = chord[0] - 12 + transpose
             bass = math.sin(math.tau * self._midi_frequency(bass_note) * beat_time)
             music += bass * math.exp(-beat_time * 3.2) * arrangement["bass"]
-            if beat_index % 4 in {0, 2}:
+            pattern_step = beat_index % 8
+            if pattern_step in kick_steps:
                 music += math.sin(math.tau * (52 + 38 * math.exp(-beat_time * 16)) * beat_time) * math.exp(-beat_time * 12) * 0.20
 
             noise_state = (1_664_525 * noise_state + 1_013_904_223) & 0xFFFFFFFF
             noise = (noise_state / 0xFFFFFFFF) * 2 - 1
-            if beat_index % 4 in {1, 3}:
+            if pattern_step in snare_steps:
                 music += noise * math.exp(-beat_time * 18) * arrangement["snare"]
             half_beat_time = t % (beat / 2)
-            music += noise * math.exp(-half_beat_time * 42) * 0.012
+            if hats:
+                music += noise * math.exp(-half_beat_time * 42) * hat_gain
             texture_gain = {"clean_room": .0015, "soft_tape": .0035, "vinyl_dust": .0055,
                             "warm_noise": .0045, "air_hiss": .0028}.get(texture, .0035)
             music += noise * texture_gain
@@ -451,10 +481,18 @@ class Pipeline:
             wav.setsampwidth(2)
             wav.setframerate(sample_rate)
             wav.writeframes(samples.tobytes())
+        layers = ["pad", "harmonics", "melody", "bass", "texture"]
+        if kick_steps:
+            layers.append("kick")
+        if snare_steps:
+            layers.append("snare")
+        if hats:
+            layers.append("hihat")
         return {"style": "original_lofi_chill", "bpm": bpm, "loop_seconds": loop_seconds, "seed": seed,
                 "arrangement": arrangement["name"], "progression_variant": progression_variant,
+                "rhythm_pattern": rhythm,
                 "key_shift": transpose, "melody_density": melody_density, "swing": swing,
-                "texture": texture, "layers": ["pad", "harmonics", "melody", "bass", "kick", "snare", "hihat", "texture"]}
+                "texture": texture, "layers": layers}
 
     def create_ambient_audio(self, output: Path, duration: int, sound_profile: str, seed_text: str = "",
                              creative_dna: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -611,6 +649,26 @@ class Pipeline:
             "-movflags", "+faststart", str(output),
         ])
 
+    @staticmethod
+    def effect_plate_filter(width: int, height: int, scene: str, effect: str) -> tuple[str, dict[str, Any]]:
+        """Keep weather on windows/background planes instead of across indoor objects."""
+        rain_effects = {"angled_rain", "window_drops", "rain_and_mist", "distant_splashes"}
+        if effect not in rain_effects:
+            return f"scale={width}:{height},format=gbrp", {
+                "mode": "effect_native", "x": 0, "y": 0, "width": 1, "height": 1,
+            }
+        x, y, zone_width, zone_height = RAIN_ZONES.get(scene, (.18, .00, .72, .68))
+        px = max(0, round(width * x / 2) * 2)
+        py = max(0, round(height * y / 2) * 2)
+        pw = max(2, min(width - px, round(width * zone_width / 2) * 2))
+        ph = max(2, min(height - py, round(height * zone_height / 2) * 2))
+        filter_graph = (f"scale={width}:{height},crop={pw}:{ph}:{px}:{py},"
+                        f"pad={width}:{height}:{px}:{py}:color=black,format=gbrp")
+        return filter_graph, {
+            "mode": "window_mask", "x": round(px / width, 3), "y": round(py / height, 3),
+            "width": round(pw / width, 3), "height": round(ph / height, 3),
+        }
+
     def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any], variant: str = "a") -> None:
         title_file = output.parent / "thumbnail-title.txt"
         eyebrow_file = output.parent / "thumbnail-eyebrow.txt"
@@ -653,7 +711,8 @@ class Pipeline:
         team = get_team(team_id)
         if not team.creation_enabled:
             raise ValueError("Esta equipe trabalha pelo Centro de Afiliados")
-        duration = max(5, min(int(duration), PROFILES[profile]["max_duration"]))
+        duration = max(PROFILES[profile]["min_duration"],
+                       min(int(duration), PROFILES[profile]["max_duration"]))
         assets = list(source_assets or [])
         if source_asset:
             if not source_asset_rights_confirmed:
@@ -857,8 +916,12 @@ class Pipeline:
             metadata["creative_dna"] = metadata["creative_fingerprint"]
             self.store.event(job_id, "novelty", f"Originalidade criativa: {creative_dna['novelty']['score']}/100; risco {creative_dna['novelty']['risk']}")
             metadata["motion"] = motion
+            fx_filter, effect_zone = self.effect_plate_filter(
+                width, height, scene_identity, str(creative_dna.get("motion_effect", "")),
+            )
+            metadata["motion"]["effect_zone"] = effect_zone
             self.store.event(job_id, "motion", f"Loop visual de {motion['cycle_seconds']} s aplicado: {motion['atmosphere']}")
-            blend = (f"[0:v]{vf}[base];[1:v]scale={width}:{height},format=gbrp[fx];"
+            blend = (f"[0:v]{vf}[base];[1:v]{fx_filter}[fx];"
                      f"[base][fx]blend=all_mode=screen:all_opacity={motion['overlay_opacity']},format=yuv420p[v]")
             optimized_loop = job["duration"] >= motion["cycle_seconds"] * 2
             metadata["render_strategy"] = {
