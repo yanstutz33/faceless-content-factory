@@ -180,7 +180,7 @@ async function loadCatalogReadiness(){
   const data=await api('/api/library/readiness');
   const panel=$('#catalog-readiness');
   panel.dataset.ready=String(!!data.ready);
-  panel.innerHTML=`<div><p class="kicker">LOTE PILOTO · ${data.ready?'PRONTO':'PREPARAÇÃO'}</p><h3>${data.ready?'Catálogo com variedade mínima':'Complete o catálogo antes de renderizar em escala'}</h3><p>${esc(data.ready?data.policy:(data.blockers||[]).join(' '))}</p></div><div class="catalog-checks">${(data.checks||[]).map(check=>`<span class="${check.passed?'pass':'planned'}"><b>${check.passed?'✓':'!'}</b> ${esc(check.label)} · ${Number(check.value)}/${Number(check.target)}</span>`).join('')}</div>${data.music_tracks<12?'<button class="primary" id="bootstrap-music" type="button">Criar 12 músicas originais</button>':'<span class="catalog-ready-badge">✓ rotação liberada</span>'}`;
+  panel.innerHTML=`<div><p class="kicker">LOTE PILOTO · ${data.ready?'PRONTO':'PREPARAÇÃO'}</p><h3>${data.ready?'Catálogo com variedade mínima':'Complete o catálogo antes de renderizar em escala'}</h3><p>${esc(data.ready?data.policy:(data.blockers||[]).join(' '))}</p></div><div class="catalog-checks">${(data.checks||[]).map(check=>`<span class="${check.passed?'pass':'planned'}"><b>${check.passed?'✓':'!'}</b> ${esc(check.label)} · ${Number(check.value)}/${Number(check.target)}</span>`).join('')}</div>${data.music_tracks<12?'<button class="primary" id="bootstrap-music" type="button">Criar 12 músicas originais</button>':data.ready?'<span class="catalog-ready-badge">✓ rotação liberada</span>':'<span class="catalog-ready-badge pending">! escuta pendente</span>'}`;
   $('#bootstrap-music')?.addEventListener('click',bootstrapMusicCatalog);
 }
 
@@ -197,11 +197,35 @@ async function loadFlowMusicGuide(){
   const root=$('#flow-music-guide');
   try{
     const data=await api('/api/music-sources/flow');
-    root.innerHTML=`<div class="flow-guide-head"><div><p class="kicker">MÚSICA EXTERNA · MONTAGEM LOCAL</p><h3>${esc(data.provider)}</h3><p>${esc(data.reason)}</p></div><button class="primary" id="flow-import-music" type="button">Importar áudio baixado</button></div><ol>${(data.workflow||[]).map(step=>`<li>${esc(step)}</li>`).join('')}</ol><details><summary>Ver 12 prompts musicais distintos</summary><div class="flow-prompt-grid">${(data.prompts||[]).map(item=>`<article><div><b>${esc(item.name)}</b><button class="secondary" type="button" data-copy-flow="${esc(item.prompt)}">Copiar</button></div><p>${esc(item.prompt)}</p></article>`).join('')}</div></details>`;
+    const connected=!!data.api?.configured;
+    root.dataset.connected=String(connected);
+    root.innerHTML=`<div class="flow-guide-head"><div><p class="kicker">GOOGLE LYRIA 3 · ${connected?'CHAVE SALVA':'CHAVE NECESSÁRIA'}</p><h3>Geração musical integrada</h3><p>${connected?'A fábrica pode gerar, validar e registrar músicas diretamente pela Gemini API. A primeira geração confirmará acesso e faturamento.':'Conecte uma chave da Gemini API ou continue baixando manualmente pelo Flow Music.'}</p></div><div class="flow-actions">${connected?`<button class="primary" id="lyria-generate" type="button">＋ Gerar música</button>${data.api.key_source==='encrypted_vault'?'<button class="secondary" id="lyria-disconnect" type="button">Desconectar</button>':''}`:'<button class="primary" id="lyria-connect" type="button">Conectar chave de API</button>'}<button class="secondary" id="flow-import-music" type="button">Importar áudio</button></div></div><div class="lyria-cost"><b>${connected?'✓ Chave protegida':'API paga em preview'}</b><span>Clip 30s · US$ 0,04</span><span>Pro completa · US$ 0,08</span><span>Montagem final de 30/60 min continua local</span></div><ol>${(data.workflow||[]).map(step=>`<li>${esc(step)}</li>`).join('')}</ol><details><summary>Ver 12 direções musicais distintas</summary><div class="flow-prompt-grid">${(data.prompts||[]).map(item=>`<article><div><b>${esc(item.name)}</b><span><button class="secondary" type="button" data-copy-flow="${esc(item.prompt)}">Copiar</button><button class="primary" type="button" data-generate-flow="${esc(item.prompt)}" data-flow-name="${esc(item.name)}">Gerar</button></span></div><p>${esc(item.prompt)}</p></article>`).join('')}</div></details>`;
     $('#flow-import-music').onclick=()=>$('#music-dialog').showModal();
+    $('#lyria-connect')?.addEventListener('click',()=>$('#lyria-key-dialog').showModal());
+    $('#lyria-generate')?.addEventListener('click',()=>openLyriaGeneration('', ''));
+    $('#lyria-disconnect')?.addEventListener('click',async()=>{try{await api('/api/music-sources/lyria/disconnect',{method:'POST',body:'{}'});apiCache.clear();await loadFlowMusicGuide();toast('Chave removida do cofre local.','success')}catch(error){toast(error.message,'error')}});
+    root.querySelectorAll('[data-generate-flow]').forEach(button=>button.addEventListener('click',()=>connected?openLyriaGeneration(button.dataset.flowName,button.dataset.generateFlow):$('#lyria-key-dialog').showModal()));
     root.querySelectorAll('[data-copy-flow]').forEach(button=>button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(button.dataset.copyFlow);toast('Prompt copiado.','success')}catch(_error){toast('Não foi possível copiar automaticamente.','error')}}));
   }catch(error){root.innerHTML=`<div class="empty"><b>Guia do Flow Music indisponível.</b><p>${esc(error.message)}</p></div>`}
 }
+
+function openLyriaGeneration(name,prompt){
+  const form=$('#lyria-generate-form');
+  form.elements.name.value=name||`Lyria ${new Date().toLocaleDateString('pt-BR')}`;
+  form.elements.prompt.value=prompt||'Instrumental lo-fi chill, warm Rhodes piano, soft drums, rounded bass, rainy late-night mood, 72 BPM, 2 to 3 minutes, loop-friendly ending, no vocals, no samples, no artist imitation.';
+  $('#lyria-generate-error').textContent='';
+  $('#lyria-generate-dialog').showModal();
+}
+
+$('#lyria-key-form').addEventListener('submit',async event=>{
+  event.preventDefault();const form=event.currentTarget;const fields=new FormData(form);const error=$('#lyria-key-error');const button=event.submitter;error.textContent='';button.disabled=true;button.textContent='Protegendo chave…';
+  try{await api('/api/music-sources/lyria/configure',{method:'POST',body:JSON.stringify({api_key:fields.get('api_key')})});form.reset();$('#lyria-key-dialog').close();apiCache.clear();await loadFlowMusicGuide();toast('Lyria 3 conectado com chave criptografada.','success')}catch(problem){error.textContent=problem.message}finally{button.disabled=false;button.textContent='Salvar com segurança'}
+});
+
+$('#lyria-generate-form').addEventListener('submit',async event=>{
+  event.preventDefault();const form=event.currentTarget;const fields=new FormData(form);const error=$('#lyria-generate-error');const button=event.submitter;error.textContent='';button.disabled=true;button.textContent='Gerando no Google…';
+  try{const result=await api('/api/music-sources/lyria/generate',{method:'POST',timeoutMs:600000,body:JSON.stringify({name:fields.get('name'),prompt:fields.get('prompt'),model:fields.get('model'),rights_confirmed:!!fields.get('rights_confirmed')})});form.reset();$('#lyria-generate-dialog').close();apiCache.clear();await Promise.all([loadMusicAssets(),loadCatalogReadiness()]);toast(`${result.name} foi gerada, validada e adicionada à Biblioteca.`,'success')}catch(problem){error.textContent=problem.message}finally{button.disabled=false;button.textContent='Gerar e adicionar à Biblioteca'}
+});
 
 $('#new-music').onclick=()=>$('#music-dialog').showModal();
 $('#migrate-covers').onclick=async event=>{const button=event.currentTarget;button.disabled=true;button.textContent='Atualizando capas…';try{const result=await api('/api/covers/migrate',{method:'POST',timeoutMs:180000,body:'{}'});apiCache.clear();await load();toast(result.count?`${result.count} produção(ões) atualizada(s); capas antigas preservadas em backup.`:'Todas as capas já usam o padrão atual.','success')}catch(error){toast(error.message,'error')}finally{button.disabled=false;button.textContent='↻ Atualizar capas antigas'}};

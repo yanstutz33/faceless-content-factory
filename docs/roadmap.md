@@ -36,13 +36,13 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **a validação técnica passou, mas o lote musical precisa ser refeito com as novas faixas**;
 - manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
 - migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
-- preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: 12 prompts distintos para Flow Music/Lyria, download manual seguro e montagem local automática**.
+- preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: integração oficial com Lyria 3 pela Gemini API, chave criptografada, 12 prompts distintos, alternativa manual pelo Flow Music e montagem local automática**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as nove capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. A diversidade musical ainda depende da geração/download e do aceite humano das novas faixas, portanto não libera a fase seguinte. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as nove capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. A geração musical já pode ser automatizada por chave de API, mas a diversidade ainda depende de gerar e ouvir o primeiro lote Lyria antes do aceite humano. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
-Automação: completa depois que músicas e imagens licenciadas estiverem na biblioteca. A escolha/importação inicial dos arquivos é humana.
+Automação: geração, validação, registro, rotação e montagem estão automatizados. Permanecem humanos apenas a criação/colagem inicial da chave, a aceitação dos termos/custos e a aprovação auditiva do lote.
 
 ### Fase 2 — Piloto automático sem publicação — próxima
 

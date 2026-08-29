@@ -50,6 +50,11 @@ def main() -> None:
     metrics.add_argument("--revenue", type=float, default=0)
     sub.add_parser("serve", help="Open the local operations dashboard")
     sub.add_parser("migrate-covers", help="Replace legacy thumbnails with the approved visual collection")
+    lyria = sub.add_parser("lyria-generate", help="Generate and register one instrumental track with Google Lyria 3")
+    lyria.add_argument("--name", required=True)
+    lyria.add_argument("--prompt", required=True)
+    lyria.add_argument("--model", choices=["lyria-3-clip-preview", "lyria-3-pro-preview"], default="lyria-3-pro-preview")
+    lyria.add_argument("--confirm-rights", action="store_true")
     youtube = sub.add_parser("youtube-package", help="Prepare a private YouTube upload package without uploading")
     youtube.add_argument("job_id")
     vertical = sub.add_parser("vertical-package", help="Create a manual-safe 9:16 derivative from an approved job")
@@ -107,6 +112,9 @@ def main() -> None:
         serve(pipeline, store, settings.host, settings.port, ROOT / "web")
     elif args.command == "migrate-covers":
         print(json.dumps(pipeline.migrate_existing_covers(), ensure_ascii=False, indent=2))
+    elif args.command == "lyria-generate":
+        print(json.dumps(pipeline.lyria.generate(args.name, args.prompt, args.model, args.confirm_rights),
+                         ensure_ascii=False, indent=2))
     elif args.command == "youtube-package":
         print(json.dumps(pipeline.prepare_youtube_package(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "vertical-package":

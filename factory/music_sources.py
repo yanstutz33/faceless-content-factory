@@ -21,14 +21,14 @@ FLOW_MUSIC_PROMPTS: tuple[dict[str, str], ...] = (
 
 def flow_music_guide() -> dict[str, Any]:
     return {
-        "provider": "Google Flow Music · Lyria",
-        "mode": "manual_download_safe",
-        "reason": "A geração, a conta e o download permanecem sob controle do usuário; a fábrica automatiza a validação, rotação e montagem local.",
+        "provider": "Google Lyria 3",
+        "mode": "api_or_manual_safe",
+        "reason": "A Gemini API permite geração direta por chave; o Flow Music continua disponível como alternativa manual.",
         "workflow": [
-            "Gerar uma faixa instrumental no Flow Music usando um dos prompts.",
-            "Ouvir e baixar somente o arquivo de áudio.",
-            "Importar o arquivo ou a pasta na Biblioteca e confirmar os direitos de uso.",
-            "A fábrica normaliza, alterna as faixas e combina música e capa localmente.",
+            "Escolher uma direção musical e gerar pela API ou no Flow Music.",
+            "A API salva e valida o áudio; no modo manual, basta importar o download.",
+            "Ouvir as faixas na Biblioteca e manter somente as aprovadas.",
+            "A fábrica alterna músicas e combina áudio e capa localmente.",
         ],
         "prompts": list(FLOW_MUSIC_PROMPTS),
     }

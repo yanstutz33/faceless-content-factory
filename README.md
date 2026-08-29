@@ -65,7 +65,11 @@ A câmera permanece completamente fixa. O renderizador cria um ciclo visual suav
 
 Na **Biblioteca criativa**, o botão **Importar músicas** registra um arquivo ou uma pasta inteira de WAV, MP3, M4A, AAC, FLAC, OGG ou OPUS. A confirmação de direitos comerciais é obrigatória. A cada produção, a fábrica escolhe a faixa aprovada menos utilizada, registra a escolha no pacote e intercala o catálogo automaticamente; também é possível fixar uma faixa nas opções avançadas. Se a biblioteca estiver vazia, o sistema usa como fallback uma trilha sintetizada localmente, cujo tema determina instrumentação, progressão, BPM, melodia, textura e família rítmica.
 
-O painel **Google Flow Music · Lyria** oferece 12 prompts instrumentais diferentes. A geração, o login e o download do áudio permanecem manuais na conta do usuário; depois do download, a importação, validação, rotação e montagem com as capas são locais e automatizadas. Baixe somente o áudio, registre a referência de licença/proveniência e confirme os direitos antes de liberar a faixa. Referências oficiais: [Flow Music](https://support.google.com/flow/answer/17083868?co=GENIE.Platform%3DDesktop&hl=en) e [geração e download de música no Gemini](https://support.google.com/gemini/answer/16901237?co=GENIE.Platform%3DDesktop&hl=en).
+O painel **Google Lyria 3** oferece 12 direções instrumentais e dois caminhos. No modo integrado, uma chave da Gemini API é guardada no cofre criptografado local e o hub gera, valida e registra a música automaticamente. No modo manual, a faixa pode ser criada no Flow Music e importada depois. A chave nunca é devolvida ao navegador nem registrada em logs. O Lyria 3 está em preview e exige faturamento: o Clip de 30 segundos custa US$ 0,04 e o Pro completo custa US$ 0,08 por solicitação segundo a tabela oficial vigente em agosto de 2026.
+
+Para conectar sem editar arquivos, abra **Biblioteca → Conectar chave de API**, crie a chave no [Google AI Studio](https://aistudio.google.com/apikey) e cole no formulário. Como alternativa, defina `GEMINI_API_KEY` no `.env`. O modelo padrão é `lyria-3-pro-preview`; `lyria-3-clip-preview` serve para testes rápidos. Referências oficiais: [geração musical com Lyria 3](https://ai.google.dev/gemini-api/docs/music-generation), [preços](https://ai.google.dev/gemini-api/docs/pricing) e [termos da Gemini API](https://ai.google.dev/gemini-api/terms).
+
+O catálogo só aparece como pronto quando passa tanto pelos controles técnicos quanto pela escuta humana. `MUSIC_CATALOG_HUMAN_APPROVED` permanece `false` enquanto o novo lote não for ouvido e aceito; hashes diferentes, sozinhos, não são tratados como variedade sonora.
 
 As capas seguem a coleção oficial `assets/covers/nocturnal-rain-v1`: nove referências 16:9, noite chuvosa, azul/verde profundo, luz âmbar pontual e acabamento anime-realista cinematográfico. O gerador não adiciona mais faixa escura, selo, eyebrow ou título longo. O teste A/B compara duas referências tematicamente próximas; cada variação usa imagem limpa ou texto curto já integrado à arte. A direção reproduzível e o prompt-base ficam em `factory/visual_style.py`.
 
@@ -93,6 +97,7 @@ Abra `http://127.0.0.1:8787`, clique em **Nova produção** e escolha o formato.
 
 ```powershell
 python app.py generate --topic "Biblioteca chuvosa à noite" --duration 3600 --profile youtube_long
+python app.py lyria-generate --name "Midnight Rhodes" --prompt "Instrumental lo-fi chill with warm Rhodes, 72 BPM, no vocals" --confirm-rights
 python app.py generate --topic "Cabana na neve" --duration 1800 --profile youtube_long --narration
 python app.py generate --topic "Café ao amanhecer" --duration 3600 --profile youtube_long --asset "C:\Assets\cafe.jpg" --confirm-asset-rights
 python app.py doctor

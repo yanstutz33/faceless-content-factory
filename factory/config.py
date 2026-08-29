@@ -33,6 +33,10 @@ class Settings:
     autopilot_min_free_gb: float = 3.0
     openai_api_key: str = ""
     openai_model: str = "gpt-5.4"
+    gemini_api_key: str = ""
+    lyria_model: str = "lyria-3-pro-preview"
+    lyria_timeout_seconds: int = 300
+    music_catalog_human_approved: bool = False
     youtube_client_secrets_file: str = ""
     tiktok_client_key: str = ""
     tiktok_client_secret: str = ""
@@ -76,6 +80,10 @@ class Settings:
             autopilot_min_free_gb=max(0.5, float(os.getenv("AUTOPILOT_MIN_FREE_GB", "3"))),
             openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
+            gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+            lyria_model=os.getenv("LYRIA_MODEL", "lyria-3-pro-preview").strip(),
+            lyria_timeout_seconds=max(60, min(600, int(os.getenv("LYRIA_TIMEOUT_SECONDS", "300")))),
+            music_catalog_human_approved=os.getenv("MUSIC_CATALOG_HUMAN_APPROVED", "false").lower() == "true",
             youtube_client_secrets_file=os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", ""),
             tiktok_client_key=os.getenv("TIKTOK_CLIENT_KEY", ""),
             tiktok_client_secret=os.getenv("TIKTOK_CLIENT_SECRET", ""),

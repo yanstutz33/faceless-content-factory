@@ -21,6 +21,7 @@ from .teams import DEFAULT_TEAM_ID, get_team
 from .config import Settings
 from .creative import CreativeDirector, MOTION_LABELS, MUSIC_ARRANGEMENTS
 from .llm import OpenAIPlanEnhancer
+from .lyria import LyriaMusicService
 from .store import Store
 from .visual_style import COVER_STYLE_ID, cover_assets, select_cover_references, visual_direction
 
@@ -72,6 +73,7 @@ class Pipeline:
         self.store = store
         self.crew = crew or ContentCrew(OpenAIPlanEnhancer(settings.openai_api_key, settings.openai_model))
         self.creative = CreativeDirector()
+        self.lyria = LyriaMusicService(settings, store)
         (settings.data_dir / "jobs").mkdir(parents=True, exist_ok=True)
         for asset in cover_assets(settings.root):
             self.store.add_asset(asset["name"], asset["path"], asset["license_type"],
@@ -155,6 +157,7 @@ class Pipeline:
             "tts": {"provider": self.settings.tts_provider, "voice": self.settings.tts_voice,
                     "local_fallback": self.settings.local_tts_fallback},
             "llm_provider": {"configured": bool(self.settings.openai_api_key), "model": self.settings.openai_model},
+            "music_provider": self.lyria.status(),
             "youtube_connector": {"configured": bool(self.settings.youtube_client_secrets_file), "mode": "manual-safe"},
             "local_voice_fallback": {"enabled": self.settings.local_tts_fallback,
                                      "available": self.local_voice_available()},
@@ -520,6 +523,9 @@ class Pipeline:
              "target": scene_goal, "passed": len(starter_scenes) + len(custom_scenes) >= scene_goal},
             {"id": "rights", "label": "Direitos rastreáveis", "value": len(tracks),
              "target": len(tracks), "passed": bool(tracks) and rights_ok},
+            {"id": "listening", "label": "Aprovação auditiva do lote",
+             "value": int(self.settings.music_catalog_human_approved), "target": 1,
+             "passed": self.settings.music_catalog_human_approved},
         ]
         blockers = []
         if len(tracks) < track_goal:
@@ -528,6 +534,8 @@ class Pipeline:
             blockers.append(f"Faltam {scene_goal - len(starter_scenes) - len(custom_scenes)} cenas para o lote criativo.")
         if tracks and not rights_ok:
             blockers.append("Há faixas sem uma licença comercial aceita.")
+        if not self.settings.music_catalog_human_approved:
+            blockers.append("As faixas técnicas ainda não receberam aprovação auditiva humana.")
         return {
             "ready": all(check["passed"] for check in checks), "checks": checks, "blockers": blockers,
             "music_tracks": len(tracks), "starter_scenes": len(starter_scenes),

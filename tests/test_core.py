@@ -1,3 +1,4 @@
+import base64
 import json
 import hashlib
 import math
@@ -29,6 +30,7 @@ from factory.commercial_center import CommercialCenter
 from factory.creative import CreativeDirector, MUSIC_ARRANGEMENTS
 from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationManager
 from factory.llm import OpenAIPlanEnhancer
+from factory.lyria import LYRIA_MODELS
 from factory.music_sources import FLOW_MUSIC_PROMPTS, flow_music_guide
 from factory.nightshift import NightShift
 from factory.pipeline import Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
@@ -84,13 +86,61 @@ class CoreTests(unittest.TestCase):
 
     def test_flow_music_guide_offers_distinct_safe_prompts(self):
         guide = flow_music_guide()
-        self.assertEqual(guide["mode"], "manual_download_safe")
+        self.assertEqual(guide["mode"], "api_or_manual_safe")
         self.assertEqual(len(FLOW_MUSIC_PROMPTS), 12)
         self.assertEqual(len({item["name"] for item in FLOW_MUSIC_PROMPTS}), 12)
         self.assertEqual(len({item["prompt"] for item in FLOW_MUSIC_PROMPTS}), 12)
         for item in FLOW_MUSIC_PROMPTS:
             self.assertIn("no vocals", item["prompt"])
             self.assertIn("no artist imitation", item["prompt"])
+
+    def test_lyria_key_is_encrypted_and_never_returned_by_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            key = "fake-test-key-long-enough-for-validation-only"
+            status = pipeline.lyria.configure(key)
+            self.assertTrue(status["configured"])
+            self.assertEqual(status["key_source"], "encrypted_vault")
+            self.assertNotIn(key, json.dumps(status))
+            vault = root / "data" / "private" / "music-providers.vault"
+            self.assertTrue(vault.is_file())
+            self.assertNotIn(key.encode(), vault.read_bytes())
+
+    def test_lyria_generation_registers_validated_provider_track(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            pipeline.lyria.configure("fake-test-key-long-enough-for-validation-only")
+            response = {"steps": [{"type": "model_output", "content": [{
+                "type": "audio", "mime_type": "audio/mpeg", "data": base64.b64encode(b"ID3-test-audio").decode(),
+            }]}]}
+            with patch.object(pipeline.lyria, "_call_api", return_value=response) as request, \
+                 patch.object(pipeline.lyria, "_validate_audio") as validate:
+                result = pipeline.lyria.generate(
+                    "Midnight Rhodes", "Warm Rhodes lo-fi at 72 BPM for late night focus",
+                    "lyria-3-pro-preview", True,
+                )
+            request_prompt = request.call_args.args[2]
+            self.assertIn("Instrumental only", request_prompt)
+            self.assertEqual(result["price_estimate_usd"], LYRIA_MODELS["lyria-3-pro-preview"]["price_usd"])
+            validate.assert_called_once()
+            track = store.get_music_asset(result["id"])
+            self.assertEqual(track["license_type"], "provider_generated")
+            self.assertTrue(Path(track["path"]).is_file())
+
+    def test_lyria_generation_requires_connection_rights_and_known_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            service = Pipeline(self.settings(root), store).lyria
+            with self.assertRaisesRegex(ValueError, "Confirme"):
+                service.generate("Track", "A sufficiently detailed instrumental prompt", "lyria-3-pro-preview", False)
+            service.configure("fake-test-key-long-enough-for-validation-only")
+            with self.assertRaisesRegex(ValueError, "Modelo"):
+                service.generate("Track", "A sufficiently detailed instrumental prompt", "unknown", True)
 
     def test_specialized_teams_execute_distinct_playbooks(self):
         youtube = ContentCrew().run("Café noturno", 1800, "youtube_long", False, "youtube_ambient")
@@ -545,7 +595,7 @@ class CoreTests(unittest.TestCase):
             for index in range(12):
                 (starter / f"scene-{index:02}.jpg").write_bytes(b"original-scene")
             store = Store(root / "data" / "factory.db")
-            pipeline = Pipeline(self.settings(root), store)
+            pipeline = Pipeline(replace(self.settings(root), music_catalog_human_approved=True), store)
             for index in range(12):
                 track = root / f"track-{index:02}.wav"
                 track.write_bytes(b"original-track")
@@ -1072,6 +1122,27 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(list(profiles), ["youtube_long"])
                 self.assertEqual(profiles["youtube_long"]["min_duration"], 1800)
                 self.assertEqual(profiles["youtube_long"]["max_duration"], 3600)
+                flow = json.load(urllib.request.urlopen(base + "/api/music-sources/flow"))
+                self.assertFalse(flow["api"]["configured"])
+                self.assertNotIn("api_key", json.dumps(flow))
+                lyria_key = "fake-test-key-long-enough-for-validation-only"
+                configure_request = urllib.request.Request(
+                    base + "/api/music-sources/lyria/configure",
+                    data=json.dumps({"api_key": lyria_key}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                configured = json.load(urllib.request.urlopen(configure_request))
+                self.assertTrue(configured["configured"])
+                self.assertNotIn(lyria_key, json.dumps(configured))
+                blocked_request = urllib.request.Request(
+                    base + "/api/music-sources/lyria/disconnect", data=b"{}",
+                    headers={"Content-Type": "application/json", "Origin": "https://malicious.example"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as blocked:
+                    urllib.request.urlopen(blocked_request)
+                self.assertEqual(blocked.exception.code, 403)
+                blocked.exception.close()
                 track = root / "licensed-lofi.wav"
                 with wave.open(str(track), "wb") as output:
                     output.setnchannels(1);output.setsampwidth(2);output.setframerate(22050)

@@ -187,8 +187,11 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
 
     def send_api_error(self, message: str, status: int, code: str) -> None:
         self.send_json({"error": message, "code": code, "request_id": getattr(self, "request_id", "unknown")}, status)
@@ -198,8 +201,11 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
 
     def send_artifact(self, job_id: str, name: str) -> None:
         job = self.store.get_job(job_id)
@@ -334,6 +340,20 @@ class Handler(SimpleHTTPRequestHandler):
             raise ValueError("O corpo da requisição precisa ser um objeto")
         return value
 
+    def trusted_mutation(self) -> bool:
+        host = urlparse(f"//{self.headers.get('Host', '')}").hostname or ""
+        if host not in {"127.0.0.1", "localhost", "::1"}:
+            return False
+        if self.headers.get("Sec-Fetch-Site", "").lower() == "cross-site":
+            return False
+        origin = self.headers.get("Origin")
+        if not origin or origin == "null":
+            return True
+        parsed = urlparse(origin)
+        expected_port = int(self.server.server_address[1])
+        return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost", "::1"} and \
+            (parsed.port or (443 if parsed.scheme == "https" else 80)) == expected_port
+
     def do_GET(self) -> None:
         try:
             self._do_GET()
@@ -407,7 +427,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/music-assets":
             return self.send_json(self.store.list_music_assets())
         if path == "/api/music-sources/flow":
-            return self.send_json(flow_music_guide())
+            return self.send_json({**flow_music_guide(), "api": self.pipeline.lyria.status()})
         if path == "/api/library/readiness":
             return self.send_json(self.pipeline.library_readiness())
         if path == "/api/publishing":
@@ -445,6 +465,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if not self.trusted_mutation():
+            return self.send_api_error("Requisição externa bloqueada", HTTPStatus.FORBIDDEN, "UNTRUSTED_ORIGIN")
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+            return self.send_api_error("Envie a requisição como JSON", HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+                                       "JSON_REQUIRED")
         try:
             data = self.read_json()
             if path == "/api/system/backup":
@@ -569,6 +594,15 @@ class Handler(SimpleHTTPRequestHandler):
                     imported.append(self.store.add_music_asset(name, str(candidate), license_type,
                                                                data.get("source_url"), data.get("notes"), True))
                 return self.send_json({"ids": imported, "count": len(imported)}, HTTPStatus.CREATED)
+            if path == "/api/music-sources/lyria/configure":
+                return self.send_json(self.pipeline.lyria.configure(str(data.get("api_key", ""))))
+            if path == "/api/music-sources/lyria/disconnect":
+                return self.send_json(self.pipeline.lyria.disconnect())
+            if path == "/api/music-sources/lyria/generate":
+                return self.send_json(self.pipeline.lyria.generate(
+                    str(data.get("name", "Faixa Lyria")), str(data.get("prompt", "")),
+                    str(data.get("model", "")), bool(data.get("rights_confirmed", False)),
+                ), HTTPStatus.CREATED)
             if path == "/api/music-assets/bootstrap":
                 return self.send_json(self.pipeline.bootstrap_original_music_catalog(), HTTPStatus.CREATED)
             if path == "/api/covers/migrate":
