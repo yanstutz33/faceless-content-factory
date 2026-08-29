@@ -34,9 +34,11 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
 - gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **a validação técnica passou, mas o lote musical precisa ser refeito com as novas faixas**;
-- manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: oito referências únicas em `nocturnal_rain_v1`, sem banners, títulos longos ou câmera artificial**.
+- manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
+- migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
+- preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: 12 prompts distintos para Flow Music/Lyria, download manual seguro e montagem local automática**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as oito capas aprovadas já estão visíveis na Biblioteca e serão escolhidas por tema. A diversidade musical ainda não recebeu aceite humano e, portanto, não libera a fase seguinte. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as nove capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. A diversidade musical ainda depende da geração/download e do aceite humano das novas faixas, portanto não libera a fase seguinte. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 

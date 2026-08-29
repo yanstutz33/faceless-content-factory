@@ -28,6 +28,8 @@ COVER_REFERENCES: tuple[dict[str, Any], ...] = (
      "keywords": ("memoria", "memorias", "nostalgia", "janela", "chuva")},
     {"id": "rainy-konbini-clean", "label": "Loja noturna sem texto", "file": "rainy-konbini-clean.png", "embedded_text": None,
      "keywords": ("rua", "loja", "conveniencia", "japao", "chuva", "noite")},
+    {"id": "rainy-vinyl-listening-room", "label": "Sala de vinil na chuva", "file": "rainy-vinyl-listening-room.png", "embedded_text": None,
+     "keywords": ("vinil", "disco", "musica", "loja", "escuta", "fone", "estudo")},
 )
 
 

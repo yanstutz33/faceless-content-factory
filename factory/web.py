@@ -21,6 +21,7 @@ from .backup import BackupManager
 from .commerce import CommercePackager, validate_commerce_brief
 from .commercial_center import CommercialCenter
 from .integrations import IntegrationManager
+from .music_sources import flow_music_guide
 from .pipeline import Pipeline, SUPPORTED_MUSIC_EXTENSIONS
 from .publishing import PublishingCenter
 from .nightshift import NightShift
@@ -405,6 +406,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.store.list_assets())
         if path == "/api/music-assets":
             return self.send_json(self.store.list_music_assets())
+        if path == "/api/music-sources/flow":
+            return self.send_json(flow_music_guide())
         if path == "/api/library/readiness":
             return self.send_json(self.pipeline.library_readiness())
         if path == "/api/publishing":
@@ -568,6 +571,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"ids": imported, "count": len(imported)}, HTTPStatus.CREATED)
             if path == "/api/music-assets/bootstrap":
                 return self.send_json(self.pipeline.bootstrap_original_music_catalog(), HTTPStatus.CREATED)
+            if path == "/api/covers/migrate":
+                return self.send_json(self.pipeline.migrate_existing_covers())
             if path.startswith("/api/calendar/") and path.endswith("/produce"):
                 item_id = int(path.split("/")[-2])
                 item = self.store.claim_calendar_item(item_id)

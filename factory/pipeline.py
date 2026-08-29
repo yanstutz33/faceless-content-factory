@@ -805,6 +805,91 @@ class Pipeline:
         self.command([self.settings.ffmpeg, "-y", "-i", str(source), "-vf", vf,
                       "-frames:v", "1", "-q:v", "2", str(output)])
 
+    def create_thumbnail_variants(self, out: Path, topic: str, width: int, height: int,
+                                  fallback_source: Path, selected: str = "a") -> dict[str, Any]:
+        selected = selected if selected in {"a", "b"} else "a"
+        cover_pair = select_cover_references(self.settings.root, topic)
+        if cover_pair:
+            cover_a, cover_b = cover_pair
+            source_a, source_b = Path(cover_a["path"]), Path(cover_b["path"])
+        else:
+            cover_a = cover_b = {"id": "production-scene", "embedded_text": None}
+            source_a = source_b = fallback_source
+        thumbnail_a = out / "thumbnail-a.jpg"
+        thumbnail_b = out / "thumbnail-b.jpg"
+        self.create_thumbnail(source_a, thumbnail_a, width, height)
+        self.create_thumbnail(source_b, thumbnail_b, width, height)
+        shutil.copy2(out / f"thumbnail-{selected}.jpg", out / "thumbnail.jpg")
+        return {
+            "selected": selected,
+            "style_id": COVER_STYLE_ID,
+            "direction": visual_direction(),
+            "variants": [
+                {"id": "a", "file": "thumbnail-a.jpg", "style": "cinematográfica limpa",
+                 "reference_id": cover_a["id"], "embedded_text": cover_a["embedded_text"]},
+                {"id": "b", "file": "thumbnail-b.jpg", "style": "cinematográfica alternativa",
+                 "reference_id": cover_b["id"], "embedded_text": cover_b["embedded_text"]},
+            ],
+        }
+
+    def migrate_existing_covers(self) -> dict[str, Any]:
+        """Replace legacy cover layouts while keeping a recoverable copy of every changed file."""
+        migration_id = uuid.uuid4().hex[:12]
+        archive_root = self.settings.data_dir / "archive" / "cover-migrations" / migration_id
+        migrated: list[str] = []
+        skipped: list[dict[str, str]] = []
+        backup_names = ("thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg",
+                        "thumbnail-design.json", "metadata.json", "artifact-manifest.json")
+        for job in self.store.list_jobs(500):
+            out = Path(str(job.get("output_dir", "")))
+            if not out.is_dir() or not any((out / name).is_file() for name in backup_names[:3]):
+                skipped.append({"job_id": job["id"], "reason": "sem capa renderizada"})
+                continue
+            design_path = out / "thumbnail-design.json"
+            try:
+                current_design = json.loads(design_path.read_text(encoding="utf-8")) if design_path.is_file() else {}
+            except (OSError, json.JSONDecodeError):
+                current_design = {}
+            if current_design.get("style_id") == COVER_STYLE_ID:
+                skipped.append({"job_id": job["id"], "reason": "padrão atual já aplicado"})
+                continue
+            backup_dir = archive_root / job["id"]
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            for name in backup_names:
+                source = out / name
+                if source.is_file():
+                    shutil.copy2(source, backup_dir / name)
+            profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
+            selected = str(job.get("metadata", {}).get("selected_thumbnail") or job.get("thumbnail_variant") or "a")
+            fallback = out / "background.jpg"
+            if not fallback.is_file():
+                fallback = next(iter(sorted(out.glob("scene-*.jpg"))), out / "thumbnail.jpg")
+            design = self.create_thumbnail_variants(out, job["topic"], profile["width"], profile["height"],
+                                                    fallback, selected)
+            design["brief"] = {"style_id": COVER_STYLE_ID, "migration_id": migration_id}
+            design_path.write_text(json.dumps(design, ensure_ascii=False, indent=2), encoding="utf-8")
+            metadata = dict(job.get("metadata") or {})
+            metadata["thumbnail_variants"] = design["variants"]
+            metadata["selected_thumbnail"] = design["selected"]
+            metadata["thumbnail_style_id"] = COVER_STYLE_ID
+            metadata.setdefault("files", {})["thumbnail"] = "thumbnail.jpg"
+            (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+            manifest_path = out / "artifact-manifest.json"
+            try:
+                old_manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+            except (OSError, json.JSONDecodeError):
+                old_manifest = {}
+            names = [item["name"] for item in old_manifest.get("files", []) if item.get("name")]
+            names.extend(["thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "metadata.json"])
+            manifest = self.artifact_manifest(out, list(dict.fromkeys(names)))
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.store.update(job["id"], job["status"], metadata, error=job.get("error"),
+                              progress=job.get("progress"), quality_score=job.get("quality_score"))
+            self.store.event(job["id"], "thumbnail", f"Capas migradas para {COVER_STYLE_ID}; backup {migration_id}")
+            migrated.append(job["id"])
+        return {"migration_id": migration_id, "migrated": migrated, "count": len(migrated),
+                "skipped": skipped, "backup_dir": str(archive_root) if migrated else None}
+
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
                source_assets: list[dict[str, Any]] | None = None,
@@ -1084,31 +1169,8 @@ class Pipeline:
                               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", str(job["duration"]),
                               "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(render_candidate)])
                 self.store.event(job_id, "rendering", f"Composição multicena concluída com {len(backgrounds)} cenas")
-            thumbnail_a = out / "thumbnail-a.jpg"
-            thumbnail_b = out / "thumbnail-b.jpg"
-            thumbnail = out / "thumbnail.jpg"
-            cover_pair = select_cover_references(self.settings.root, job["topic"])
-            if cover_pair:
-                cover_a, cover_b = cover_pair
-                cover_source_a, cover_source_b = Path(cover_a["path"]), Path(cover_b["path"])
-            else:
-                cover_a = cover_b = {"id": "production-scene", "embedded_text": None}
-                cover_source_a = cover_source_b = backgrounds[0]
-            self.create_thumbnail(cover_source_a, thumbnail_a, width, height)
-            self.create_thumbnail(cover_source_b, thumbnail_b, width, height)
-            shutil.copy2(thumbnail_a, thumbnail)
-            thumbnail_design = {
-                "selected": "a",
-                "style_id": COVER_STYLE_ID,
-                "direction": visual_direction(),
-                "variants": [
-                    {"id": "a", "file": "thumbnail-a.jpg", "style": "cinematográfica limpa",
-                     "reference_id": cover_a["id"], "embedded_text": cover_a["embedded_text"]},
-                    {"id": "b", "file": "thumbnail-b.jpg", "style": "cinematográfica alternativa",
-                     "reference_id": cover_b["id"], "embedded_text": cover_b["embedded_text"]},
-                ],
-                "brief": plan["visual"]["thumbnail"],
-            }
+            thumbnail_design = self.create_thumbnail_variants(out, job["topic"], width, height, backgrounds[0], "a")
+            thumbnail_design["brief"] = plan["visual"]["thumbnail"]
             (out / "thumbnail-design.json").write_text(json.dumps(thumbnail_design, ensure_ascii=False, indent=2), encoding="utf-8")
 
             media_report = self.inspect_video(render_candidate, job["duration"])

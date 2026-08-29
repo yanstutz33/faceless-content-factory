@@ -193,7 +193,18 @@ async function bootstrapMusicCatalog(event){
   }catch(error){toast(error.message,'error');button.disabled=false;button.textContent='Criar 12 músicas originais'}
 }
 
+async function loadFlowMusicGuide(){
+  const root=$('#flow-music-guide');
+  try{
+    const data=await api('/api/music-sources/flow');
+    root.innerHTML=`<div class="flow-guide-head"><div><p class="kicker">MÚSICA EXTERNA · MONTAGEM LOCAL</p><h3>${esc(data.provider)}</h3><p>${esc(data.reason)}</p></div><button class="primary" id="flow-import-music" type="button">Importar áudio baixado</button></div><ol>${(data.workflow||[]).map(step=>`<li>${esc(step)}</li>`).join('')}</ol><details><summary>Ver 12 prompts musicais distintos</summary><div class="flow-prompt-grid">${(data.prompts||[]).map(item=>`<article><div><b>${esc(item.name)}</b><button class="secondary" type="button" data-copy-flow="${esc(item.prompt)}">Copiar</button></div><p>${esc(item.prompt)}</p></article>`).join('')}</div></details>`;
+    $('#flow-import-music').onclick=()=>$('#music-dialog').showModal();
+    root.querySelectorAll('[data-copy-flow]').forEach(button=>button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(button.dataset.copyFlow);toast('Prompt copiado.','success')}catch(_error){toast('Não foi possível copiar automaticamente.','error')}}));
+  }catch(error){root.innerHTML=`<div class="empty"><b>Guia do Flow Music indisponível.</b><p>${esc(error.message)}</p></div>`}
+}
+
 $('#new-music').onclick=()=>$('#music-dialog').showModal();
+$('#migrate-covers').onclick=async event=>{const button=event.currentTarget;button.disabled=true;button.textContent='Atualizando capas…';try{const result=await api('/api/covers/migrate',{method:'POST',timeoutMs:180000,body:'{}'});apiCache.clear();await load();toast(result.count?`${result.count} produção(ões) atualizada(s); capas antigas preservadas em backup.`:'Todas as capas já usam o padrão atual.','success')}catch(error){toast(error.message,'error')}finally{button.disabled=false;button.textContent='↻ Atualizar capas antigas'}};
 $('#music-form').addEventListener('submit',async event=>{
   event.preventDefault();const form=event.currentTarget;const fields=new FormData(form);const error=$('#music-form-error');error.textContent='';
   const button=event.submitter;button.disabled=true;button.textContent='Validando arquivos…';
@@ -251,4 +262,4 @@ $('#asset-form').addEventListener('submit',async event=>{
 
 $('#create-dialog').addEventListener('click',event=>{if(event.target===$('#create-dialog'))$('#create-dialog').close()});
 $('#job-dialog').addEventListener('click',event=>{if(event.target===$('#job-dialog'))$('#job-dialog').close()});
-Promise.all([load(),loadAssets(),loadMusicAssets(),loadCatalogReadiness(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);
+Promise.all([load(),loadAssets(),loadMusicAssets(),loadCatalogReadiness(),loadFlowMusicGuide(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);

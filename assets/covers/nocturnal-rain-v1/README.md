@@ -10,4 +10,4 @@ Colecao visual oficial aprovada para as capas do canal.
 - Texto: nenhum texto ou uma unica palavra curta, branca, centralizada e em minusculas.
 - Proibido: faixa inferior, titulo longo, selo, colagem, camera tremendo, chuva dentro do ambiente, personagem conhecido, nova marca ou marca d'agua.
 
-As imagens desta pasta foram fornecidas pelo usuario como referencias e capas aprovadas. O arquivo duplicado enviado foi mantido apenas uma vez.
+Oito imagens desta pasta foram fornecidas pelo usuario como referencias e capas aprovadas. O arquivo duplicado enviado foi mantido apenas uma vez. `rainy-vinyl-listening-room.png` foi gerada depois com essas referencias como direcao visual estrita.

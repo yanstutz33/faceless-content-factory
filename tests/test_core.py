@@ -29,6 +29,7 @@ from factory.commercial_center import CommercialCenter
 from factory.creative import CreativeDirector, MUSIC_ARRANGEMENTS
 from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationManager
 from factory.llm import OpenAIPlanEnhancer
+from factory.music_sources import FLOW_MUSIC_PROMPTS, flow_music_guide
 from factory.nightshift import NightShift
 from factory.pipeline import Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
@@ -70,7 +71,7 @@ class CoreTests(unittest.TestCase):
 
     def test_approved_cover_collection_is_semantic_and_minimal(self):
         assets = cover_assets(ROOT)
-        self.assertEqual(len(assets), 8)
+        self.assertEqual(len(assets), 9)
         pair = select_cover_references(ROOT, "Café japonês sob chuva para descansar")
         self.assertIsNotNone(pair)
         assert pair is not None
@@ -80,6 +81,16 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(direction["id"], COVER_STYLE_ID)
         self.assertIn("single short lowercase word", direction["typography"])
         self.assertIn("rain belongs outdoors", direction["weather"])
+
+    def test_flow_music_guide_offers_distinct_safe_prompts(self):
+        guide = flow_music_guide()
+        self.assertEqual(guide["mode"], "manual_download_safe")
+        self.assertEqual(len(FLOW_MUSIC_PROMPTS), 12)
+        self.assertEqual(len({item["name"] for item in FLOW_MUSIC_PROMPTS}), 12)
+        self.assertEqual(len({item["prompt"] for item in FLOW_MUSIC_PROMPTS}), 12)
+        for item in FLOW_MUSIC_PROMPTS:
+            self.assertIn("no vocals", item["prompt"])
+            self.assertIn("no artist imitation", item["prompt"])
 
     def test_specialized_teams_execute_distinct_playbooks(self):
         youtube = ContentCrew().run("Café noturno", 1800, "youtube_long", False, "youtube_ambient")
@@ -556,6 +567,34 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(len(tracks), 2)
             self.assertEqual(len({item["sha256"] for item in manifest["tracks"]}), 2)
             self.assertTrue(all(item["license"] == "original" for item in manifest["tracks"]))
+
+    @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
+    def test_legacy_cover_migration_is_recoverable_and_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copytree(ROOT / "assets" / "covers", root / "assets" / "covers")
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Rainy vinyl room", 15, profile="preview")
+            job = store.get_job(job_id)
+            out = Path(job["output_dir"])
+            for name in ("thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "background.jpg"):
+                shutil.copy2(ROOT / "assets" / "covers" / "nocturnal-rain-v1" / "rainy-konbini-clean.png", out / name)
+            old_design = {"selected": "b", "variants": []}
+            (out / "thumbnail-design.json").write_text(json.dumps(old_design), encoding="utf-8")
+            (out / "metadata.json").write_text(json.dumps({"selected_thumbnail": "b"}), encoding="utf-8")
+            (out / "artifact-manifest.json").write_text(json.dumps({"files": []}), encoding="utf-8")
+            store.update(job_id, "awaiting_approval", {"selected_thumbnail": "b"}, progress=100)
+            before = hashlib.sha256((out / "thumbnail.jpg").read_bytes()).hexdigest()
+            result = pipeline.migrate_existing_covers()
+            self.assertEqual(result["count"], 1)
+            design = json.loads((out / "thumbnail-design.json").read_text(encoding="utf-8"))
+            self.assertEqual(design["style_id"], COVER_STYLE_ID)
+            self.assertEqual(design["selected"], "b")
+            backup = Path(result["backup_dir"]) / job_id / "thumbnail.jpg"
+            self.assertTrue(backup.is_file())
+            self.assertEqual(hashlib.sha256(backup.read_bytes()).hexdigest(), before)
+            self.assertEqual(pipeline.migrate_existing_covers()["count"], 0)
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_music_library_rotates_least_used_tracks_and_renders(self):

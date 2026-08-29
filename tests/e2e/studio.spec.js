@@ -72,6 +72,12 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.getByRole('heading', { name: /biblioteca criativa/i })).toBeVisible();
   await expect(page.locator('#catalog-readiness')).toContainText(/lote piloto/i);
   await expect(page.locator('#catalog-readiness')).toContainText(/faixas lo-fi distintas/i);
+  await expect(page.locator('#flow-music-guide')).toContainText(/Google Flow Music/i);
+  await page.locator('#flow-music-guide details').click();
+  await expect(page.locator('#flow-music-guide [data-copy-flow]')).toHaveCount(12);
+  await page.getByRole('button', { name: /importar áudio baixado/i }).click();
+  await expect(page.locator('#music-dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
   const previews = page.locator('#music-grid audio source');
   if (await previews.count()) await expect(previews.first()).toHaveAttribute('src', /\/api\/music-assets\/\d+\/preview/);
 });

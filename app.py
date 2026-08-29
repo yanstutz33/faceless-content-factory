@@ -49,6 +49,7 @@ def main() -> None:
     metrics.add_argument("--conversions", type=int, default=0)
     metrics.add_argument("--revenue", type=float, default=0)
     sub.add_parser("serve", help="Open the local operations dashboard")
+    sub.add_parser("migrate-covers", help="Replace legacy thumbnails with the approved visual collection")
     youtube = sub.add_parser("youtube-package", help="Prepare a private YouTube upload package without uploading")
     youtube.add_argument("job_id")
     vertical = sub.add_parser("vertical-package", help="Create a manual-safe 9:16 derivative from an approved job")
@@ -104,6 +105,8 @@ def main() -> None:
         print(f"Métricas registradas: {args.job_id}")
     elif args.command == "serve":
         serve(pipeline, store, settings.host, settings.port, ROOT / "web")
+    elif args.command == "migrate-covers":
+        print(json.dumps(pipeline.migrate_existing_covers(), ensure_ascii=False, indent=2))
     elif args.command == "youtube-package":
         print(json.dumps(pipeline.prepare_youtube_package(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "vertical-package":
