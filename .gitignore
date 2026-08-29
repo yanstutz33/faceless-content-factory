@@ -9,6 +9,7 @@ data/factory.db
 data/jobs/
 data/private/
 data/backups/
+data/archive/
 data/integration-audit.jsonl
 data/deliveries.json
 data/*.log

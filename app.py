@@ -26,8 +26,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     generate = sub.add_parser("generate", help="Generate one complete local video package")
     generate.add_argument("--topic", default="Biblioteca chuvosa à noite")
-    generate.add_argument("--duration", type=int, default=30)
-    generate.add_argument("--profile", choices=["youtube_long", "vertical_short", "preview"], default="youtube_long")
+    generate.add_argument("--duration", type=int, choices=[1800, 3600], default=3600)
+    generate.add_argument("--profile", choices=["youtube_long"], default="youtube_long")
     generate.add_argument("--asset", help="Optional JPG/PNG/WebP source image")
     generate.add_argument("--confirm-asset-rights", action="store_true",
                           help="Confirm that the supplied asset may be used commercially")
@@ -88,7 +88,7 @@ def main() -> None:
     integrations = IntegrationManager(settings, store, publishing)
     commercial = CommercialCenter(store, CommercePackager(pipeline, store))
     if args.command == "generate":
-        job_id = pipeline.create(args.topic, max(5, args.duration), args.narration, not args.no_subtitles,
+        job_id = pipeline.create(args.topic, args.duration, args.narration, not args.no_subtitles,
                                  args.profile, args.asset,
                                  source_asset_rights_confirmed=args.confirm_asset_rights)
         print(json.dumps(pipeline.run(job_id), ensure_ascii=False, indent=2))

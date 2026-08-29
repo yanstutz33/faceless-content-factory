@@ -13,14 +13,14 @@ SERIES: dict[str, dict[str, Any]] = {
     },
     "cozy_worlds": {
         "name": "Mundos acolhedores", "description": "Abrigos quentes em climas intensos.",
-        "profile": "youtube_long", "duration": 5400, "narration": False,
+        "profile": "youtube_long", "duration": 3600, "narration": False,
         "team_id": "youtube_ambient",
         "topics": ["Cabana nórdica durante uma nevasca", "Lareira em uma casa vitoriana", "Quarto no sótão durante uma tempestade"],
         "color": "#FFB86B",
     },
     "cosmic_focus": {
         "name": "Foco cósmico", "description": "Ficção ambiente para trabalho profundo.",
-        "profile": "youtube_long", "duration": 7200, "narration": False,
+        "profile": "youtube_long", "duration": 3600, "narration": False,
         "team_id": "youtube_ambient",
         "topics": ["Estação orbital sobre Júpiter", "Nave cargueira cruzando uma nebulosa", "Observatório lunar abandonado"],
         "color": "#D99BFF",
@@ -43,5 +43,5 @@ SERIES: dict[str, dict[str, Any]] = {
 
 
 def series_catalog() -> list[dict[str, Any]]:
-    return [{"id": key, **value} for key, value in SERIES.items()]
+    return [{"id": key, **value} for key, value in SERIES.items() if value.get("profile") == "youtube_long"]
 

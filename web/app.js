@@ -88,7 +88,7 @@ async function openJob(id){
     if(['failed','rejected'].includes(job.status))actions='<button class="primary" type="button" data-action="retry">Executar novamente</button>';
     const metrics=job.status==='approved'?`<form class="metric-form" id="metric-form"><h4>MÉTRICAS REAIS · ATIVAM O APRENDIZADO</h4><label>Plataforma<select name="platform"><option value="youtube">YouTube</option><option value="shorts">Shorts</option><option value="tiktok">TikTok</option><option value="reels">Reels</option><option value="shopee">Shopee</option><option value="bilibili">Bilibili</option><option value="pinterest">Pinterest</option></select></label><label>Visualizações<input name="views" type="number" min="0" value="0"></label><label>Curtidas<input name="likes" type="number" min="0" value="0"></label><label>Minutos assistidos<input name="watch_minutes" type="number" min="0" step="0.1" value="0"></label><label>Impressões<input name="impressions" type="number" min="0" value="0"></label><label>Cliques<input name="clicks" type="number" min="0" value="0"></label><label>Média assistida (s)<input name="average_view_seconds" type="number" min="0" step="0.1" value="0"></label><label>Thumbnail<select name="thumbnail_variant"><option value="a">A</option><option value="b">B</option></select></label><label>Conversões<input name="conversions" type="number" min="0" value="0"></label><label>Receita (R$)<input name="revenue" type="number" min="0" step="0.01" value="0"></label><button class="secondary" type="submit">Registrar snapshot</button></form>`:'';
     const verification=verificationData.passed&&ready?`<div class="verification"><span>✓ ARQUIVO VALIDADO</span><b>${verificationData.video?.width||'—'}×${verificationData.video?.height||'—'} · ${verificationData.video?.codec||'vídeo'} + ${verificationData.audio?.codec||'áudio'}</b><small>${formatDuration(Math.round(verificationData.duration_seconds||job.duration))} · ${(Number(verificationData.size_bytes||0)/1048576).toFixed(1)} MB · checksum SHA-256</small></div>`:'';
-    const artifactLinks=ready?`<a class="secondary" href="/api/jobs/${encodeURIComponent(job.id)}/artifacts/metadata.json" target="_blank" rel="noopener">Metadados</a><a class="secondary" href="/api/jobs/${encodeURIComponent(job.id)}/artifacts/render-report.json" target="_blank" rel="noopener">Relatório técnico</a><a class="secondary" href="/api/jobs/${encodeURIComponent(job.id)}/artifacts/artifact-manifest.json" target="_blank" rel="noopener">Checksums</a>`:'';
+    const artifactLinks=ready?`<button class="secondary" type="button" data-artifact="metadata.json" data-artifact-job="${esc(job.id)}">Resumo do vídeo</button><button class="secondary" type="button" data-artifact="render-report.json" data-artifact-job="${esc(job.id)}">Relatório técnico</button><button class="secondary" type="button" data-artifact="artifact-manifest.json" data-artifact-job="${esc(job.id)}">Integridade dos arquivos</button>`:'';
     $('#job-detail').innerHTML=`<div class="dialog-head"><div><p class="kicker">${esc(statusLabels[job.status]||job.status)}</p><h2>${esc(job.topic)}</h2></div><button class="icon-button" type="button" data-close aria-label="Fechar">×</button></div><div class="detail-hero">${video}<div class="detail-title"><span class="tag">${esc((state.profiles[job.profile]||{}).label||job.profile)} · ${formatDuration(job.duration)}</span><h2>${esc(metadata.title||'Planejamento em andamento')}</h2><p>${esc(metadata.description||friendlyError(job.error)||'Os agentes estão preparando este pacote.')}</p>${job.quality_score?`<div class="score"><b>${job.quality_score}</b>/100 · qualidade estimada</div>`:''}</div></div>${verification}<div class="timeline">${steps.map((_,index)=>`<span class="${index<done?'done':''}"></span>`).join('')}</div>${agents.strategy?`<div class="agent-output"><h4>NORTE · ESTRATÉGIA</h4><p>${esc(agents.strategy.promise)}</p><p><b>Objetivo:</b> ${esc(agents.strategy.primary_goal)} · <b>Ritmo:</b> ${esc(agents.strategy.cadence)}</p></div>`:''}${agents.visual?`<div class="agent-output"><h4>DIREÇÃO · VISUAL E SOM</h4><p>${esc(agents.visual.asset_brief)}</p><p>${esc(agents.visual.sound)}</p></div>`:''}${warnings?`<div class="agent-output"><h4>CRÍTICA · RECOMENDAÇÕES</h4><ul>${warnings}</ul></div>`:''}${errorPanel(job.error)}<div class="detail-actions">${actions}${artifactLinks}</div>${metrics}<div class="agent-output"><h4>HISTÓRICO · ${events.length} EVENTOS</h4><p>${events.slice(-5).reverse().map(event=>`${esc(friendlyError(event.message))} · ${new Date(event.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`).join('<br>')}</p></div>`;
     const dialog=$('#job-dialog');
     dialog.showModal();
@@ -137,6 +137,7 @@ $('#generate-form').addEventListener('submit',async event=>{
       subtitles:!!fields.get('subtitles'),narration:!!fields.get('narration'),source_asset:sourceAsset,
       source_asset_rights_confirmed:!!fields.get('source_asset_rights_confirmed'),
       asset_ids:fields.getAll('asset_ids').map(Number),
+      music_asset_id:fields.get('music_asset_id')||null,
     })});
     $('#create-dialog').close();
     toast('Produção iniciada. Você pode continuar trabalhando.');
@@ -167,6 +168,52 @@ async function loadAssets(){
   select.innerHTML=assets.filter(asset=>asset.approved).map(asset=>`<option value="${Number(asset.id)}">${esc(asset.name)} · ${esc(asset.license_type)}</option>`).join('');
 }
 
+async function loadMusicAssets(){
+  const tracks=await api('/api/music-assets');
+  const grid=$('#music-grid');const select=$('#production-music');
+  $('#music-library-summary').textContent=tracks.length?`${tracks.length} faixa(s) · rotação por menor uso`:'Nenhuma faixa importada';
+  grid.innerHTML=tracks.length?tracks.map(track=>`<article class="asset-card music-card"><span class="tag">${esc(track.license_type)}</span><h3>${esc(track.name)}</h3><p>${esc(String(track.path).split(/[\\/]/).pop())}</p><small>Usada em ${Number(track.use_count||0)} vídeo(s) · ${track.approved?'✓ liberada':'bloqueada'}</small></article>`).join(''):'<div class="empty"><b>Sua biblioteca musical está vazia.</b><p>Clique em “Importar músicas” e informe uma pasta com suas faixas lo-fi licenciadas.</p></div>';
+  select.innerHTML='<option value="">Automática · usar primeiro a menos repetida</option>'+tracks.filter(track=>track.approved).map(track=>`<option value="${Number(track.id)}">${esc(track.name)} · usada ${Number(track.use_count||0)}x</option>`).join('');
+}
+
+$('#new-music').onclick=()=>$('#music-dialog').showModal();
+$('#music-form').addEventListener('submit',async event=>{
+  event.preventDefault();const form=event.currentTarget;const fields=new FormData(form);const error=$('#music-form-error');error.textContent='';
+  const button=event.submitter;button.disabled=true;button.textContent='Validando arquivos…';
+  try{
+    const result=await api('/api/music-assets',{method:'POST',timeoutMs:180000,body:JSON.stringify({name:fields.get('name'),path:fields.get('path'),license_type:fields.get('license_type'),source_url:fields.get('source_url'),notes:fields.get('notes'),rights_confirmed:!!fields.get('rights_confirmed')})});
+    form.reset();$('#music-dialog').close();await loadMusicAssets();toast(`${result.count} música(s) validada(s) e adicionada(s).`,'success');
+  }catch(problem){error.textContent=problem.message}finally{button.disabled=false;button.textContent='Validar e importar'}
+});
+
+function artifactRows(data,type){
+  if(type==='metadata.json')return [
+    ['Título',data.title||'—'],['Duração',formatDuration(Number(data.production?.duration_seconds||data.verification?.duration_seconds||0))],
+    ['Música',data.music?.track_name||data.music?.arrangement||'Trilha original'],['Origem musical',data.music?.style==='licensed_music_library'?'Biblioteca licenciada':'Gerada localmente'],
+    ['Ritmo',data.music?.rhythm_pattern||'Definido pela faixa'],['Cena',data.creative_dna?.scene||'—'],['Movimento',data.motion?.atmosphere||'—'],
+    ['Câmera',data.motion?.camera_motion==='none'?'Fixa':'Revisar'],['Qualidade',`${Number(data.quality_gate?.score||0)}/100`]
+  ];
+  if(type==='render-report.json')return [
+    ['Resultado',data.passed?'Arquivo validado':'Revisão necessária'],['Duração real',formatDuration(Math.round(Number(data.duration_seconds||0)))],
+    ['Vídeo',`${data.video?.width||'—'}×${data.video?.height||'—'} · ${data.video?.codec||'—'}`],['Áudio',`${data.audio?.codec||'—'} · ${data.audio?.sample_rate||'—'} Hz`],
+    ['Tamanho',`${(Number(data.size_bytes||0)/1048576).toFixed(1)} MB`],['Validação',data.validation_engine||'—']
+  ];
+  if(type==='quality-gate.json')return (data.checks||[]).map(check=>[check.passed?'✓ '+check.label:'! '+check.label,check.passed?'Aprovado':String(check.value||'Revisar')]);
+  if(type==='artifact-manifest.json')return (data.files||[]).map(file=>[file.name,`${(Number(file.size_bytes||0)/1048576).toFixed(1)} MB · íntegro`]);
+  return [];
+}
+
+async function openArtifact(jobId,type){
+  const labels={'metadata.json':'Resumo do vídeo','render-report.json':'Relatório técnico','artifact-manifest.json':'Integridade dos arquivos','quality-gate.json':'Controle de qualidade'};
+  try{
+    const data=await api(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(type)}`);const rows=artifactRows(data,type);
+    $('#artifact-detail').innerHTML=`<div class="dialog-head"><div><p class="kicker">LEITURA SIMPLIFICADA</p><h2>${esc(labels[type]||'Detalhes')}</h2></div><button class="icon-button" type="button" data-dialog-close aria-label="Fechar">×</button></div><div class="artifact-summary">${rows.map(([label,value])=>`<article><small>${esc(label)}</small><b>${esc(value)}</b></article>`).join('')}</div><div class="dialog-actions"><button class="primary" type="button" data-dialog-close>Entendi</button></div>`;
+    $('#artifact-dialog').showModal();
+  }catch(error){toast(error.message,'error')}
+}
+
+document.addEventListener('click',event=>{const button=event.target.closest('[data-artifact]');if(button){event.preventDefault();openArtifact(button.dataset.artifactJob,button.dataset.artifact)}});
+
 $('#new-asset').onclick=()=>$('#asset-dialog').showModal();
 $('#asset-form').addEventListener('submit',async event=>{
   event.preventDefault();
@@ -187,4 +234,4 @@ $('#asset-form').addEventListener('submit',async event=>{
 
 $('#create-dialog').addEventListener('click',event=>{if(event.target===$('#create-dialog'))$('#create-dialog').close()});
 $('#job-dialog').addEventListener('click',event=>{if(event.target===$('#job-dialog'))$('#job-dialog').close()});
-Promise.all([load(),loadAssets(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);
+Promise.all([load(),loadAssets(),loadMusicAssets(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);

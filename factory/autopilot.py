@@ -50,7 +50,7 @@ class Autopilot:
         if not isinstance(series_ids, list) or not series_ids or any(item not in SERIES for item in series_ids):
             raise ValueError("Escolha ao menos uma série válida")
         cadence = max(1, min(7, int(data.get("cadence", 3))))
-        duration = max(1800, min(7200, int(data.get("duration", 1800))))
+        duration = 1800 if int(data.get("duration", 3600)) < 3600 else 3600
         publish_hour = str(data.get("publish_hour", "19:00"))
         try:
             parsed = datetime.strptime(publish_hour, "%H:%M")
@@ -103,7 +103,7 @@ class Autopilot:
         for index, (series_id, topic) in enumerate(candidates[:needed]):
             scheduled = start + timedelta(days=index * interval)
             item_id = self.store.add_calendar_item(
-                topic, series_id, "youtube_long", max(1800, int(config["duration"])),
+                topic, series_id, "youtube_long", 1800 if int(config["duration"]) < 3600 else 3600,
                 scheduled.isoformat(timespec="minutes"), "autopilot",
                 SERIES[series_id].get("team_id", "youtube_ambient"),
             )

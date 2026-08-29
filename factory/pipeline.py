@@ -50,6 +50,7 @@ SUPPORTED_ASSET_LICENSES = {
     "original", "commercial_license", "public_domain", "cc0", "provider_generated",
     "original_ai_generated", "user_confirmed",
 }
+SUPPORTED_MUSIC_EXTENSIONS = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus"}
 
 
 def safe_slug(text: str) -> str:
@@ -520,6 +521,39 @@ class Pipeline:
         self.command(command)
         return music
 
+    def create_library_audio(self, output: Path, duration: int, sound_profile: str,
+                             track: dict[str, Any]) -> dict[str, Any]:
+        source = Path(str(track["path"])).expanduser().resolve()
+        if not source.is_file() or source.suffix.lower() not in SUPPORTED_MUSIC_EXTENSIONS:
+            raise ValueError("A música escolhida não está mais disponível na biblioteca")
+        fade_duration = min(2, max(.25, duration / 2))
+        fade = f"afade=t=in:st=0:d={fade_duration},afade=t=out:st={max(0, duration-fade_duration)}:d={fade_duration}"
+        command = [self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source)]
+        layers = {
+            "rain": ("white", "highpass=f=900,lowpass=f=6500,volume=0.18", "subtle_rain"),
+            "cosmic": ("brown", "lowpass=f=420,volume=0.07", "deep_space_hum"),
+            "cozy": ("brown", "highpass=f=120,lowpass=f=1800,volume=0.045", "warm_room_texture"),
+            "focus": ("pink", "highpass=f=180,lowpass=f=4200,volume=0.025", "soft_focus_air"),
+        }
+        ambient_layer = "none"
+        if sound_profile in layers:
+            color, layer_filter, ambient_layer = layers[sound_profile]
+            command.extend(["-f", "lavfi", "-i", f"anoisesrc=color={color}:amplitude=0.010:sample_rate=44100"])
+            filters = (f"[0:a]aresample=44100,aformat=channel_layouts=stereo,volume=.90[music];"
+                       f"[1:a]{layer_filter},aformat=channel_layouts=stereo[amb];"
+                       f"[music][amb]amix=inputs=2:normalize=0,{fade}[a]")
+            command.extend(["-filter_complex", filters, "-map", "[a]"])
+        else:
+            command.extend(["-af", f"aresample=44100,aformat=channel_layouts=stereo,volume=.90,{fade}"])
+        command.extend(["-t", str(duration), "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", str(output)])
+        self.command(command)
+        return {
+            "style": "licensed_music_library", "track_id": int(track["id"]),
+            "track_name": track["name"], "source_file": source.name,
+            "license_type": track["license_type"], "ambient_layer": ambient_layer,
+            "selection": "manual" if track.get("preferred") else "least_used_rotation",
+        }
+
     @staticmethod
     def filter_path(path: Path) -> str:
         return str(path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
@@ -702,7 +736,8 @@ class Pipeline:
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
                source_assets: list[dict[str, Any]] | None = None,
-               team_id: str = DEFAULT_TEAM_ID, source_asset_rights_confirmed: bool = False) -> str:
+               team_id: str = DEFAULT_TEAM_ID, source_asset_rights_confirmed: bool = False,
+               music_asset_id: int | None = None) -> str:
         topic = " ".join(topic.split()).strip()
         if len(topic) < 3:
             raise ValueError("Descreva um tema com pelo menos 3 caracteres")
@@ -711,6 +746,8 @@ class Pipeline:
         team = get_team(team_id)
         if not team.creation_enabled:
             raise ValueError("Esta equipe trabalha pelo Centro de Afiliados")
+        if music_asset_id is not None and not self.store.get_music_asset(int(music_asset_id)):
+            raise ValueError("A música escolhida não está aprovada na biblioteca")
         duration = max(PROFILES[profile]["min_duration"],
                        min(int(duration), PROFILES[profile]["max_duration"]))
         assets = list(source_assets or [])
@@ -735,6 +772,7 @@ class Pipeline:
         self.store.create_job({"id": job_id, "topic": topic, "duration": duration, "narration": narration,
                                "subtitles": subtitles, "profile": profile, "priority": priority,
                                "team_id": team.id,
+                               "music_asset_id": music_asset_id,
                                "source_asset": normalized_assets[0]["path"] if normalized_assets else None,
                                "source_assets": normalized_assets, "output_dir": str(output_dir)})
         return job_id
@@ -870,10 +908,18 @@ class Pipeline:
             backgrounds = self._create_backgrounds(job, out, profile["width"], profile["height"],
                                                    sound_profile, creative_dna)
             audio = out / "ambient.wav"
-            music = self.create_ambient_audio(audio, job["duration"], sound_profile, job["topic"], creative_dna)
+            music_asset = self.store.reserve_music_asset(job.get("music_asset_id"))
+            if music_asset:
+                music_asset["preferred"] = bool(job.get("music_asset_id"))
+                music = self.create_library_audio(audio, job["duration"], sound_profile, music_asset)
+            else:
+                music = self.create_ambient_audio(audio, job["duration"], sound_profile, job["topic"], creative_dna)
             metadata["sound_profile"] = sound_profile
             metadata["music"] = music
-            self.store.event(job_id, "sound", f"Trilha lo-fi original gerada a {music['bpm']} BPM; perfil '{sound_profile}'")
+            if music.get("style") == "licensed_music_library":
+                self.store.event(job_id, "sound", f"Música '{music['track_name']}' escolhida pela rotação da biblioteca")
+            else:
+                self.store.event(job_id, "sound", f"Trilha lo-fi original gerada a {music['bpm']} BPM; perfil '{sound_profile}'")
             if job["narration"]:
                 narration = out / "narration.mp3"
                 try:

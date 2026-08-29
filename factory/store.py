@@ -66,6 +66,13 @@ class Store:
                     source_url TEXT, notes TEXT, approved INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS music_assets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+                    path TEXT NOT NULL UNIQUE, license_type TEXT NOT NULL,
+                    source_url TEXT, notes TEXT, approved INTEGER NOT NULL DEFAULT 0,
+                    use_count INTEGER NOT NULL DEFAULT 0, last_used_at TEXT,
+                    created_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS autopilot (
                     id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
                     series_ids TEXT NOT NULL DEFAULT '["rainy_places","cozy_worlds","cosmic_focus"]',
@@ -90,6 +97,7 @@ class Store:
                 "source_assets": "TEXT NOT NULL DEFAULT '[]'",
                 "thumbnail_variant": "TEXT NOT NULL DEFAULT 'a'",
                 "team_id": "TEXT NOT NULL DEFAULT 'youtube_ambient'",
+                "music_asset_id": "INTEGER",
             }
             for column, definition in additions.items():
                 if column not in existing:
@@ -130,13 +138,13 @@ class Store:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO jobs(id,topic,status,duration,narration,subtitles,output_dir,metadata,
-                   profile,priority,progress,source_asset,source_assets,team_id,created_at,updated_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   profile,priority,progress,source_asset,source_assets,team_id,music_asset_id,created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (job["id"], job["topic"], "queued", job["duration"], int(job["narration"]),
                  int(job["subtitles"]), job["output_dir"], "{}", job.get("profile", "youtube_long"),
                  int(job.get("priority", 2)), 0, job.get("source_asset"),
                  json.dumps(job.get("source_assets", []), ensure_ascii=False),
-                 job.get("team_id", "youtube_ambient"), timestamp, timestamp),
+                 job.get("team_id", "youtube_ambient"), job.get("music_asset_id"), timestamp, timestamp),
             )
         self.event(job["id"], "queued", "Produção adicionada à fila")
 
@@ -493,3 +501,54 @@ class Store:
         with self.connect() as db:
             rows = db.execute(f"SELECT * FROM assets WHERE id IN ({placeholders}) AND approved=1", asset_ids).fetchall()
             return [dict(row) for row in rows]
+
+    def add_music_asset(self, name: str, path: str, license_type: str, source_url: str | None,
+                        notes: str | None, approved: bool) -> int:
+        if not name.strip() or not path.strip() or not license_type.strip():
+            raise ValueError("Nome, caminho e licença são obrigatórios")
+        with self.connect() as db:
+            db.execute(
+                """INSERT INTO music_assets(name,path,license_type,source_url,notes,approved,created_at)
+                   VALUES(?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET name=excluded.name,
+                   license_type=excluded.license_type,source_url=excluded.source_url,notes=excluded.notes,
+                   approved=excluded.approved""",
+                (name.strip(), path.strip(), license_type.strip(), source_url, notes, int(approved), now()),
+            )
+            row = db.execute("SELECT id FROM music_assets WHERE path=?", (path.strip(),)).fetchone()
+            return int(row[0])
+
+    def list_music_assets(self, approved_only: bool = False) -> list[dict[str, Any]]:
+        query = "SELECT * FROM music_assets" + (" WHERE approved=1" if approved_only else "")
+        query += " ORDER BY use_count,created_at,id"
+        with self.connect() as db:
+            items = [dict(row) for row in db.execute(query)]
+        for item in items:
+            item["approved"] = bool(item["approved"])
+        return items
+
+    def get_music_asset(self, asset_id: int) -> dict[str, Any] | None:
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM music_assets WHERE id=? AND approved=1", (asset_id,)).fetchone()
+            return dict(row) if row else None
+
+    def reserve_music_asset(self, preferred_id: int | None = None) -> dict[str, Any] | None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if preferred_id:
+                row = db.execute("SELECT * FROM music_assets WHERE id=? AND approved=1", (preferred_id,)).fetchone()
+            else:
+                row = db.execute(
+                    """SELECT * FROM music_assets WHERE approved=1
+                       ORDER BY use_count ASC, COALESCE(last_used_at,'') ASC, id ASC LIMIT 1"""
+                ).fetchone()
+            if not row:
+                return None
+            db.execute(
+                "UPDATE music_assets SET use_count=use_count+1,last_used_at=? WHERE id=?",
+                (now(), row["id"]),
+            )
+            item = dict(row)
+            item["use_count"] = int(item["use_count"]) + 1
+            item["last_used_at"] = now()
+            item["approved"] = True
+            return item

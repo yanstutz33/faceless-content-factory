@@ -14,7 +14,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Música chill/lo-fi original gerada localmente com 12 instrumentações e sete famílias rítmicas, incluindo faixas sem bateria
 - Chuva apenas como camada discreta nos temas correspondentes; cozy, cosmic e focus não recebem chuva
 - Ingestão opcional de JPG/PNG/WebP próprio com enquadramento automático
-- Perfis YouTube longo (16:9, mínimo de 30 minutos), vertical (9:16) e prévia rápida não publicável
+- Produção principal exclusivamente em YouTube longo 16:9, com opções fechadas de 30 ou 60 minutos
 - Renderização H.264/AAC com FFmpeg
 - Legenda SRT opcional e thumbnail JPG
 - Fila assíncrona persistente em SQLite: a interface não fica bloqueada durante a renderização
@@ -26,7 +26,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Diagnóstico contínuo de ferramentas, fila e espaço em disco
 - Cinco templates de séries, geração em lote e calendário editorial
 - Início automático dos itens vencidos do calendário, com fila resiliente e publicação ainda manual
-- Biblioteca de assets com licença, confirmação de direitos e composição multicena
+- Biblioteca de imagens e músicas com licença, confirmação de direitos, rotação automática de faixas e composição multicena
 - Duas thumbnails editoriais por vídeo, comparação A/B e seleção persistente da capa final
 - Direcionamento editorial alimentado pelas métricas mais recentes de cada plataforma
 - CTR por capa, retenção média, impressões, cliques, conversões e receita por snapshot
@@ -63,9 +63,9 @@ A série opcional `Anime Nights original` usa uma personagem adulta criada exclu
 
 A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva mascarada nas janelas ou no plano externo em cenas internas e pontos de luz no cosmic. Em vídeos com 24 segundos ou mais, esse ciclo é codificado uma única vez e repetido por remux, evitando recodificar horas de quadros iguais. Perfil, atmosfera, zona do efeito e estratégia de render ficam registrados em `metadata.json`.
 
-O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, uma entre 12 instrumentações, progressão, BPM, melodia, textura e uma entre sete famílias rítmicas (`boom_bap`, escovas, quebrado, meio-tempo, swing, pulso ou sem bateria). Os detalhes ficam em `metadata.json` no campo `music`. O starter pack contém 12 cenas originais e rastreadas.
+Na **Biblioteca criativa**, o botão **Importar músicas** registra um arquivo ou uma pasta inteira de WAV, MP3, M4A, AAC, FLAC, OGG ou OPUS. A confirmação de direitos comerciais é obrigatória. A cada produção, a fábrica escolhe a faixa aprovada menos utilizada, registra a escolha no pacote e intercala o catálogo automaticamente; também é possível fixar uma faixa nas opções avançadas. Se a biblioteca estiver vazia, o sistema usa como fallback uma trilha sintetizada localmente, cujo tema determina instrumentação, progressão, BPM, melodia, textura e família rítmica.
 
-O backend, o calendário e o piloto automático elevam qualquer solicitação de YouTube longo abaixo de 1.800 segundos para 30 minutos. Prévias e testes históricos permanecem disponíveis para conferência, mas são excluídos automaticamente da central de publicação.
+O backend, os lotes, o calendário, o piloto automático, a interface pública e a linha de comando aceitam somente 1.800 ou 3.600 segundos. Qualquer solicitação abaixo de uma hora é normalizada para 30 minutos; solicitações de uma hora ou mais são normalizadas para 60 minutos. Conteúdos históricos abaixo desse limite podem ser arquivados com `python scripts/archive_short_productions.py`, que preserva uma cópia recuperável do banco e dos pacotes removidos da fila ativa.
 
 ## Início rápido (Windows / PowerShell)
 
@@ -89,8 +89,8 @@ Abra `http://127.0.0.1:8787`, clique em **Nova produção** e escolha o formato.
 
 ```powershell
 python app.py generate --topic "Biblioteca chuvosa à noite" --duration 3600 --profile youtube_long
-python app.py generate --topic "Cabana na neve" --duration 45 --profile vertical_short --narration
-python app.py generate --topic "Café ao amanhecer" --duration 12 --profile preview --asset "C:\Assets\cafe.jpg" --confirm-asset-rights
+python app.py generate --topic "Cabana na neve" --duration 1800 --profile youtube_long --narration
+python app.py generate --topic "Café ao amanhecer" --duration 3600 --profile youtube_long --asset "C:\Assets\cafe.jpg" --confirm-asset-rights
 python app.py doctor
 python app.py integrations
 python app.py backup
@@ -99,7 +99,7 @@ python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados ú
 python app.py bilibili-package ID_DA_PRODUCAO
 ```
 
-O tempo e o espaço de renderização crescem com a duração. Faça uma prévia antes de iniciar vídeos de várias horas.
+O renderizador codifica um ciclo visual curto uma vez e o repete sem recodificar cada quadro das 30/60 minutos, reduzindo drasticamente o tempo e o uso de CPU.
 
 ## Como os agentes trabalham
 
@@ -126,7 +126,7 @@ Hoje eles funcionam localmente com regras reproduzíveis. As interfaces estão s
 
 ## Séries, lotes e calendário
 
-- **Lugares sob chuva**, **Mundos acolhedores**, **Foco cósmico** e **Momentos verticais** vêm prontos como pontos de partida.
+- **Lugares sob chuva**, **Mundos acolhedores**, **Foco cósmico** e **Anime Nights original** vêm prontos como séries longas.
 - **Gerar lote** aceita até 20 temas e coloca tudo em uma fila serial para preservar a responsividade do computador.
 - O calendário guarda tema, formato, duração e data. Na hora marcada, o item entra automaticamente na fila; também pode ser iniciado antes sem redigitação.
 - O agendador verifica os itens a cada 15 segundos por padrão (`CALENDAR_POLL_SECONDS`) e sobrevive a falhas temporárias sem liberar publicação automática.
@@ -142,7 +142,7 @@ Por padrão, o piloto pausa somente os itens automáticos quando existem 12 paco
 
 1. Escolha uma oportunidade sugerida ou informe tema, perfil e duração.
 2. Continue usando o painel enquanto a fila renderiza em segundo plano.
-3. Abra a produção, assista à prévia, compare as capas A/B e confira direção, score e metadados.
+3. Abra a produção, assista à prévia, compare as capas A/B e confira direção, score e os painéis legíveis de resumo, qualidade e integridade.
 4. Aprove ou peça ajustes; falhas e revisões podem ser executadas novamente.
 5. Faça o upload manual pelo YouTube Studio enquanto a API não estiver configurada.
 
@@ -172,11 +172,13 @@ tests/                 agentes, banco, API e renderização real
 data/jobs/             pacotes gerados (ignorado pelo Git)
 ```
 
-## Assets próprios
+## Biblioteca criativa
 
 O fluxo gera placeholders originais por padrão. Em **Biblioteca de assets**, registre nome, arquivo, licença, origem e observações e confirme os direitos comerciais. Em **Opções avançadas**, selecione até 12 imagens aprovadas; a fábrica divide o vídeo entre elas, aplica movimento suave e salva `asset-manifest.json` no pacote.
 
 Um caminho avulso ainda pode ser informado para testes rápidos, mas exige confirmação explícita de direitos na interface ou a opção `--confirm-asset-rights` na linha de comando. A biblioteca é o fluxo recomendado porque mantém a rastreabilidade. Não reutilize vídeos de outros canais sem permissão.
+
+Para música, use **Biblioteca → Importar músicas**, cole o caminho de um arquivo ou de uma pasta e escolha a licença correspondente. A pasta é varrida automaticamente, cada faixa é validada por decodificação e até 200 arquivos podem ser registrados de uma vez. Músicas baixadas do YouTube só podem ser usadas quando você possuir licença comercial explícita; a disponibilidade pública do vídeo não concede direitos de reutilização.
 
 ## Testes
 
@@ -187,9 +189,9 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-A suíte cobre agentes, validação, migração/estado da fila, trava de render entre processos, retomada após reinício, calendário com equipe especializada, insights por snapshot, catálogo de licenças, domínios oficiais, segurança da API, cancelamentos de formulários, streaming por faixa, TTS, thumbnails A/B, renderização otimizada, checksums e composição multicena real com FFmpeg. Playwright e axe-core validam navegação, teclado, acessibilidade e ausência de overflow em desktop e celular no GitHub Actions.
+A suíte cobre agentes, validação, migração/estado da fila, trava de render entre processos, retomada após reinício, calendário com equipe especializada, insights por snapshot, catálogo de licenças, rotação da biblioteca musical, domínios oficiais, segurança da API, streaming por faixa, TTS, thumbnails A/B, renderização otimizada, checksums e composição multicena real com FFmpeg. Playwright e axe-core validam navegação, teclado, acessibilidade, biblioteca musical, limite público de 30/60 minutos e ausência de overflow em desktop e celular no GitHub Actions.
 
-Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Esses relatórios não publicam nada; servem para detectar pacotes incompletos antes da sua aprovação.
+Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Na interface, os botões **Resumo do vídeo**, **Relatório técnico**, **Controle de qualidade** e **Integridade dos arquivos** abrem explicações legíveis; os JSON permanecem apenas como registro interno auditável.
 
 ## Estado do roadmap
 

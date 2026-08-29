@@ -19,6 +19,6 @@ registerJobDetailExtension(async({id,job,dialog,actions})=>{
   const block=document.createElement('div');block.className=`verification ${gate.passed?'':'warning'}`;
   block.innerHTML=`<span>${gate.passed?'✓ CONTROLE AUTOMÁTICO APROVADO':'! PACOTE BLOQUEADO'}</span><b>${Number(gate.score||0)}/100 · câmera, imagem, movimento e áudio</b><small class="quality-checks">${checks}</small>`;
   dialog.querySelector('.timeline')?.before(block);
-  const link=document.createElement('a');link.className='secondary';link.target='_blank';link.rel='noopener';
-  link.href=`/api/jobs/${encodeURIComponent(id)}/artifacts/quality-gate.json`;link.textContent='Controle de qualidade';actions?.append(link);
+  const link=document.createElement('button');link.className='secondary';link.type='button';
+  link.dataset.artifact='quality-gate.json';link.dataset.artifactJob=id;link.textContent='Controle de qualidade';actions?.append(link);
 });

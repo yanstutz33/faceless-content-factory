@@ -21,7 +21,7 @@ from .backup import BackupManager
 from .commerce import CommercePackager, validate_commerce_brief
 from .commercial_center import CommercialCenter
 from .integrations import IntegrationManager
-from .pipeline import Pipeline
+from .pipeline import Pipeline, SUPPORTED_MUSIC_EXTENSIONS
 from .publishing import PublishingCenter
 from .nightshift import NightShift
 from .store import Store
@@ -328,7 +328,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/ideas":
             return self.send_json(self.pipeline.crew.ideas())
         if path == "/api/profiles":
-            return self.send_json(PROFILES)
+            return self.send_json({"youtube_long": PROFILES["youtube_long"]})
         if path == "/api/series":
             return self.send_json(series_catalog())
         if path == "/api/autopilot":
@@ -339,6 +339,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.store.list_calendar())
         if path == "/api/assets":
             return self.send_json(self.store.list_assets())
+        if path == "/api/music-assets":
+            return self.send_json(self.store.list_music_assets())
         if path == "/api/publishing":
             return self.send_json(self.publishing.queue())
         if path == "/api/platforms":
@@ -408,16 +410,19 @@ class Handler(SimpleHTTPRequestHandler):
                 if len(selected_assets) != len(set(asset_ids)):
                     raise ValueError("Um ou mais assets não estão aprovados")
                 job_id = self.pipeline.create(
-                    data.get("topic", "Biblioteca chuvosa à noite"), int(data.get("duration", 30)),
+                    data.get("topic", "Biblioteca chuvosa à noite"), 1800 if int(data.get("duration", 3600)) < 3600 else 3600,
                     bool(data.get("narration", False)), bool(data.get("subtitles", True)),
-                    data.get("profile", "youtube_long"), data.get("source_asset") or None, int(data.get("priority", 2)),
+                    "youtube_long", data.get("source_asset") or None, int(data.get("priority", 2)),
                     selected_assets, data.get("team_id", DEFAULT_TEAM_ID),
                     bool(data.get("source_asset_rights_confirmed", False)),
+                    int(data["music_asset_id"]) if data.get("music_asset_id") else None,
                 )
                 self.runner.submit(job_id)
                 return self.send_json(self.store.get_job(job_id), HTTPStatus.ACCEPTED)
             if path == "/api/batches":
                 series = SERIES.get(data.get("series_id", ""), {})
+                if not series or series.get("profile") != "youtube_long":
+                    raise ValueError("Selecione uma série de vídeos longos do YouTube")
                 topics = data.get("topics") or series.get("topics") or []
                 if not isinstance(topics, list) or not topics:
                     raise ValueError("Informe ao menos um tema para o lote")
@@ -425,27 +430,24 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError("O lote aceita até 20 produções")
                 created = []
                 for topic in topics:
-                    job_id = self.pipeline.create(str(topic), int(data.get("duration") or series.get("duration", 30)),
+                    requested_duration = int(data.get("duration") or series.get("duration", 3600))
+                    job_id = self.pipeline.create(str(topic), 1800 if requested_duration < 3600 else 3600,
                                                   bool(data.get("narration", series.get("narration", False))),
-                                                  bool(data.get("subtitles", True)), data.get("profile") or series.get("profile", "youtube_long"),
+                                                  bool(data.get("subtitles", True)), "youtube_long",
                                                   None, int(data.get("priority", 1)), None,
                                                   data.get("team_id") or series.get("team_id", DEFAULT_TEAM_ID))
                     self.runner.submit(job_id)
                     created.append(job_id)
                 return self.send_json({"created": created, "count": len(created)}, HTTPStatus.ACCEPTED)
             if path == "/api/calendar":
-                profile = str(data.get("profile", "youtube_long"))
-                if profile not in PROFILES:
-                    raise ValueError("Perfil de saída inválido")
+                profile = "youtube_long"
                 scheduled_for = str(data.get("scheduled_for", ""))
                 try:
                     datetime.fromisoformat(scheduled_for)
                 except ValueError as exc:
                     raise ValueError("Data e hora inválidas") from exc
                 item_id = self.store.add_calendar_item(str(data.get("topic", "")), data.get("series_id"),
-                                                       profile, max(PROFILES[profile]["min_duration"],
-                                                                    min(int(data.get("duration", PROFILES[profile]["default_duration"])),
-                                                                        PROFILES[profile]["max_duration"])),
+                                                       profile, 1800 if int(data.get("duration", 3600)) < 3600 else 3600,
                                                        scheduled_for, "manual",
                                                        data.get("team_id") or SERIES.get(str(data.get("series_id", "")), {}).get("team_id", DEFAULT_TEAM_ID))
                 return self.send_json({"id": item_id}, HTTPStatus.CREATED)
@@ -470,6 +472,30 @@ class Handler(SimpleHTTPRequestHandler):
                                                 str(data.get("license_type", "")), data.get("source_url"),
                                                 data.get("notes"), True)
                 return self.send_json({"id": asset_id}, HTTPStatus.CREATED)
+            if path == "/api/music-assets":
+                source = Path(str(data.get("path", ""))).expanduser().resolve()
+                if not bool(data.get("rights_confirmed", False)):
+                    raise ValueError("Confirme os direitos comerciais das músicas antes de importar")
+                license_type = str(data.get("license_type", ""))
+                if license_type not in {"original", "commercial_license", "public_domain", "cc0", "provider_generated"}:
+                    raise ValueError("Licença musical inválida")
+                if source.is_file():
+                    candidates = [source]
+                elif source.is_dir():
+                    candidates = sorted(path for path in source.rglob("*")
+                                        if path.is_file() and path.suffix.lower() in SUPPORTED_MUSIC_EXTENSIONS)[:200]
+                else:
+                    raise ValueError("Informe um arquivo ou uma pasta de músicas existente")
+                if not candidates or any(path.suffix.lower() not in SUPPORTED_MUSIC_EXTENSIONS for path in candidates):
+                    raise ValueError("Nenhuma música WAV, MP3, M4A, AAC, FLAC, OGG ou OPUS foi encontrada")
+                imported = []
+                for candidate in candidates:
+                    self.pipeline.command([self.pipeline.settings.ffmpeg, "-v", "error", "-t", "1", "-i",
+                                           str(candidate), "-f", "null", "-"])
+                    name = str(data.get("name") or candidate.stem) if len(candidates) == 1 else candidate.stem
+                    imported.append(self.store.add_music_asset(name, str(candidate), license_type,
+                                                               data.get("source_url"), data.get("notes"), True))
+                return self.send_json({"ids": imported, "count": len(imported)}, HTTPStatus.CREATED)
             if path.startswith("/api/calendar/") and path.endswith("/produce"):
                 item_id = int(path.split("/")[-2])
                 item = self.store.claim_calendar_item(item_id)

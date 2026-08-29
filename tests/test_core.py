@@ -1,5 +1,6 @@
 import json
 import hashlib
+import math
 import os
 import re
 import shutil
@@ -10,6 +11,8 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+import wave
+from array import array
 from datetime import datetime
 from dataclasses import replace
 from pathlib import Path
@@ -499,6 +502,41 @@ class CoreTests(unittest.TestCase):
             self.assertGreater(asset_id, 0)
             self.assertTrue(store.list_assets(approved_only=True)[0]["approved"])
 
+    @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
+    def test_music_library_rotates_least_used_tracks_and_renders(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            tracks = []
+            for index, frequency in enumerate((220, 330)):
+                path = root / f"track-{index}.wav"
+                with wave.open(str(path), "wb") as output:
+                    output.setnchannels(1);output.setsampwidth(2);output.setframerate(22050)
+                    samples = array("h", (int(math.sin(2 * math.pi * frequency * i / 22050) * 5000)
+                                          for i in range(22050)))
+                    output.writeframes(samples.tobytes())
+                tracks.append(store.add_music_asset(f"Track {index}", str(path), "original", None, None, True))
+            first = store.reserve_music_asset()
+            second = store.reserve_music_asset()
+            third = store.reserve_music_asset()
+            self.assertEqual([first["id"], second["id"], third["id"]], [tracks[0], tracks[1], tracks[0]])
+            rendered = root / "library.wav"
+            metadata = pipeline.create_library_audio(rendered, 2, "focus", {**second, "preferred": False})
+            self.assertTrue(rendered.is_file())
+            self.assertEqual(metadata["style"], "licensed_music_library")
+            self.assertEqual(metadata["selection"], "least_used_rotation")
+
+    def test_public_interface_only_offers_long_videos_and_friendly_artifacts(self):
+        index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn('<option value="preview">', index)
+        self.assertNotIn('<option value="vertical_short">', index)
+        self.assertIn('1 hora · recomendado', index)
+        self.assertIn('30 minutos', index)
+        self.assertIn('data-artifact="metadata.json"', app)
+        self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
+
     def test_queue_profile_summary_and_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -931,6 +969,32 @@ class CoreTests(unittest.TestCase):
                 self.assertGreaterEqual(creative["catalog"]["candidate_space"], 25_000)
                 series = json.load(urllib.request.urlopen(base + "/api/series"))
                 self.assertGreaterEqual(len(series), 4)
+                profiles = json.load(urllib.request.urlopen(base + "/api/profiles"))
+                self.assertEqual(list(profiles), ["youtube_long"])
+                self.assertEqual(profiles["youtube_long"]["min_duration"], 1800)
+                self.assertEqual(profiles["youtube_long"]["max_duration"], 3600)
+                track = root / "licensed-lofi.wav"
+                with wave.open(str(track), "wb") as output:
+                    output.setnchannels(1);output.setsampwidth(2);output.setframerate(22050)
+                    output.writeframes(array("h", [0] * 22050).tobytes())
+                music_request = urllib.request.Request(
+                    base + "/api/music-assets",
+                    data=json.dumps({"path": str(track), "license_type": "original",
+                                     "rights_confirmed": True}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                imported_music = json.load(urllib.request.urlopen(music_request))
+                self.assertEqual(imported_music["count"], 1)
+                music_library = json.load(urllib.request.urlopen(base + "/api/music-assets"))
+                self.assertEqual(music_library[0]["name"], "licensed-lofi")
+                hidden_series_request = urllib.request.Request(
+                    base + "/api/batches", data=json.dumps({"series_id": "vertical_moments"}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as hidden_series:
+                    urllib.request.urlopen(hidden_series_request)
+                self.assertEqual(hidden_series.exception.code, 400)
+                hidden_series.exception.close()
                 insights = json.load(urllib.request.urlopen(base + "/api/insights"))
                 self.assertEqual(insights, [])
                 publishing = json.load(urllib.request.urlopen(base + "/api/publishing"))
