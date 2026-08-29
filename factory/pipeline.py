@@ -26,10 +26,14 @@ from .store import Store
 
 
 STARTER_SCENES = {
-    "rain": ("lofi-rainy-cafe.jpg", "lofi-night-train.jpg", "lofi-record-store.jpg"),
-    "cozy": ("lofi-cozy-study.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg"),
-    "cosmic": ("lofi-cosmic-lounge.jpg", "lofi-lunar-observatory.jpg"),
-    "focus": ("lofi-cozy-study.jpg", "lofi-night-train.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg"),
+    "rain": ("lofi-rainy-cafe.jpg", "lofi-night-train.jpg", "lofi-record-store.jpg",
+             "lofi-rooftop-greenhouse.jpg", "lofi-coastal-laundromat.jpg", "lofi-forest-glass-cabin.jpg"),
+    "cozy": ("lofi-cozy-study.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg",
+             "lofi-rooftop-greenhouse.jpg", "lofi-forest-glass-cabin.jpg"),
+    "cosmic": ("lofi-cosmic-lounge.jpg", "lofi-lunar-observatory.jpg", "lofi-observatory-library.jpg"),
+    "focus": ("lofi-cozy-study.jpg", "lofi-night-train.jpg", "lofi-lakeside-cabin.jpg", "lofi-record-store.jpg",
+              "lofi-rooftop-greenhouse.jpg", "lofi-coastal-laundromat.jpg", "lofi-observatory-library.jpg",
+              "lofi-forest-glass-cabin.jpg"),
 }
 
 SUPPORTED_ASSET_LICENSES = {
@@ -134,6 +138,8 @@ class Pipeline:
             "render_safety": {"atomic_promotion": True, "duplicate_claim": True,
                               "checksum_before_release": True},
             "narration_fallback": self.settings.narration_fallback,
+            "tts": {"provider": self.settings.tts_provider, "voice": self.settings.tts_voice,
+                    "local_fallback": self.settings.local_tts_fallback},
             "llm_provider": {"configured": bool(self.settings.openai_api_key), "model": self.settings.openai_model},
             "youtube_connector": {"configured": bool(self.settings.youtube_client_secrets_file), "mode": "manual-safe"},
             "local_voice_fallback": {"enabled": self.settings.local_tts_fallback,
@@ -244,7 +250,12 @@ class Pipeline:
         """Fast, deterministic checks that keep broken renders out of the approval queue."""
         technical_report = technical_report or self.inspect_video(video, expected_duration)
         duration = max(1.0, float(technical_report.get("duration_seconds") or expected_duration))
-        sample_times = sorted({0.5, max(0.5, duration / 2), max(0.5, duration - 0.5)})
+        cycle = max(1.0, float(metadata.get("motion", {}).get("cycle_seconds") or 12))
+        last_sample = max(0.5, duration - 0.5)
+        # Sample distinct phases of a periodic loop. Midpoint/end samples can
+        # accidentally land on the same phase and falsely report no movement.
+        sample_times = sorted({0.5, min(last_sample, 0.5 + cycle * 0.31),
+                               min(last_sample, 0.5 + cycle * 0.67)})
         frames: list[bytes] = []
         for moment in sample_times:
             proc = subprocess.run([
@@ -327,17 +338,24 @@ class Pipeline:
             raise ValueError(f"{name} mudou após a validação; renderize ou audite novamente")
         return current
 
-    def synthesize_narration(self, script: Path, output: Path) -> None:
-        proc = subprocess.run(
-            [sys.executable, "-m", "edge_tts", "--voice", "pt-BR-AntonioNeural", "--file", str(script), "--write-media", str(output)],
-            text=True,
-            capture_output=True,
-            timeout=180,
-        )
-        if not proc.returncode and output.is_file() and output.stat().st_size > 0:
-            return
+    def synthesize_narration(self, script: Path, output: Path) -> dict[str, Any]:
+        provider = self.settings.tts_provider
+        if provider not in {"edge", "local"}:
+            raise RuntimeError("Provedor TTS inválido; use 'edge' ou 'local'")
+        edge_error = ""
+        if provider == "edge":
+            proc = subprocess.run(
+                [sys.executable, "-m", "edge_tts", "--voice", self.settings.tts_voice,
+                 "--rate", self.settings.tts_rate, "--pitch", self.settings.tts_pitch,
+                 "--file", str(script), "--write-media", str(output)],
+                text=True, capture_output=True, timeout=self.settings.tts_timeout_seconds,
+            )
+            if not proc.returncode and output.is_file() and output.stat().st_size > 0:
+                return {"provider": "edge", "voice": self.settings.tts_voice,
+                        "rate": self.settings.tts_rate, "pitch": self.settings.tts_pitch}
+            edge_error = proc.stderr[-900:]
         if not self.settings.local_tts_fallback or os.name != "nt":
-            raise RuntimeError(f"TTS neural indisponível: {proc.stderr[-900:]}")
+            raise RuntimeError(f"TTS neural indisponível: {edge_error or 'fallback local desativado'}")
         wav_output = output.with_name("narration-local.wav")
         text = script.read_text(encoding="utf-8").replace("'", "''")
         destination = str(wav_output.resolve()).replace("'", "''")
@@ -349,10 +367,11 @@ class Pipeline:
             f"$voice.SetOutputToWaveFile('{destination}');$voice.Speak('{text}');$voice.Dispose()"
         )
         local = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", powershell],
-                               text=True, capture_output=True, timeout=180)
+                               text=True, capture_output=True, timeout=self.settings.tts_timeout_seconds)
         if local.returncode or not wav_output.is_file() or wav_output.stat().st_size == 0:
-            raise RuntimeError(f"TTS neural e voz local indisponíveis: {(local.stderr or proc.stderr)[-900:]}")
+            raise RuntimeError(f"TTS neural e voz local indisponíveis: {(local.stderr or edge_error)[-900:]}")
         self.command([self.settings.ffmpeg, "-y", "-i", str(wav_output), "-c:a", "libmp3lame", "-b:a", "96k", str(output)])
+        return {"provider": "windows_sapi", "voice": "pt-BR local", "rate": "system", "pitch": "system"}
 
     @staticmethod
     def _midi_frequency(note: int) -> float:
@@ -572,6 +591,26 @@ class Pipeline:
             if proc.stderr:
                 proc.stderr.close()
 
+    def encode_visual_loop(self, background: Path, motion_overlay: Path, output: Path,
+                           blend: str, seconds: int) -> None:
+        """Encode the expensive visual composition once so long videos can reuse it."""
+        self.command([
+            self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background),
+            "-stream_loop", "-1", "-i", str(motion_overlay), "-filter_complex", blend,
+            "-map", "[v]", "-t", str(seconds), "-an", "-c:v", "libx264",
+            "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+            "-g", "240", "-sc_threshold", "0", str(output),
+        ])
+
+    def repeat_visual_loop(self, visual_loop: Path, audio: Path, output: Path, duration: float) -> None:
+        """Extend an already encoded loop by remuxing packets instead of re-encoding frames."""
+        self.command([
+            self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(visual_loop),
+            "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", f"{duration:.3f}",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest",
+            "-movflags", "+faststart", str(output),
+        ])
+
     def create_thumbnail(self, source: Path, output: Path, title: str, width: int, height: int, design: dict[str, Any], variant: str = "a") -> None:
         title_file = output.parent / "thumbnail-title.txt"
         eyebrow_file = output.parent / "thumbnail-eyebrow.txt"
@@ -708,6 +747,10 @@ class Pipeline:
             (("lago", "cabana", "lake"), "lofi-lakeside-cabin.jpg"),
             (("disco", "vinil", "record", "loja"), "lofi-record-store.jpg"),
             (("lua", "lunar", "observatorio"), "lofi-lunar-observatory.jpg"),
+            (("estufa", "rooftop", "telhado"), "lofi-rooftop-greenhouse.jpg"),
+            (("lavanderia", "laundromat", "oceano", "mar"), "lofi-coastal-laundromat.jpg"),
+            (("aurora", "montanha", "mountain"), "lofi-observatory-library.jpg"),
+            (("floresta", "cedro", "forest", "vidro"), "lofi-forest-glass-cabin.jpg"),
         )
         for keywords, scene in keyword_scenes:
             if any(keyword in normalized for keyword in keywords):
@@ -775,13 +818,14 @@ class Pipeline:
             if job["narration"]:
                 narration = out / "narration.mp3"
                 try:
-                    self.synthesize_narration(out / "script.txt", narration)
+                    narration_engine = self.synthesize_narration(out / "script.txt", narration)
                     mixed = out / "ambient-with-narration.wav"
                     self.command([self.settings.ffmpeg, "-y", "-i", str(audio), "-i", str(narration),
                                   "-filter_complex", "[0:a]volume=0.52[bed];[1:a]adelay=1000:all=1[voice];[bed][voice]amix=inputs=2:duration=first:normalize=0[mix]",
                                   "-map", "[mix]", "-t", str(job["duration"]), "-c:a", "pcm_s16le", str(mixed)])
                     audio = mixed
                     metadata["narration_status"] = "rendered"
+                    metadata["narration_engine"] = narration_engine
                     self.store.event(job_id, "narration", "Narração neural gerada e mixada")
                 except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
                     if not self.settings.narration_fallback:
@@ -816,7 +860,19 @@ class Pipeline:
             self.store.event(job_id, "motion", f"Loop visual de {motion['cycle_seconds']} s aplicado: {motion['atmosphere']}")
             blend = (f"[0:v]{vf}[base];[1:v]scale={width}:{height},format=gbrp[fx];"
                      f"[base][fx]blend=all_mode=screen:all_opacity={motion['overlay_opacity']},format=yuv420p[v]")
-            if len(backgrounds) == 1:
+            optimized_loop = job["duration"] >= motion["cycle_seconds"] * 2
+            metadata["render_strategy"] = {
+                "mode": "encoded_loop_copy" if optimized_loop else "direct_encode",
+                "visual_seconds_encoded": motion["cycle_seconds"] * len(backgrounds) if optimized_loop else job["duration"],
+                "output_seconds": job["duration"],
+                "video_reencoded_for_full_duration": not optimized_loop,
+            }
+            if len(backgrounds) == 1 and optimized_loop:
+                visual_loop = out / "visual-loop.mp4"
+                self.encode_visual_loop(backgrounds[0], motion_overlay, visual_loop, blend, motion["cycle_seconds"])
+                self.repeat_visual_loop(visual_loop, audio, render_candidate, job["duration"])
+                self.store.event(job_id, "rendering", f"Loop visual codificado uma vez e repetido por {job['duration']} s sem recodificação")
+            elif len(backgrounds) == 1:
                 self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(backgrounds[0]),
                               "-stream_loop", "-1", "-i", str(motion_overlay), "-i", str(audio),
                               "-filter_complex", blend, "-map", "[v]", "-map", "2:a:0", "-t", str(job["duration"]),
@@ -830,10 +886,16 @@ class Pipeline:
                 for index, background in enumerate(backgrounds):
                     clip = scene_dir / f"clip-{index + 1:02}.mp4"
                     clips.append(clip)
-                    self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background),
-                                  "-stream_loop", "-1", "-i", str(motion_overlay), "-filter_complex", blend, "-map", "[v]",
-                                  "-t", f"{base_duration:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
-                                  "-crf", "22", "-pix_fmt", "yuv420p", str(clip)])
+                    if optimized_loop:
+                        scene_loop = scene_dir / f"loop-{index + 1:02}.mp4"
+                        self.encode_visual_loop(background, motion_overlay, scene_loop, blend, motion["cycle_seconds"])
+                        self.command([self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(scene_loop),
+                                      "-t", f"{base_duration:.3f}", "-an", "-c:v", "copy", str(clip)])
+                    else:
+                        self.command([self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background),
+                                      "-stream_loop", "-1", "-i", str(motion_overlay), "-filter_complex", blend, "-map", "[v]",
+                                      "-t", f"{base_duration:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
+                                      "-crf", "22", "-pix_fmt", "yuv420p", str(clip)])
                 concat_file = scene_dir / "concat.txt"
                 concat_file.write_text("\n".join(f"file '{clip.as_posix()}'" for clip in clips), encoding="utf-8")
                 self.command([self.settings.ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
@@ -883,14 +945,15 @@ class Pipeline:
             metadata["files"] = {"video": "video.mp4", "thumbnail": "thumbnail.jpg", "subtitles": "subtitles.srt" if job["subtitles"] else None,
                                  "agents": "agents.json", "publication": "publication-package.json",
                                  "render_report": "render-report.json", "quality_gate": "quality-gate.json", "manifest": "artifact-manifest.json",
-                                 "motion_overlay": "motion-overlay.mp4"}
+                                 "motion_overlay": "motion-overlay.mp4",
+                                 "visual_loop": "visual-loop.mp4" if (out / "visual-loop.mp4").is_file() else None}
             metadata["thumbnail_variants"] = thumbnail_design["variants"]
             metadata["selected_thumbnail"] = "a"
             metadata["verification"] = media_report
             metadata["quality"] = plan["review"]
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-            manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json", "quality-gate.json"])
+            manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "visual-loop.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json", "quality-gate.json"])
             (out / "artifact-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.update(job_id, "awaiting_approval", metadata=metadata, progress=100,
                               quality_score=plan["review"]["score"])

@@ -27,7 +27,7 @@ from factory.creative import CreativeDirector, MUSIC_ARRANGEMENTS
 from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationManager
 from factory.llm import OpenAIPlanEnhancer
 from factory.nightshift import NightShift
-from factory.pipeline import Pipeline, safe_slug, srt_timestamp
+from factory.pipeline import Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
 from factory.store import Store
 from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
@@ -581,6 +581,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(Pipeline.select_starter_scene("Observatório lunar", "cosmic"), "lofi-lunar-observatory.jpg")
         self.assertEqual(Pipeline.select_starter_scene("Apartamento anime original sob chuva", "rain"), "lofi-anime-rainy-apartment.jpg")
         generic = {Pipeline.select_starter_scene(f"Foco silencioso {index}", "focus") for index in range(12)}
+        self.assertEqual(Pipeline.select_starter_scene("Estufa no telhado", "rain"), "lofi-rooftop-greenhouse.jpg")
+        self.assertEqual(Pipeline.select_starter_scene("Lavanderia junto ao mar", "rain"), "lofi-coastal-laundromat.jpg")
+        self.assertGreaterEqual(len(STARTER_SCENES["focus"]), 8)
+        self.assertEqual(len(MUSIC_ARRANGEMENTS), 12)
         self.assertGreaterEqual(len(generic), 3)
 
     def test_publishing_center_blocks_untraceable_media(self):
@@ -745,6 +749,23 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(queue["summary"]["ready"], 1)
             self.assertTrue(queue["items"][0]["release_ready"])
 
+    @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
+    def test_long_render_reuses_encoded_visual_loop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copytree(ROOT / "assets" / "starter", root / "assets" / "starter")
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Loop eficiente", 25, profile="preview")
+            job = pipeline.run(job_id)
+            strategy = job["metadata"]["render_strategy"]
+            self.assertEqual(job["status"], "awaiting_approval")
+            self.assertEqual(strategy["mode"], "encoded_loop_copy")
+            self.assertEqual(strategy["visual_seconds_encoded"], 12)
+            self.assertEqual(strategy["output_seconds"], 25)
+            self.assertFalse(strategy["video_reencoded_for_full_duration"])
+            self.assertTrue((Path(job["output_dir"]) / "visual-loop.mp4").is_file())
+
     def test_job_claim_is_atomic_and_blocks_duplicate_render(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -835,6 +856,17 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["status"], "awaiting_approval")
             self.assertEqual(job["metadata"]["narration_status"], "ambient_fallback")
             self.assertTrue(any("voz neural" in warning.lower() for warning in job["metadata"]["quality"]["warnings"]))
+
+    def test_tts_provider_is_explicit_and_validated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            settings = replace(self.settings(root), tts_provider="unknown")
+            pipeline = Pipeline(settings, store)
+            script = root / "script.txt"
+            script.write_text("Teste de voz", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "Provedor TTS inválido"):
+                pipeline.synthesize_narration(script, root / "voice.mp3")
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_multiscene_render_and_manifest(self):

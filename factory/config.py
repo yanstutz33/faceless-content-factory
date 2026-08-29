@@ -44,6 +44,11 @@ class Settings:
     shopee_partner_key: str = ""
     backup_keep: int = 10
     local_tts_fallback: bool = True
+    tts_provider: str = "edge"
+    tts_voice: str = "pt-BR-AntonioNeural"
+    tts_rate: str = "-8%"
+    tts_pitch: str = "-2Hz"
+    tts_timeout_seconds: int = 180
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -82,4 +87,9 @@ class Settings:
             shopee_partner_key=os.getenv("SHOPEE_PARTNER_KEY", ""),
             backup_keep=max(2, min(50, int(os.getenv("FACTORY_BACKUP_KEEP", "10")))),
             local_tts_fallback=os.getenv("LOCAL_TTS_FALLBACK", "true").lower() == "true",
+            tts_provider=os.getenv("TTS_PROVIDER", "edge").strip().lower(),
+            tts_voice=os.getenv("TTS_VOICE", "pt-BR-AntonioNeural").strip(),
+            tts_rate=os.getenv("TTS_RATE", "-8%").strip(),
+            tts_pitch=os.getenv("TTS_PITCH", "-2Hz").strip(),
+            tts_timeout_seconds=max(30, min(600, int(os.getenv("TTS_TIMEOUT_SECONDS", "180")))),
         )

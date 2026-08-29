@@ -53,7 +53,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 
-Narração é opcional. `--narration` usa voz neural em português e tenta a voz local do Windows como fallback quando ela estiver realmente instalada. Neste computador nenhuma voz SAPI está disponível; por isso o diagnóstico informa essa ausência e o padrão seguro conclui o vídeo com música lo-fi.
+Narração é opcional. `--narration` usa o provedor dedicado configurado por `TTS_PROVIDER`, `TTS_VOICE`, `TTS_RATE` e `TTS_PITCH`; o padrão é Edge TTS em português. A voz local do Windows é o segundo fallback e, se ambas falharem, o modo seguro pode concluir o vídeo apenas com música lo-fi. O pacote registra qual mecanismo de voz foi realmente usado.
 
 ## Imagem e música automáticas
 
@@ -61,9 +61,9 @@ Produções antigas não são modificadas retroativamente. Os primeiros testes s
 
 A série opcional `Anime Nights original` usa uma personagem adulta criada exclusivamente para o projeto, sem copiar franquias, personagens ou artistas. Ela só é escolhida quando o tema menciona explicitamente anime ou personagem; as demais séries continuam sem personagens.
 
-A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva no perfil rain e pontos de luz no cosmic. É o efeito de um GIF ambiente, mas entregue diretamente no vídeo MP4/H.264 para preservar qualidade. Perfil, atmosfera e efeitos usados ficam registrados no campo `motion` de `metadata.json`.
+A câmera permanece completamente fixa. O renderizador cria um ciclo visual suave de 12 segundos apenas em uma camada atmosférica localizada: fumaça sobre a xícara nos perfis cozy/focus, chuva no perfil rain e pontos de luz no cosmic. Em vídeos com 24 segundos ou mais, esse ciclo é codificado uma única vez e repetido por remux, evitando recodificar horas de quadros iguais. Perfil, atmosfera, efeito e estratégia de render ficam registrados em `metadata.json`.
 
-O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, progressão, BPM e melodia. Os detalhes ficam em `metadata.json` no campo `music`.
+O loop musical é sintetizado pelo próprio projeto e não copia gravações ou músicas externas. Tema e perfil determinam seed, uma entre 12 instrumentações, progressão, BPM, melodia e textura. Os detalhes ficam em `metadata.json` no campo `music`. O starter pack contém 12 cenas originais e rastreadas.
 
 ## Início rápido (Windows / PowerShell)
 
@@ -180,16 +180,19 @@ Um caminho avulso ainda pode ser informado para testes rápidos, mas exige confi
 
 ```powershell
 python -m unittest discover -s tests -v
+npm install
+npx playwright install chromium
+npm run test:e2e
 ```
 
-A suíte cobre agentes, validação, migração/estado da fila, trava de render entre processos, retomada após reinício, calendário com equipe especializada, insights por snapshot, catálogo de licenças, domínios oficiais, segurança da API, cancelamentos de formulários, streaming por faixa, fallback de voz, thumbnails A/B, renderização simples, checksums e composição multicena real com FFmpeg. A interface também é validada em desktop e viewport móvel.
+A suíte cobre agentes, validação, migração/estado da fila, trava de render entre processos, retomada após reinício, calendário com equipe especializada, insights por snapshot, catálogo de licenças, domínios oficiais, segurança da API, cancelamentos de formulários, streaming por faixa, TTS, thumbnails A/B, renderização otimizada, checksums e composição multicena real com FFmpeg. Playwright e axe-core validam navegação, teclado, acessibilidade e ausência de overflow em desktop e celular no GitHub Actions.
 
 Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia, e `artifact-manifest.json`, com tamanho e SHA-256 dos arquivos principais. Esses relatórios não publicam nada; servem para detectar pacotes incompletos antes da sua aprovação.
 
 ## Estado do roadmap
 
 0. **Operação noturna:** turno configurável, execução antecipada de até cinco itens do calendário, uma rodada por noite, recuperação após reinício e pausa automática por fila, espaço ou trabalhos ativos.
-0. **Escala criativa:** o diretor avalia 48 receitas por produção e combina cenas originais, oito tratamentos, cinco composições, 16 movimentos localizados, oito arranjos musicais, quatro progressões e cinco texturas. Cada pacote registra um DNA criativo reproduzível.
+0. **Escala criativa:** o diretor avalia 48 receitas por produção e combina 12 cenas originais, oito tratamentos, cinco composições, 16 movimentos localizados, 12 arranjos musicais, quatro progressões e cinco texturas. Cada pacote registra um DNA criativo reproduzível.
 0. **Detector de repetição:** compara cena, imagem, composição, movimento, música, progressão, textura, BPM e proximidade temática com todo o histórico; a novidade pesa 80% da decisão.
 0. **Aprendizado automático seguro:** retenção, CTR e engajamento alimentam preferências com peso de 20%, preservando exploração e evitando que um vencedor transforme toda a fábrica em cópias.
 0. **Quality gate automático:** cada render é amostrado e bloqueado antes da aprovação se houver tela preta, ausência de movimento, câmera não fixa, áudio inaudível/clipping, duração ou decodificação inválida.
@@ -203,7 +206,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 3. **CTR e capas:** implementados no banco, API e painel; a fábrica recomenda vencedoras por série sem fazer trocas cegas.
 4. **YouTube:** pacote privado oficial preparado após aprovação. O upload real depende do arquivo OAuth da conta e continuará exigindo confirmação humana.
 5. **Retenção:** captura e ranking implementados. A coleta automática depende da autorização da conta/plataforma.
-6. **Voz offline:** fallback implementado e diagnosticado, mas este Windows não possui uma voz SAPI instalada. A ambientação segura continua funcionando.
+6. **Voz dedicada e offline:** Edge TTS configurável e voz SAPI local estão implementados e diagnosticados. A ambientação segura continua funcionando quando os dois mecanismos estiverem indisponíveis.
 7. **Shopee + Pinterest:** trilha comercial aprovada para transformar produtos oficiais em vídeos próprios e publicar Video Pins rastreáveis; Pinterest nunca será fonte automática de mídia de terceiros.
 8. **Bilibili:** pacote localizado entregue no Studio 1.8 com capa neutra, títulos, descrições e legendas em chinês simplificado e inglês; upload manual pelo Creator Studio.
 9. **Painel comercial:** campanhas, produtos, links, cliques, conversões, comissão e custo de produção ficarão separados das métricas editoriais.

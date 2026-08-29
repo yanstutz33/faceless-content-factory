@@ -52,6 +52,10 @@ MUSIC_ARRANGEMENTS = (
     {"name": "deep_focus_pad", "pad": .074, "harmonic": .004, "pluck": .042, "decay": 3.2, "snare": .030, "bass": .115, "melody": "minimal"},
     {"name": "cassette_guitar", "pad": .044, "harmonic": .012, "pluck": .096, "decay": 4.3, "snare": .058, "bass": .082, "melody": "syncopated"},
     {"name": "sleepy_chimes", "pad": .052, "harmonic": .020, "pluck": .070, "decay": 8.0, "snare": .025, "bass": .060, "melody": "floating"},
+    {"name": "rainy_vibraphone", "pad": .046, "harmonic": .024, "pluck": .082, "decay": 7.4, "snare": .034, "bass": .072, "melody": "droplets"},
+    {"name": "midnight_wurlitzer", "pad": .058, "harmonic": .013, "pluck": .073, "decay": 5.0, "snare": .044, "bass": .102, "melody": "afterhours"},
+    {"name": "hollow_body_dream", "pad": .041, "harmonic": .016, "pluck": .092, "decay": 6.6, "snare": .040, "bass": .078, "melody": "gentle_arpeggio"},
+    {"name": "analog_clouds", "pad": .080, "harmonic": .007, "pluck": .038, "decay": 4.1, "snare": .022, "bass": .110, "melody": "slow_orbit"},
 )
 
 TEXTURES = ("clean_room", "soft_tape", "vinyl_dust", "warm_noise", "air_hiss")
