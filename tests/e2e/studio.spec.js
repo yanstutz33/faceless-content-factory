@@ -56,6 +56,30 @@ test('public production only offers 30 or 60 minutes and opens the music library
 });
 
 test('technical artifacts open as a readable summary instead of raw JSON', async ({ page }) => {
+  const job = {
+    id: 'artifact-fixture', topic: 'Biblioteca noturna', profile: 'youtube_long', duration: 1800,
+    status: 'awaiting_approval', progress: 100, quality_score: 100, events: [],
+    metadata: {
+      title: 'Biblioteca noturna — Lo-fi para foco', description: 'Pacote local validado.',
+      files: { video: 'video.mp4', thumbnail: 'thumbnail.jpg' },
+      verification: { passed: true, duration_seconds: 1800, size_bytes: 1024,
+        video: { width: 1280, height: 720, codec: 'h264' }, audio: { codec: 'aac' } },
+      quality: { warnings: [] },
+    },
+  };
+  await page.route('**/api/dashboard', route => route.fulfill({ json: {
+    summary: { total: 1, awaiting_approval: 1, in_progress: 0, average_quality: 100 },
+    jobs: [job], recommendations: [], operation: { ok: true, free_gb: 10, queue: { active: [] } },
+  } }));
+  await page.route('**/api/jobs/artifact-fixture', route => route.fulfill({ json: job }));
+  await page.route('**/api/jobs/artifact-fixture/artifacts/thumbnail.jpg', route =>
+    route.fulfill({ status: 404, body: '' }));
+  await page.route('**/api/jobs/artifact-fixture/artifacts/metadata.json', route => route.fulfill({ json: {
+    title: job.metadata.title, duration: 1800,
+    music: { style: 'licensed_music_library', track_name: 'Faixa original 01' },
+    creative_fingerprint: { scene: 'biblioteca', motion_effect: 'chuva na janela', camera_motion: 'none' },
+    quality_gate: { score: 100 },
+  } }));
   await page.goto('/#production');
   const readyJob = page.locator('.production').filter({ has: page.locator('.status.awaiting_approval') }).first();
   await expect(readyJob).toBeVisible();
