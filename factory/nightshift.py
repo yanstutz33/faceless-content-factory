@@ -46,6 +46,49 @@ class NightShift:
         return {**config, "within_window": within, "active_jobs": active, "blockers": blockers, "mode": mode,
                 "publish_mode": "manual-safe"}
 
+    def daily_report(self, at: datetime | None = None) -> dict[str, Any]:
+        """Summarize the local operation for one calendar day without triggering work."""
+        current = at or datetime.now().astimezone()
+
+        def is_today(value: str | None) -> bool:
+            if not value:
+                return False
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=current.tzinfo)
+            return parsed.astimezone(current.tzinfo).date() == current.date()
+
+        jobs = [job for job in self.store.list_jobs(500) if is_today(job.get("updated_at"))]
+        completed = [job for job in jobs if job["status"] in {"awaiting_approval", "approved"}]
+        blocked = [job for job in jobs if job["status"] in {"failed", "rejected"}]
+        active = [job for job in jobs if job["status"] in {"queued", "planning", "assets", "rendering", "reviewing"}]
+        awaiting = [job for job in jobs if job["status"] == "awaiting_approval"]
+        config = self.store.get_night_shift()
+        blockers = self.autopilot.blockers()
+        if blocked:
+            next_action = f"Corrigir {len(blocked)} produção(ões) bloqueada(s)."
+        elif awaiting:
+            next_action = f"Revisar {len(awaiting)} produção(ões) concluída(s)."
+        elif active:
+            next_action = f"Acompanhar {len(active)} produção(ões) em andamento."
+        elif blockers:
+            next_action = blockers[0]
+        else:
+            next_action = "Operação livre para o próximo lote seguro."
+        latest = sorted(jobs, key=lambda item: item.get("updated_at") or "", reverse=True)[:5]
+        return {
+            "date": current.date().isoformat(),
+            "status": "attention" if blocked or awaiting or blockers else "working" if active else "clear",
+            "summary": {
+                "completed": len(completed), "blocked": len(blocked),
+                "active": len(active), "awaiting_review": len(awaiting),
+            },
+            "next_action": next_action,
+            "latest": [{"id": job["id"], "topic": job["topic"], "status": job["status"]} for job in latest],
+            "last_shift": config.get("last_summary", {}),
+            "publish_performed": False,
+        }
+
     def run_once(self, force: bool = False) -> dict[str, Any]:
         config = self.store.get_night_shift()
         if not force and (not config.get("enabled") or not self.in_window()):

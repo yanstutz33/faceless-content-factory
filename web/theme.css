@@ -209,6 +209,7 @@ body:not([data-route="overview"]) .section { padding-top: 34px; }
 :is(
   .stat, .focus-card, .safety-card, .production, .agent, .insight,
   .series-card, .calendar-item, .autopilot-card, .night-card,
+  .daily-report,
   .asset-card, .library-intro, .team-card, .skill-library,
   .connection-card, .connection-safety, .integration-row,
   .publish-item, .publish-safety, .commerce-product, .commerce-campaign,
@@ -351,6 +352,7 @@ textarea:focus-visible,
   :is(
     .stat, .focus-card, .safety-card, .production, .agent, .insight,
     .series-card, .calendar-item, .autopilot-card, .night-card,
+    .daily-report,
     .asset-card, .library-intro, .team-card, .skill-library,
     .connection-card, .connection-safety, .integration-row,
     .publish-item, .publish-safety, .commerce-product, .commerce-campaign,

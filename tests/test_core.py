@@ -569,6 +569,12 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(len(runner.active), 2)
             self.assertEqual(sum(item["status"] == "producing" for item in store.list_calendar()), 2)
 
+            report = night.daily_report()
+            self.assertEqual(report["summary"]["active"], 2)
+            self.assertEqual(report["summary"]["blocked"], 0)
+            self.assertFalse(report["publish_performed"])
+            self.assertIn("andamento", report["next_action"])
+
     def test_manual_calendar_bypasses_autopilot_pause(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp) / "factory.db")
@@ -1299,6 +1305,9 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(configured["planned"], 2)
                 night = json.load(urllib.request.urlopen(base + "/api/night-shift"))
                 self.assertEqual(night["mode"], "off")
+                daily_report = json.load(urllib.request.urlopen(base + "/api/operations/daily-report"))
+                self.assertFalse(daily_report["publish_performed"])
+                self.assertIn("summary", daily_report)
                 night_request = urllib.request.Request(
                     base + "/api/night-shift",
                     data=json.dumps({"enabled": True, "start_hour": "22:00", "end_hour": "07:00",

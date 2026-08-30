@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 29/08/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão.
+Última revisão: 30/08/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão.
 
 ## Estado atual verificável
 
@@ -51,7 +51,7 @@ Objetivo: provar que a fábrica consegue trabalhar sozinha de ponta a ponta.
 - gerar pauta, roteiro leve/metadados, composição, thumbnail e pacote de publicação em lote;
 - executar renderização noturna com retomada segura após falha;
 - priorizar automaticamente ideias com maior novidade e menor risco de repetição;
-- criar um relatório diário simples: concluídos, bloqueados, motivo e ação recomendada;
+- criar um relatório diário simples: concluídos, bloqueados, motivo e ação recomendada — **implementado no Calendário, com endpoint somente leitura e garantia explícita de que não publica**;
 - manter todos os resultados na fila de aprovação local.
 
 Critério de conclusão: três lotes consecutivos terminam sem intervenção e sem artefatos inválidos.

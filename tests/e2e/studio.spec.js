@@ -51,6 +51,13 @@ test('direct publishing link lands on the publishing center after data loads', a
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
 });
 
+test('calendar shows a compact daily operations report', async ({ page }) => {
+  await page.goto('/#calendar');
+  await expect(page.locator('#daily-report')).toContainText(/resumo de hoje/i);
+  await expect(page.locator('#daily-report')).toContainText(/concluídas/i);
+  await expect(page.locator('#daily-report')).toContainText(/bloqueadas/i);
+});
+
 test('editorial theme preserves the supplied tokens and can be toggled', async ({ page }) => {
   await page.goto('/');
   const light = await page.locator('html').evaluate(element => {

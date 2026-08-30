@@ -50,6 +50,7 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 - Piloto automático semanal com séries, cadência, horário e duração configuráveis
 - Reposição inteligente do calendário sem repetir temas já produzidos ou planejados
 - Pausa automática por fila de revisão, trabalhos ativos ou pouco espaço em disco
+- Resumo diário compacto no Calendário com concluídos, trabalhos em curso, revisões, bloqueios e próxima ação
 - Painel responsivo para desktop e celular, sem Node e sem build
 - Pacote isolado por vídeo em `data/jobs/<id>/`
 

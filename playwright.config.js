@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const studioCommand = process.platform === 'win32'
+  ? '.\\.venv\\Scripts\\python.exe app.py serve'
+  : 'python app.py serve';
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30_000,
@@ -15,7 +19,7 @@ export default defineConfig({
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: 'python app.py serve',
+    command: studioCommand,
     url: 'http://127.0.0.1:8787/api/health',
     reuseExistingServer: true,
     timeout: 30_000,
