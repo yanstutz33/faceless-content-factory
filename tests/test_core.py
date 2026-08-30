@@ -84,6 +84,83 @@ class CoreTests(unittest.TestCase):
         self.assertIn("single short lowercase word", direction["typography"])
         self.assertIn("rain belongs outdoors", direction["weather"])
 
+    def test_cover_selection_excludes_recent_primary_references(self):
+        excluded: set[str] = set()
+        selected: list[str] = []
+        for index in range(9):
+            pair = select_cover_references(ROOT, f"Cena noturna original {index}", excluded)
+            self.assertIsNotNone(pair)
+            assert pair is not None
+            selected.append(pair[0]["id"])
+            excluded.add(pair[0]["id"])
+        self.assertEqual(len(set(selected)), 9)
+        self.assertIsNone(select_cover_references(ROOT, "Coleção esgotada", excluded))
+
+    def test_thumbnail_batch_uses_nine_collection_covers_then_unique_scene(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cover_source = ROOT / "assets" / "covers" / COVER_STYLE_ID.replace("_", "-")
+            cover_target = root / "assets" / "covers" / COVER_STYLE_ID.replace("_", "-")
+            shutil.copytree(cover_source, cover_target)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_ids = []
+            for index in range(10):
+                job_id = f"thumbnail-batch-{index}"
+                out = root / "data" / "outputs" / job_id
+                out.mkdir(parents=True)
+                (out / f"scene-{index}.jpg").write_bytes(f"unique-production-scene-{index}".encode())
+                (out / "thumbnail.jpg").write_bytes(b"old")
+                store.create_job({
+                    "id": job_id, "topic": f"Cena noturna {index}", "duration": 1800,
+                    "narration": False, "subtitles": False, "output_dir": str(out),
+                    "profile": "youtube_long",
+                })
+                store.update(job_id, "awaiting_approval", {"files": {}}, progress=100, quality_score=100)
+                job_ids.append(job_id)
+
+            def copy_thumbnail(source: Path, output: Path, width: int, height: int) -> None:
+                del width, height
+                shutil.copy2(source, output)
+
+            with patch.object(pipeline, "create_thumbnail", side_effect=copy_thumbnail):
+                result = pipeline.rebalance_thumbnail_batch(job_ids)
+
+            self.assertEqual(result["count"], 10)
+            self.assertEqual(result["unique_collection_covers"], 9)
+            selected_refs = []
+            selected_hashes = []
+            for job_id in job_ids:
+                job = store.get_job(job_id)
+                assert job is not None
+                selected_refs.append(job["metadata"]["thumbnail_variants"][0]["reference_id"])
+                selected_hashes.append(hashlib.sha256((Path(job["output_dir"]) / "thumbnail.jpg").read_bytes()).hexdigest())
+                self.assertEqual(job["status"], "awaiting_approval")
+                self.assertTrue((Path(job["output_dir"]) / "artifact-manifest.json").is_file())
+            self.assertEqual(len(set(selected_refs[:9])), 9)
+            self.assertEqual(selected_refs[9], "production-scene")
+            self.assertEqual(len(set(selected_hashes)), 10)
+            self.assertTrue(Path(result["backup_dir"]).is_dir())
+
+    def test_thumbnail_batch_rejects_duplicates_before_touching_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            out = root / "data" / "jobs" / "duplicate"
+            out.mkdir(parents=True)
+            thumbnail = out / "thumbnail.jpg"
+            thumbnail.write_bytes(b"untouched")
+            (out / "background.jpg").write_bytes(b"scene")
+            store.create_job({
+                "id": "duplicate", "topic": "Cena duplicada", "duration": 1800,
+                "narration": False, "subtitles": False, "output_dir": str(out),
+            })
+            store.update("duplicate", "awaiting_approval", {}, progress=100)
+            with self.assertRaisesRegex(ValueError, "duplicadas"):
+                pipeline.rebalance_thumbnail_batch(["duplicate", "duplicate"])
+            self.assertEqual(thumbnail.read_bytes(), b"untouched")
+
     def test_flow_music_guide_offers_distinct_safe_prompts(self):
         guide = flow_music_guide()
         self.assertEqual(guide["mode"], "official_link_bridge_with_api_option")

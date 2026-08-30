@@ -58,7 +58,8 @@ def cover_assets(root: Path) -> list[dict[str, Any]]:
     ]
 
 
-def select_cover_references(root: Path, topic: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+def select_cover_references(root: Path, topic: str,
+                            excluded_ids: set[str] | None = None) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """Return two distinct, deterministic covers from the approved visual collection."""
     directory = cover_reference_dir(root)
     available = [item for item in COVER_REFERENCES if (directory / item["file"]).is_file()]
@@ -72,10 +73,15 @@ def select_cover_references(root: Path, topic: str) -> tuple[dict[str, Any], dic
         tie_break = int(hashlib.sha256(f"{seed}:{item['id']}".encode()).hexdigest()[:8], 16)
         ranked.append((overlap, tie_break, index, item))
     ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
-    first = ranked[0][3]
+    excluded_ids = excluded_ids or set()
+    first_row = next((row for row in ranked if row[3]["id"] not in excluded_ids), None)
+    if not first_row:
+        return None
+    first = first_row[3]
     # A/B always compares a clean image with a minimal-text image when possible.
-    complementary = [row for row in ranked[1:] if bool(row[3]["embedded_text"]) != bool(first["embedded_text"])]
-    second = (complementary or ranked[1:])[0][3]
+    alternatives = [row for row in ranked if row[3]["id"] != first["id"]]
+    complementary = [row for row in alternatives if bool(row[3]["embedded_text"]) != bool(first["embedded_text"])]
+    second = (complementary or alternatives)[0][3]
     return ({**first, "path": str(directory / first["file"])},
             {**second, "path": str(directory / second["file"])})
 

@@ -13,6 +13,7 @@ import unicodedata
 import uuid
 import wave
 from array import array
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -820,9 +821,10 @@ class Pipeline:
                       "-frames:v", "1", "-q:v", "2", str(output)])
 
     def create_thumbnail_variants(self, out: Path, topic: str, width: int, height: int,
-                                  fallback_source: Path, selected: str = "a") -> dict[str, Any]:
+                                  fallback_source: Path, selected: str = "a",
+                                  excluded_cover_ids: set[str] | None = None) -> dict[str, Any]:
         selected = selected if selected in {"a", "b"} else "a"
-        cover_pair = select_cover_references(self.settings.root, topic)
+        cover_pair = select_cover_references(self.settings.root, topic, excluded_cover_ids)
         if cover_pair:
             cover_a, cover_b = cover_pair
             source_a, source_b = Path(cover_a["path"]), Path(cover_b["path"])
@@ -845,6 +847,72 @@ class Pipeline:
                  "reference_id": cover_b["id"], "embedded_text": cover_b["embedded_text"]},
             ],
         }
+
+    def rebalance_thumbnail_batch(self, job_ids: list[str]) -> dict[str, Any]:
+        """Give a review batch unique selected covers before reusing the collection."""
+        if not job_ids:
+            raise ValueError("Informe ao menos uma produção para balancear as capas")
+        if len(job_ids) != len(set(job_ids)):
+            raise ValueError("O lote de capas contém produções duplicadas")
+        jobs = [self.store.get_job(job_id) for job_id in job_ids]
+        if any(not job for job in jobs):
+            raise ValueError("Uma ou mais produções do lote não foram encontradas")
+        if any(job["status"] not in {"awaiting_approval", "approved"} for job in jobs if job):
+            raise ValueError("Somente produções concluídas podem receber o balanceamento de capas")
+        prepared: list[tuple[dict[str, Any], Path, Path]] = []
+        for job in jobs:
+            assert job is not None
+            out = Path(job["output_dir"])
+            fallback = next(iter(sorted(out.glob("scene-*.jpg"))), out / "background.jpg")
+            if not fallback.is_file():
+                raise ValueError(f"Cena-base ausente em {job['topic']}")
+            prepared.append((job, out, fallback))
+        migration_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+        archive_root = self.settings.data_dir / "archive" / "thumbnail-batches" / migration_id
+        excluded: set[str] = set()
+        updated: list[str] = []
+        for job, out, fallback in prepared:
+            archive = archive_root / job["id"]
+            archive.mkdir(parents=True, exist_ok=True)
+            for name in ("thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json",
+                         "metadata.json", "artifact-manifest.json"):
+                source = out / name
+                if source.is_file():
+                    shutil.copy2(source, archive / name)
+            profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
+            design = self.create_thumbnail_variants(
+                out, job["topic"], profile["width"], profile["height"], fallback, "a", excluded,
+            )
+            selected_reference = design["variants"][0]["reference_id"]
+            if selected_reference != "production-scene":
+                excluded.add(selected_reference)
+            design["brief"] = {"style_id": COVER_STYLE_ID, "batch_rebalanced": migration_id}
+            (out / "thumbnail-design.json").write_text(
+                json.dumps(design, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
+            metadata = dict(job.get("metadata") or {})
+            metadata["thumbnail_variants"] = design["variants"]
+            metadata["selected_thumbnail"] = "a"
+            metadata["thumbnail_style_id"] = COVER_STYLE_ID
+            metadata.setdefault("files", {})["thumbnail"] = "thumbnail.jpg"
+            (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+            manifest_path = out / "artifact-manifest.json"
+            try:
+                old_manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+            except (OSError, json.JSONDecodeError):
+                old_manifest = {}
+            names = [item["name"] for item in old_manifest.get("files", []) if item.get("name")]
+            names.extend(["thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg",
+                          "thumbnail-design.json", "metadata.json"])
+            manifest = self.artifact_manifest(out, list(dict.fromkeys(names)))
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.store.update(job["id"], job["status"], metadata, progress=100,
+                              quality_score=job.get("quality_score"))
+            self.store.set_thumbnail_variant(job["id"], "a")
+            self.store.event(job["id"], "thumbnail", "Capa balanceada para evitar repetição no lote")
+            updated.append(job["id"])
+        return {"updated": updated, "count": len(updated), "backup_dir": str(archive_root),
+                "unique_collection_covers": len(excluded)}
 
     def migrate_existing_covers(self) -> dict[str, Any]:
         """Replace legacy cover layouts while keeping a recoverable copy of every changed file."""
