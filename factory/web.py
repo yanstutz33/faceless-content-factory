@@ -21,7 +21,7 @@ from .backup import BackupManager
 from .commerce import CommercePackager, validate_commerce_brief
 from .commercial_center import CommercialCenter
 from .integrations import IntegrationManager
-from .music_sources import flow_music_guide
+from .music_sources import FLOW_MUSIC_PROMPTS, flow_music_guide
 from .pipeline import Pipeline, SUPPORTED_MUSIC_EXTENSIONS
 from .publishing import PublishingCenter
 from .nightshift import NightShift
@@ -643,6 +643,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(self.pipeline.lyria.generate(
                     str(data.get("name", "Faixa Lyria")), str(data.get("prompt", "")),
                     str(data.get("model", "")), bool(data.get("rights_confirmed", False)),
+                ), HTTPStatus.CREATED)
+            if path == "/api/music-sources/lyria/generate-batch":
+                return self.send_json(self.pipeline.lyria.generate_batch(
+                    list(FLOW_MUSIC_PROMPTS), str(data.get("model", "")),
+                    bool(data.get("rights_confirmed", False)), int(data.get("count", 12)),
                 ), HTTPStatus.CREATED)
             if path == "/api/music-assets/bootstrap":
                 return self.send_json(self.pipeline.bootstrap_original_music_catalog(), HTTPStatus.CREATED)

@@ -92,14 +92,14 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.getByRole('heading', { name: /biblioteca criativa/i })).toBeVisible();
   await expect(page.locator('#catalog-readiness')).toContainText(/lote piloto/i);
   await expect(page.locator('#catalog-readiness')).toContainText(/faixas lo-fi distintas/i);
-  await expect(page.locator('#flow-music-guide')).toContainText(/Flow Music Bridge/i);
-  await expect(page.getByRole('link', { name: /abrir flow music/i })).toHaveAttribute('href', 'https://www.flowmusic.app/');
+  await expect(page.locator('#flow-music-guide')).toContainText(/geração direta ou importação do flow/i);
+  await expect(page.getByRole('link', { name: /abrir flow/i })).toHaveAttribute('href', 'https://www.flowmusic.app/');
   await expect(page.getByRole('heading', { name: /identidade pública assinada pela yami/i })).toBeVisible();
   await expect(page.locator('.channel-kit-actions a[download]')).toHaveCount(3);
   await expect(page.getByAltText('Avatar Pausa Pra Anime')).toHaveJSProperty('complete', true);
   await expect(page.getByAltText('Banner Pausa Pra Anime para YouTube')).toHaveJSProperty('complete', true);
   await expect(page.locator('#lyria-key-form [name=api_key]')).toHaveAttribute('type', 'password');
-  await page.getByText('Prompts e automação avançada', { exact: true }).click();
+  await page.getByText('Ver as 12 direções musicais', { exact: true }).click();
   await expect(page.locator('#flow-music-guide [data-copy-flow]')).toHaveCount(12);
   await page.getByRole('button', { name: /importar downloads/i }).click();
   await expect(page.locator('#music-dialog')).toBeVisible();

@@ -90,6 +90,9 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(FLOW_MUSIC_PROMPTS), 12)
         self.assertEqual(len({item["name"] for item in FLOW_MUSIC_PROMPTS}), 12)
         self.assertEqual(len({item["prompt"] for item in FLOW_MUSIC_PROMPTS}), 12)
+        self.assertGreaterEqual(len({re.search(r"(\d+) BPM", item["prompt"]).group(1)
+                                     for item in FLOW_MUSIC_PROMPTS}), 10)
+        self.assertGreaterEqual(sum("No piano" in item["prompt"] for item in FLOW_MUSIC_PROMPTS), 5)
         for item in FLOW_MUSIC_PROMPTS:
             self.assertIn("no vocals", item["prompt"])
             self.assertIn("no artist imitation", item["prompt"])
@@ -130,6 +133,24 @@ class CoreTests(unittest.TestCase):
             track = store.get_music_asset(result["id"])
             self.assertEqual(track["license_type"], "provider_generated")
             self.assertTrue(Path(track["path"]).is_file())
+
+    def test_lyria_batch_uses_distinct_directions_and_reports_cost(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            service = Pipeline(self.settings(root), store).lyria
+            service.configure("fake-test-key-long-enough-for-validation-only")
+            with patch.object(service, "generate", side_effect=lambda name, prompt, model, rights: {
+                "id": len(name), "name": name, "model": model, "price_estimate_usd": 0.08,
+            }) as generate:
+                result = service.generate_batch(list(FLOW_MUSIC_PROMPTS), "lyria-3-pro-preview", True, 4)
+            self.assertEqual(result["requested"], 4)
+            self.assertEqual(result["generated"], 4)
+            self.assertEqual(result["failed"], 0)
+            self.assertEqual(result["price_estimate_usd"], 0.32)
+            self.assertEqual(generate.call_count, 4)
+            self.assertEqual([item["name"] for item in result["items"]],
+                             [item["name"] for item in FLOW_MUSIC_PROMPTS[:4]])
 
     def test_lyria_generation_requires_connection_rights_and_known_model(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -8,6 +8,7 @@ import subprocess
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -179,4 +180,37 @@ class LyriaMusicService:
             "file": str(destination),
             "size_bytes": destination.stat().st_size,
             "registered": True,
+        }
+
+    def generate_batch(self, directions: list[dict[str, str]], model: str,
+                       rights_confirmed: bool, count: int = 12) -> dict[str, Any]:
+        """Generate a bounded, diverse catalog without exposing prompts or API keys to workers."""
+        if not rights_confirmed:
+            raise ValueError("Confirme os termos e o custo estimado do lote")
+        if not self._api_key():
+            raise ValueError("Conecte uma chave da Gemini API antes de gerar o lote")
+        if model not in LYRIA_MODELS:
+            raise ValueError("Modelo musical do Google inválido")
+        count = max(1, min(12, int(count)))
+        selected = directions[:count]
+        results: list[dict[str, Any] | None] = [None] * len(selected)
+        failures: list[dict[str, str]] = []
+        with ThreadPoolExecutor(max_workers=min(2, len(selected)), thread_name_prefix="lyria-batch") as executor:
+            futures = {
+                executor.submit(self.generate, item["name"], item["prompt"], model, True): index
+                for index, item in enumerate(selected)
+            }
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    results[index] = future.result()
+                except (ValueError, RuntimeError, OSError) as exc:
+                    failures.append({"name": selected[index]["name"], "error": str(exc)})
+        generated = [item for item in results if item is not None]
+        return {
+            "requested": len(selected), "generated": len(generated), "failed": len(failures),
+            "model": model,
+            "price_estimate_usd": round(len(selected) * LYRIA_MODELS[model]["price_usd"], 2),
+            "actual_generated_cost_estimate_usd": round(len(generated) * LYRIA_MODELS[model]["price_usd"], 2),
+            "items": generated, "failures": failures,
         }
