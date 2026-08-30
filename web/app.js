@@ -172,9 +172,19 @@ async function loadMusicAssets(){
   const tracks=await api('/api/music-assets');
   const activeTracks=tracks.filter(track=>track.approved);const archivedTracks=tracks.filter(track=>!track.approved);
   const grid=$('#music-grid');const select=$('#production-music');
-  $('#music-library-summary').textContent=activeTracks.length?`${activeTracks.length} ativas · ${archivedTracks.length} arquivadas · rotação por menor uso`:'Nenhuma faixa ativa';
-  grid.innerHTML=activeTracks.length?activeTracks.map(track=>`<article class="asset-card music-card"><span class="tag">${esc(track.license_type)}</span><h3>${esc(track.name)}</h3><p>${esc(String(track.path).split(/[\\/]/).pop())}</p><audio controls preload="none" aria-label="Ouvir ${esc(track.name)}"><source src="/api/music-assets/${Number(track.id)}/preview"></audio><small>Usada em ${Number(track.use_count||0)} vídeo(s) · ✓ liberada</small></article>`).join(''):'<div class="empty"><b>Sua biblioteca musical está vazia.</b><p>Clique em “Importar músicas” e informe uma pasta com suas faixas lo-fi licenciadas.</p></div>';
+  const reviewedCount=activeTracks.filter(track=>track.human_review==='approved').length;
+  $('#music-library-summary').textContent=activeTracks.length?`${activeTracks.length} ativas · ${reviewedCount} ouvidas · ${archivedTracks.length} arquivadas`:'Nenhuma faixa ativa';
+  grid.innerHTML=activeTracks.length?activeTracks.map(track=>{const reviewed=track.human_review==='approved';return `<article class="asset-card music-card ${reviewed?'music-reviewed':''}"><span class="tag">${reviewed?'ESCUTA APROVADA':esc(track.license_type)}</span><h3>${esc(track.name)}</h3><p>${esc(String(track.path).split(/[\\/]/).pop())}</p><audio controls preload="none" aria-label="Ouvir ${esc(track.name)}"><source src="/api/music-assets/${Number(track.id)}/preview"></audio><small>Usada em ${Number(track.use_count||0)} vídeo(s) · ${reviewed?'✓ som aprovado':'escuta pendente'}</small><div class="music-review-actions"><button class="primary" type="button" data-music-review="approved" data-track-id="${Number(track.id)}" ${reviewed?'disabled':''}>${reviewed?'✓ Aprovada':'Aprovar faixa'}</button><button class="secondary danger" type="button" data-music-review="rejected" data-track-id="${Number(track.id)}">Reprovar</button></div></article>`}).join(''):'<div class="empty"><b>Sua biblioteca musical está vazia.</b><p>Clique em “Importar músicas” e informe uma pasta com suas faixas lo-fi licenciadas.</p></div>';
   select.innerHTML='<option value="">Automática · usar primeiro a menos repetida</option>'+activeTracks.map(track=>`<option value="${Number(track.id)}">${esc(track.name)} · usada ${Number(track.use_count||0)}x</option>`).join('');
+  grid.onclick=async event=>{
+    const button=event.target.closest('[data-music-review]');if(!button)return;
+    const decision=button.dataset.musicReview;button.disabled=true;
+    try{
+      await api(`/api/music-assets/${Number(button.dataset.trackId)}/review`,{method:'POST',body:JSON.stringify({decision})});
+      apiCache.clear();await Promise.all([loadMusicAssets(),loadCatalogReadiness()]);
+      toast(decision==='approved'?'Faixa aprovada após a escuta.':'Faixa reprovada e retirada da rotação.',decision==='approved'?'success':'info');
+    }catch(error){button.disabled=false;toast(error.message,'error')}
+  };
 }
 
 async function loadCatalogReadiness(){

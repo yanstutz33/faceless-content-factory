@@ -29,7 +29,7 @@
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **pendente de aceite perceptivo: as 12 faixas locais têm hashes distintos, mas foram rejeitadas por soarem semelhantes; aguardando a biblioteca enviada pelo usuário**;
+- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **em validação auditiva: 12 faixas do Flow Music estão ativas, a coleção sintética foi arquivada e cada faixa agora pode ser aprovada ou reprovada diretamente no hub**;
 - ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 12 cenas-base disponíveis**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
@@ -38,7 +38,7 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: Flow Music Bridge com abertura oficial protegida pelo Google, importação rastreável do lote Starter, substituição reversível do catálogo sintético, integração opcional com Lyria 3 pela Gemini API e montagem local automática**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. O primeiro lote de 12 músicas do Flow Music Starter foi gerado pelo usuário e está pronto para validação/importação; a aprovação auditiva humana continua obrigatória. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. O lote de 12 músicas do Flow Music Starter foi importado e a aprovação auditiva faixa a faixa continua obrigatória. O primeiro piloto com a faixa nova `3 A.M. Shadow` foi renderizado por 30 minutos com qualidade técnica 100/100 e aguarda revisão. O kit visual FFACTORY para YouTube também está pronto. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
@@ -144,4 +144,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Importar e auditar as novas músicas enviadas pelo usuário, desativar a coleção sintética rejeitada e renderizar um lote curto de conferência sonora. Com a diversidade musical aprovada, concluir a Fase 1 e então executar os três lotes automáticos da Fase 2. Somente depois disso iniciar o piloto privado do YouTube.
+Ouvir e decidir as 12 faixas pelo hub, revisar o primeiro piloto `Observatório lunar abandonado` e substituir qualquer faixa reprovada. Com a diversidade musical aprovada, renderizar os nove pilotos restantes e executar os três lotes automáticos da Fase 2. Somente depois disso iniciar o piloto privado do YouTube.

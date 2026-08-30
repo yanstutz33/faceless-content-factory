@@ -122,6 +122,13 @@ class Store:
             }.items():
                 if column not in calendar_existing:
                     db.execute(f"ALTER TABLE calendar ADD COLUMN {column} {definition}")
+            music_existing = {row[1] for row in db.execute("PRAGMA table_info(music_assets)")}
+            for column, definition in {
+                "human_review": "TEXT NOT NULL DEFAULT 'pending'",
+                "human_reviewed_at": "TEXT",
+            }.items():
+                if column not in music_existing:
+                    db.execute(f"ALTER TABLE music_assets ADD COLUMN {column} {definition}")
             db.execute(
                 """INSERT OR IGNORE INTO autopilot(id,enabled,series_ids,cadence,publish_hour,duration,horizon_days,updated_at)
                    VALUES(1,0,?,3,'19:00',1800,7,?)""",
@@ -521,7 +528,7 @@ class Store:
                 """INSERT INTO music_assets(name,path,license_type,source_url,notes,approved,created_at)
                    VALUES(?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET name=excluded.name,
                    license_type=excluded.license_type,source_url=excluded.source_url,notes=excluded.notes,
-                   approved=excluded.approved""",
+                   approved=excluded.approved,human_review='pending',human_reviewed_at=NULL""",
                 (name.strip(), path.strip(), license_type.strip(), source_url, notes, int(approved), now()),
             )
             row = db.execute("SELECT id FROM music_assets WHERE path=?", (path.strip(),)).fetchone()
@@ -546,6 +553,24 @@ class Store:
                 (source_url.strip(),),
             )
             return int(cursor.rowcount)
+
+    def review_music_asset(self, asset_id: int, decision: str) -> dict[str, Any]:
+        """Persist an explicit listening decision and remove rejected tracks from rotation."""
+        if decision not in {"approved", "rejected"}:
+            raise ValueError("A decisão deve aprovar ou reprovar a faixa")
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM music_assets WHERE id=?", (asset_id,)).fetchone()
+            if not row:
+                raise ValueError("Música não encontrada")
+            approved = 1 if decision == "approved" else 0
+            db.execute(
+                "UPDATE music_assets SET approved=?,human_review=?,human_reviewed_at=? WHERE id=?",
+                (approved, decision, now(), asset_id),
+            )
+            updated = db.execute("SELECT * FROM music_assets WHERE id=?", (asset_id,)).fetchone()
+        item = dict(updated)
+        item["approved"] = bool(item["approved"])
+        return item
 
     def get_music_asset(self, asset_id: int) -> dict[str, Any] | None:
         with self.connect() as db:

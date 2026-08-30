@@ -605,6 +605,34 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(readiness["music_tracks"], 12)
             self.assertEqual(readiness["starter_scenes"], 12)
 
+    def test_music_listening_review_is_persistent_and_rejected_tracks_leave_rotation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            starter = root / "assets" / "starter"
+            starter.mkdir(parents=True)
+            for index in range(12):
+                (starter / f"scene-{index:02}.jpg").write_bytes(b"original-scene")
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            track_ids = []
+            for index in range(12):
+                track = root / f"flow-{index:02}.mp3"
+                track.write_bytes(b"ID3-provider-track")
+                track_ids.append(store.add_music_asset(
+                    f"Flow {index}", str(track), "provider_generated",
+                    "https://www.flowmusic.app/", "Google AI Plus", True,
+                ))
+            self.assertFalse(pipeline.library_readiness()["ready"])
+            for track_id in track_ids:
+                reviewed = store.review_music_asset(track_id, "approved")
+                self.assertEqual(reviewed["human_review"], "approved")
+            self.assertTrue(pipeline.library_readiness()["ready"])
+            rejected = store.review_music_asset(track_ids[-1], "rejected")
+            self.assertFalse(rejected["approved"])
+            self.assertEqual(rejected["human_review"], "rejected")
+            self.assertEqual(len(store.list_music_assets(approved_only=True)), 11)
+            self.assertFalse(pipeline.library_readiness()["ready"])
+
     def test_original_music_bootstrap_registers_distinct_traceable_tracks(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -700,6 +728,9 @@ class CoreTests(unittest.TestCase):
         self.assertIn('FFACTORY — Autonomous Mood Studio', index)
         self.assertIn('https://www.flowmusic.app/', app)
         self.assertIn('/api/music-assets/${Number(track.id)}/preview', app)
+        self.assertIn('/api/music-assets/${Number(button.dataset.trackId)}/review', app)
+        self.assertIn('Aprovar faixa', app)
+        self.assertIn('/api/channel-assets/ffactory-youtube-banner-2560x1440.png', index)
         self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
 
     def test_queue_profile_summary_and_plan(self):
@@ -1123,6 +1154,7 @@ class CoreTests(unittest.TestCase):
     def test_dashboard_api_and_validation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            shutil.copytree(ROOT / "assets" / "channel", root / "assets" / "channel")
             store = Store(root / "data" / "factory.db")
             pipeline = Pipeline(self.settings(root), store)
             server = create_server(pipeline, store, "127.0.0.1", 0, ROOT / "web")
@@ -1134,6 +1166,9 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(dashboard["summary"]["total"], 0)
                 self.assertTrue(dashboard["operation"]["ok"])
                 self.assertEqual(dashboard["creative"]["engine"], "creative_dna_v2")
+                with urllib.request.urlopen(base + "/api/channel-assets/ffactory-avatar-800.png") as response:
+                    self.assertEqual(response.headers.get_content_type(), "image/png")
+                    self.assertGreater(int(response.headers["Content-Length"]), 1_000)
                 creative = json.load(urllib.request.urlopen(base + "/api/creative-system"))
                 self.assertGreaterEqual(creative["catalog"]["candidate_space"], 25_000)
                 series = json.load(urllib.request.urlopen(base + "/api/series"))
@@ -1177,6 +1212,14 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(imported_music["count"], 1)
                 music_library = json.load(urllib.request.urlopen(base + "/api/music-assets"))
                 self.assertEqual(music_library[0]["name"], "licensed-lofi")
+                review_request = urllib.request.Request(
+                    base + f"/api/music-assets/{imported_music['ids'][0]}/review",
+                    data=json.dumps({"decision": "approved"}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST",
+                )
+                reviewed_music = json.load(urllib.request.urlopen(review_request))
+                self.assertEqual(reviewed_music["human_review"], "approved")
+                self.assertTrue(reviewed_music["approved"])
                 hidden_series_request = urllib.request.Request(
                     base + "/api/batches", data=json.dumps({"series_id": "vertical_moments"}).encode(),
                     headers={"Content-Type": "application/json"}, method="POST",

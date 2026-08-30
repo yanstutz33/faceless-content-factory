@@ -331,6 +331,29 @@ class Handler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
 
+    def send_channel_asset(self, name: str) -> None:
+        allowed = {
+            "ffactory-avatar-800.png",
+            "ffactory-youtube-banner-2560x1440.png",
+            "ffactory-watermark-300.png",
+            "brand-manifest.json",
+        }
+        if name not in allowed:
+            return self.send_api_error("Arquivo de marca não encontrado", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        path = self.pipeline.settings.root / "assets" / "channel" / name
+        if not path.is_file():
+            return self.send_api_error("Kit do canal ainda não foi gerado", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        body = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'inline; filename="{path.name}"')
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > 1_000_000:
@@ -454,6 +477,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_asset_preview(int(parts[2]))
         if len(parts) == 4 and parts[:2] == ["api", "music-assets"] and parts[3] == "preview":
             return self.send_music_preview(int(parts[2]))
+        if len(parts) == 3 and parts[:2] == ["api", "channel-assets"]:
+            return self.send_channel_asset(parts[2])
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
         if len(parts) == 3 and parts[:2] == ["api", "jobs"]:
@@ -600,6 +625,12 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                 return self.send_json({"ids": imported, "count": len(imported), "archived": archived},
                                       HTTPStatus.CREATED)
+            music_review_parts = path.strip("/").split("/")
+            if (len(music_review_parts) == 4 and music_review_parts[:2] == ["api", "music-assets"]
+                    and music_review_parts[3] == "review"):
+                return self.send_json(
+                    self.store.review_music_asset(int(music_review_parts[2]), str(data.get("decision", "")))
+                )
             if path == "/api/music-sources/lyria/configure":
                 return self.send_json(self.pipeline.lyria.configure(str(data.get("api_key", ""))))
             if path == "/api/music-sources/lyria/disconnect":

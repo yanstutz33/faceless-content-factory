@@ -516,6 +516,11 @@ class Pipeline:
         licenses = {"original", "commercial_license", "public_domain", "cc0", "provider_generated"}
         rights_ok = all(item.get("license_type") in licenses for item in tracks)
         track_goal, scene_goal = 12, 12
+        listened_tracks = [item for item in tracks if item.get("human_review") == "approved"]
+        listening_target = max(track_goal, len(tracks))
+        listening_ok = bool(self.settings.music_catalog_human_approved) or (
+            len(tracks) >= track_goal and len(listened_tracks) == len(tracks)
+        )
         checks = [
             {"id": "music", "label": "Faixas lo-fi distintas", "value": len(tracks),
              "target": track_goal, "passed": len(tracks) >= track_goal},
@@ -524,8 +529,8 @@ class Pipeline:
             {"id": "rights", "label": "Direitos rastreáveis", "value": len(tracks),
              "target": len(tracks), "passed": bool(tracks) and rights_ok},
             {"id": "listening", "label": "Aprovação auditiva do lote",
-             "value": int(self.settings.music_catalog_human_approved), "target": 1,
-             "passed": self.settings.music_catalog_human_approved},
+             "value": listening_target if self.settings.music_catalog_human_approved else len(listened_tracks),
+             "target": listening_target, "passed": listening_ok},
         ]
         blockers = []
         if len(tracks) < track_goal:
@@ -534,8 +539,9 @@ class Pipeline:
             blockers.append(f"Faltam {scene_goal - len(starter_scenes) - len(custom_scenes)} cenas para o lote criativo.")
         if tracks and not rights_ok:
             blockers.append("Há faixas sem uma licença comercial aceita.")
-        if not self.settings.music_catalog_human_approved:
-            blockers.append("As faixas técnicas ainda não receberam aprovação auditiva humana.")
+        if not listening_ok:
+            remaining = max(0, listening_target - len(listened_tracks))
+            blockers.append(f"Ouça e aprove {remaining} faixa(s) para concluir a validação auditiva do lote.")
         return {
             "ready": all(check["passed"] for check in checks), "checks": checks, "blockers": blockers,
             "music_tracks": len(tracks), "starter_scenes": len(starter_scenes),

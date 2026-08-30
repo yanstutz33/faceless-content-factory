@@ -1,3 +1,4 @@
 # Neural narration plus the encrypted local credential vault.
 edge-tts==7.2.8
 cryptography==46.0.3
+Pillow==12.3.0

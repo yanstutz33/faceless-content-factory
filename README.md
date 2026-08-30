@@ -71,7 +71,9 @@ Para conectar sem editar arquivos, abra **Biblioteca → Conectar chave de API**
 
 Ao importar um lote aprovado do Flow Music, a opção **Usar este lote no lugar das faixas sintéticas antigas** retira o catálogo de teste da rotação sem apagar seus arquivos ou histórico. O plano Google AI Plus/Starter inclui direitos comerciais segundo a [documentação oficial do Google One](https://support.google.com/googleone/answer/16882689).
 
-O catálogo só aparece como pronto quando passa tanto pelos controles técnicos quanto pela escuta humana. `MUSIC_CATALOG_HUMAN_APPROVED` permanece `false` enquanto o novo lote não for ouvido e aceito; hashes diferentes, sozinhos, não são tratados como variedade sonora.
+O catálogo só aparece como pronto quando passa tanto pelos controles técnicos quanto pela escuta humana. Cada cartão musical possui **Aprovar faixa** e **Reprovar**; a reprovação retira a música da rotação sem apagar o arquivo, e o lote só é liberado quando todas as faixas ativas forem ouvidas. `MUSIC_CATALOG_HUMAN_APPROVED` continua disponível apenas como override administrativo; hashes diferentes, sozinhos, não são tratados como variedade sonora.
+
+O kit visual do canal fica em `assets/channel` e também aparece na Biblioteca com botões de download. Ele inclui avatar 800×800, banner 2560×1440 com conteúdo dentro da área segura central e marca-d'água transparente. `python scripts/generate_channel_brand.py` recompõe os arquivos de forma determinística a partir do sistema visual FF/01.
 
 As capas seguem a coleção oficial `assets/covers/nocturnal-rain-v1`: nove referências 16:9, noite chuvosa, azul/verde profundo, luz âmbar pontual e acabamento anime-realista cinematográfico. O gerador não adiciona mais faixa escura, selo, eyebrow ou título longo. O teste A/B compara duas referências tematicamente próximas; cada variação usa imagem limpa ou texto curto já integrado à arte. A direção reproduzível e o prompt-base ficam em `factory/visual_style.py`.
 
