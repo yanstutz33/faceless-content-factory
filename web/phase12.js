@@ -21,13 +21,14 @@ async function loadPublishing(){
     root.innerHTML=publishingState.items.length?publishingState.items.map(item=>{
       const status=publishStatus(item);
       const checks=(item.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
+      const passedChecks=(item.checks||[]).filter(check=>check.passed).length;
       const packages=`<span class="package-pill ${item.packages.youtube_private?'done':''}">YouTube privado</span><span class="package-pill ${item.packages.vertical_manual?'done':''}">Shorts · Reels · TikTok</span><span class="package-pill ${item.packages.bilibili_manual?'done':''}">Bilibili 中文 · EN</span>`;
       const action=item.release_ready
         ?`<a class="secondary" target="_blank" rel="noopener" href="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/release-manifest.json">Abrir manifesto</a>`
         :item.eligible
           ?`<button class="primary" data-release-job="${esc(item.job_id)}">Preparar pacote completo</button>`
           :`<button class="secondary" data-review-job="${esc(item.job_id)}">Abrir para revisar</button>`;
-      return `<article class="publish-item ${status.tone}"><img src="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/thumbnail.jpg" alt="" loading="lazy"><div class="publish-main"><div class="publish-title"><span class="tag">${status.label}</span><h3>${esc(item.title)}</h3><p>${esc(item.topic)} · ${formatDuration(item.duration)}</p></div><ul class="publish-checks">${checks}</ul><div class="package-row">${packages}</div></div><div class="publish-action">${action}<small>Envio sempre manual</small></div></article>`;
+      return `<article class="publish-item ${status.tone}"><img src="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/thumbnail.jpg" alt="" loading="lazy"><div class="publish-main"><div class="publish-title"><span class="tag">${status.label}</span><h3>${esc(item.title)}</h3><p>${esc(item.topic)} · ${formatDuration(item.duration)}</p></div><div class="package-row">${packages}</div><details class="publish-audit"><summary>Verificação técnica · ${passedChecks}/${(item.checks||[]).length} itens</summary><ul class="publish-checks">${checks}</ul></details></div><div class="publish-action">${action}<small>Envio sempre manual</small></div></article>`;
     }).join(''):'<div class="publish-empty"><b>Nenhum vídeo longo está pronto para publicação.</b><p>Prévias e testes abaixo de 30 minutos ficam fora desta central automaticamente.</p></div>';
   }catch(error){toast(error.message)}
 }

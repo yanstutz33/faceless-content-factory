@@ -8,10 +8,23 @@ test('studio loads, navigates and keeps dialogs keyboard-safe', async ({ page })
 
   await page.getByRole('link', { name: /produções/i }).click();
   await expect(page.locator('#production')).toBeInViewport();
+  await expect(page.locator('#production')).toBeVisible();
+  await expect(page.locator('#overview')).toBeHidden();
   await page.getByRole('button', { name: /nova produção/i }).click();
   await expect(page.locator('#create-dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#create-dialog')).not.toBeVisible();
+});
+
+test('navigation shows one workspace at a time and keeps primary actions available', async ({ page }) => {
+  await page.goto('/#library');
+  await expect(page.locator('main > .section:visible')).toHaveCount(1);
+  await expect(page.locator('#library')).toBeVisible();
+  await expect(page.locator('.hero-copy')).toBeHidden();
+  await expect(page.getByRole('button', { name: /nova produção/i })).toBeVisible();
+  await page.getByRole('link', { name: /visão geral/i }).click();
+  await expect(page.locator('main > .section:visible')).toHaveCount(1);
+  await expect(page.locator('.hero-copy')).toBeVisible();
 });
 
 test('studio has no serious accessibility violations', async ({ page }) => {
@@ -79,7 +92,7 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.getByAltText('Avatar Pausa Pra Anime')).toHaveJSProperty('complete', true);
   await expect(page.getByAltText('Banner Pausa Pra Anime para YouTube')).toHaveJSProperty('complete', true);
   await expect(page.locator('#lyria-key-form [name=api_key]')).toHaveAttribute('type', 'password');
-  await page.locator('#flow-music-guide summary').click();
+  await page.getByText('Prompts e automação avançada', { exact: true }).click();
   await expect(page.locator('#flow-music-guide [data-copy-flow]')).toHaveCount(12);
   await page.getByRole('button', { name: /importar downloads/i }).click();
   await expect(page.locator('#music-dialog')).toBeVisible();

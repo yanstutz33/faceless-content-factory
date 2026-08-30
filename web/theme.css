@@ -167,6 +167,36 @@ fieldset legend,
 .topbar h1 em { color: var(--marca); font-style: normal; }
 .hero-lede { max-width: 540px; margin: 17px 0 0; color: var(--suave); font: 600 12px/1.6 var(--mono); letter-spacing: .02em; }
 .top-actions { position: relative; z-index: 1; }
+
+/* Cada item do menu funciona como uma tela. Isso reduz ruído sem remover dados. */
+main > .section[hidden] { display: none !important; }
+main > .section:not([hidden]) { animation: section-enter .18s ease-out; }
+@keyframes section-enter { from { opacity: 0; transform: translateY(5px); } }
+
+body:not([data-route="overview"]) .topbar {
+  min-height: 0;
+  padding: 0 0 26px;
+  justify-content: flex-end;
+  border-bottom-color: var(--borda);
+}
+body:not([data-route="overview"]) .topbar::before,
+body:not([data-route="overview"]) .topbar::after,
+body:not([data-route="overview"]) .hero-copy { display: none; }
+body:not([data-route="overview"]) .section { padding-top: 34px; }
+
+.section-heading { margin-bottom: 28px; }
+.section-heading > div:first-child { display: grid; gap: 3px; }
+.section-copy { max-width: 58ch; line-height: 1.55; }
+.publish-list,
+.production-list,
+.connection-grid,
+.team-grid { gap: 18px; }
+.publish-audit { margin-top: 13px; }
+.publish-audit summary,
+.flow-workflow summary { font: 800 9px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.publish-audit .publish-checks { margin-bottom: 0; }
+.flow-workflow { margin-top: 16px; }
+.flow-workflow ol { margin-bottom: 0; }
 .section-heading > span,
 .section-copy,
 .field small,

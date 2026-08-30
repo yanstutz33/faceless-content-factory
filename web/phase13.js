@@ -22,15 +22,23 @@ openJob=async function(id){
 };
 
 function syncNavigation(scroll=false){
-  const hash=location.hash||'#overview';
+  const requested=(location.hash||'#overview').slice(1);
+  const sections=[...document.querySelectorAll('main > .section')];
+  const activeSection=sections.find(section=>section.id===requested)||document.querySelector('#overview');
+  const hash=`#${activeSection.id}`;
+  document.body.dataset.route=activeSection.id;
+  sections.forEach(section=>{
+    const active=section===activeSection;
+    section.hidden=!active;
+    section.toggleAttribute('aria-hidden',!active);
+  });
   document.querySelectorAll('.nav-item').forEach(item=>{
     const active=item.getAttribute('href')===hash;
     item.classList.toggle('active',active);
     if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
   });
   if(scroll){
-    const section=document.getElementById(hash.slice(1));
-    if(section)section.scrollIntoView({behavior:'auto',block:'start'});
+    window.scrollTo({top:0,behavior:'auto'});
   }
 }
 
@@ -41,9 +49,7 @@ function syncConnectionState(){
 
 window.addEventListener('hashchange',()=>syncNavigation(true));
 window.addEventListener('load',()=>{
-  // The sections above the target grow while their API data arrives. Re-anchor
-  // direct links after those layout shifts so #library really opens Library.
-  [150,800,1800].forEach(delay=>setTimeout(()=>syncNavigation(true),delay));
+  syncNavigation(true);
 });
 window.addEventListener('online',syncConnectionState);
 window.addEventListener('offline',syncConnectionState);
