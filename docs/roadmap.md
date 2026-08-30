@@ -25,11 +25,11 @@
 
 ## Próximas fases, em ordem
 
-### Fase 1 — Catálogo criativo de produção — em revisão musical
+### Fase 1 — Catálogo criativo de produção — pilotos em revisão
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **em validação auditiva: 12 faixas do Flow Music estão ativas, a coleção sintética foi arquivada e cada faixa agora pode ser aprovada ou reprovada diretamente no hub**;
+- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **concluído: 12 faixas do Flow Music foram aprovadas, estão ativas e substituíram a coleção sintética arquivada**;
 - ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 12 cenas-base disponíveis**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
@@ -38,11 +38,11 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: Flow Music Bridge com abertura oficial protegida pelo Google, importação rastreável do lote Starter, substituição reversível do catálogo sintético, integração opcional com Lyria 3 pela Gemini API e montagem local automática**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. O lote de 12 músicas do Flow Music Starter foi importado e a aprovação auditiva faixa a faixa continua obrigatória. O primeiro piloto com a faixa nova `3 A.M. Shadow` foi renderizado por 30 minutos com qualidade técnica 100/100 e aguarda revisão. O kit público **Pausa Pra Anime · by YAMI** para YouTube também está pronto; FFactory segue apenas como infraestrutura interna. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. As 12 músicas do Flow Music Starter passaram pela aprovação auditiva. Dois pilotos de 30 minutos, `Observatório lunar abandonado` e `Estação orbital sobre Júpiter`, aguardam revisão visual no Hub. O kit público **Pausa Pra Anime · by YAMI** para YouTube também está pronto; FFactory segue apenas como infraestrutura interna. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
-Automação: geração, validação, registro, rotação e montagem estão automatizados. Permanecem humanos apenas a criação/colagem inicial da chave, a aceitação dos termos/custos e a aprovação auditiva do lote.
+Automação: geração, validação, registro, rotação e montagem estão automatizados. Permanecem humanas a revisão visual dos pilotos e as decisões de publicação.
 
 ### Fase 2 — Piloto automático sem publicação — próxima
 
@@ -144,4 +144,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Ouvir e decidir as 12 faixas pelo hub, revisar o primeiro piloto `Observatório lunar abandonado` e substituir qualquer faixa reprovada. Com a diversidade musical aprovada, renderizar os nove pilotos restantes e executar os três lotes automáticos da Fase 2. Somente depois disso iniciar o piloto privado do YouTube.
+Revisar no Hub os pilotos `Observatório lunar abandonado` e `Estação orbital sobre Júpiter`. Se ambos estiverem coerentes, renderizar automaticamente os oito pilotos restantes e executar os três lotes autônomos da Fase 2. Somente depois disso iniciar o piloto privado do YouTube.
