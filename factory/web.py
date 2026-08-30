@@ -333,9 +333,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_channel_asset(self, name: str) -> None:
         allowed = {
-            "ffactory-avatar-800.png",
-            "ffactory-youtube-banner-2560x1440.png",
-            "ffactory-watermark-300.png",
+            "pausa-pra-anime-avatar-800.png",
+            "pausa-pra-anime-youtube-banner-2560x1440.png",
+            "pausa-pra-anime-watermark-300.png",
             "brand-manifest.json",
         }
         if name not in allowed:

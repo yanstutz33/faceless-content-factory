@@ -730,7 +730,7 @@ class CoreTests(unittest.TestCase):
         self.assertIn('/api/music-assets/${Number(track.id)}/preview', app)
         self.assertIn('/api/music-assets/${Number(button.dataset.trackId)}/review', app)
         self.assertIn('Aprovar faixa', app)
-        self.assertIn('/api/channel-assets/ffactory-youtube-banner-2560x1440.png', index)
+        self.assertIn('/api/channel-assets/pausa-pra-anime-youtube-banner-2560x1440.png', index)
         self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
 
     def test_queue_profile_summary_and_plan(self):
@@ -1166,7 +1166,7 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(dashboard["summary"]["total"], 0)
                 self.assertTrue(dashboard["operation"]["ok"])
                 self.assertEqual(dashboard["creative"]["engine"], "creative_dna_v2")
-                with urllib.request.urlopen(base + "/api/channel-assets/ffactory-avatar-800.png") as response:
+                with urllib.request.urlopen(base + "/api/channel-assets/pausa-pra-anime-avatar-800.png") as response:
                     self.assertEqual(response.headers.get_content_type(), "image/png")
                     self.assertGreater(int(response.headers["Content-Length"]), 1_000)
                 creative = json.load(urllib.request.urlopen(base + "/api/creative-system"))

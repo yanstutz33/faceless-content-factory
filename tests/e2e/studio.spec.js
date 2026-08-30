@@ -74,10 +74,10 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.locator('#catalog-readiness')).toContainText(/faixas lo-fi distintas/i);
   await expect(page.locator('#flow-music-guide')).toContainText(/Flow Music Bridge/i);
   await expect(page.getByRole('link', { name: /abrir flow music/i })).toHaveAttribute('href', 'https://www.flowmusic.app/');
-  await expect(page.getByRole('heading', { name: /identidade pronta para o youtube/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /identidade pública assinada pela yami/i })).toBeVisible();
   await expect(page.locator('.channel-kit-actions a[download]')).toHaveCount(3);
-  await expect(page.getByAltText('Avatar FFactory')).toHaveJSProperty('complete', true);
-  await expect(page.getByAltText('Banner FFactory para YouTube')).toHaveJSProperty('complete', true);
+  await expect(page.getByAltText('Avatar Pausa Pra Anime')).toHaveJSProperty('complete', true);
+  await expect(page.getByAltText('Banner Pausa Pra Anime para YouTube')).toHaveJSProperty('complete', true);
   await expect(page.locator('#lyria-key-form [name=api_key]')).toHaveAttribute('type', 'password');
   await page.locator('#flow-music-guide summary').click();
   await expect(page.locator('#flow-music-guide [data-copy-flow]')).toHaveCount(12);

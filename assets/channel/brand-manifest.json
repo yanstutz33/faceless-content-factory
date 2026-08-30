@@ -1,31 +1,37 @@
 {
-  "brand": "FFACTORY",
-  "system": "FF/01 · Autonomous Mood Systems",
+  "brand": "PAUSA PRA ANIME",
+  "handle": "@pausapraanime",
+  "signature": "YAMI",
   "generated_by": "scripts/generate_channel_brand.py",
   "assets": [
     {
-      "file": "ffactory-avatar-800.png",
+      "file": "pausa-pra-anime-avatar-800.png",
       "use": "YouTube profile image",
       "size": "800x800"
     },
     {
-      "file": "ffactory-youtube-banner-2560x1440.png",
+      "file": "pausa-pra-anime-youtube-banner-2560x1440.png",
       "use": "YouTube channel banner",
       "size": "2560x1440",
       "safe_area": "central 1546x423"
     },
     {
-      "file": "ffactory-watermark-300.png",
+      "file": "pausa-pra-anime-watermark-300.png",
       "use": "YouTube video watermark",
       "size": "300x300 transparent"
     }
   ],
+  "source_identity": {
+    "instagram": "https://www.instagram.com/pausapraanime/",
+    "profile_source": "pausa-pra-anime-profile-source.jpg",
+    "art_source": "pausa-pra-anime-banner-art.png",
+    "fashion_brand_source": "yami-mark-source.png"
+  },
   "palette": {
-    "ink": "#141018",
-    "panel": "#1e1828",
+    "ink": "#08080d",
+    "panel": "#141018",
     "paper": "#f4efe4",
-    "purple": "#9c85ff",
-    "blue": "#69c7ff",
-    "amber": "#f0aa4f"
+    "purple": "#8a66ff",
+    "soft": "#b8afc4"
   }
 }
