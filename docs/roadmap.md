@@ -29,7 +29,7 @@
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill diferentes, com licença e atribuição quando exigida — **concluído: 12 faixas do Flow Music foram aprovadas, estão ativas e substituíram a coleção sintética arquivada**;
+- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill perceptivelmente diferentes, com licença e atribuição quando exigida — **em aberto: o lote anterior foi reprovado por repetição e colocado integralmente em quarentena, sem exclusão dos arquivos**;
 - ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 12 cenas-base disponíveis**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
@@ -38,11 +38,11 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: Flow Music Bridge com abertura oficial protegida pelo Google, importação rastreável do lote Starter, substituição reversível do catálogo sintético, integração opcional com Lyria 3 pela Gemini API e montagem local automática**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. As 12 músicas do Flow Music Starter passaram pela aprovação auditiva. Dois pilotos de 30 minutos, `Observatório lunar abandonado` e `Estação orbital sobre Júpiter`, aguardam revisão visual no Hub. O kit público **Pausa Pra Anime · by YAMI** para YouTube também está pronto; FFactory segue apenas como infraestrutura interna. Nenhum vídeo foi publicado externamente.
+Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. Em 30/08/2026, o catálogo musical inteiro foi reprovado por semelhança e repetição: 24 faixas foram preservadas em quarentena e 21 produções relacionadas saíram da fila publicável. A fábrica agora bloqueia vídeos longos quando não há música ouvida e aprovada. O kit público **Pausa Pra Anime · by YAMI** para YouTube continua pronto; FFactory segue apenas como infraestrutura interna. Nenhum vídeo foi publicado externamente.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
-Automação: geração, validação, registro, rotação e montagem estão automatizados. Permanecem humanas a revisão visual dos pilotos e as decisões de publicação.
+Automação: ingestão, validação técnica, registro, rotação e montagem estão automatizados. Permanecem humanas a aprovação auditiva do novo catálogo, a revisão visual dos pilotos e as decisões de publicação.
 
 ### Fase 2 — Piloto automático sem publicação — próxima
 

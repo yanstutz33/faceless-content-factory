@@ -652,6 +652,61 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(len({item["sha256"] for item in manifest["tracks"]}), 2)
             self.assertTrue(all(item["license"] == "original" for item in manifest["tracks"]))
 
+    def test_rejecting_music_quarantines_linked_publishable_jobs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            track = root / "repetitive.mp3"
+            track.write_bytes(b"ID3-repetitive")
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            track_id = store.add_music_asset(
+                "Repetitive track", str(track), "provider_generated", "https://example.test", None, True
+            )
+            store.review_music_asset(track_id, "approved")
+            job_id = pipeline.create("Long night", 1800, music_asset_id=track_id)
+            store.update(job_id, "approved", {
+                "music": {"style": "licensed_music_library", "track_id": track_id,
+                          "track_name": "Repetitive track"},
+                "verification": {"passed": True}, "quality_gate": {"passed": True, "score": 100},
+            }, progress=100)
+
+            rejected = store.review_music_asset(track_id, "rejected")
+
+            self.assertEqual(rejected["invalidated_jobs"], [job_id])
+            job = store.get_job(job_id)
+            self.assertEqual(job["status"], "rejected")
+            self.assertIn("reprovada", job["error"])
+            audit = PublishingCenter(pipeline, store).audit(job)
+            self.assertFalse(audit["eligible"])
+            self.assertTrue(any(check["id"] == "music" and not check["passed"] for check in audit["checks"]))
+
+    def test_long_video_never_falls_back_to_synthetic_music(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("No approved music", 1800)
+            job = store.get_job(job_id)
+            self.assertIsNone(store.reserve_music_asset())
+            self.assertIsNone(job["music_asset_id"])
+
+    def test_legacy_synthetic_jobs_can_be_quarantined_without_deleting_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            job_id = pipeline.create("Old synthetic package", 1800)
+            output = Path(store.get_job(job_id)["output_dir"])
+            artifact = output / "video.mp4"
+            artifact.write_bytes(b"preserved")
+            store.update(job_id, "approved", {
+                "music": {"style": "original_lofi_chill", "bpm": 72},
+            }, progress=100)
+
+            self.assertEqual(store.quarantine_legacy_music_jobs(), [job_id])
+            self.assertEqual(store.get_job(job_id)["status"], "rejected")
+            self.assertEqual(artifact.read_bytes(), b"preserved")
+
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_legacy_cover_migration_is_recoverable_and_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -695,6 +750,7 @@ class CoreTests(unittest.TestCase):
                                           for i in range(22050)))
                     output.writeframes(samples.tobytes())
                 tracks.append(store.add_music_asset(f"Track {index}", str(path), "original", None, None, True))
+                store.review_music_asset(tracks[-1], "approved")
             first = store.reserve_music_asset()
             second = store.reserve_music_asset()
             third = store.reserve_music_asset()

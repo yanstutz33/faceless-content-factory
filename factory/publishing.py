@@ -40,10 +40,31 @@ class PublishingCenter:
             False, "Existe mídia sem licença ou aprovação comprovada"
         )
 
+    def _music_approval(self, job: dict[str, Any], metadata: dict[str, Any]) -> tuple[bool, str]:
+        music = metadata.get("music") if isinstance(metadata, dict) else None
+        if not isinstance(music, dict):
+            return False, "Música não identificada no pacote"
+        if music.get("style") == "original_lofi_chill":
+            return False, "Beat sintético antigo bloqueado; escolha uma faixa ouvida e aprovada"
+        asset_id = job.get("music_asset_id") or music.get("track_id")
+        asset = self.store.get_music_asset_record(int(asset_id)) if asset_id else None
+        if not asset and music.get("track_name"):
+            asset = next(
+                (item for item in self.store.list_music_assets()
+                 if item.get("name") == music.get("track_name")),
+                None,
+            )
+        if not asset:
+            return False, "Faixa sem vínculo rastreável com a Biblioteca"
+        if not asset.get("approved") or asset.get("human_review") != "approved":
+            return False, f"Música reprovada ou ainda não ouvida: {asset.get('name', 'sem nome')}"
+        return True, f"Música ouvida e aprovada: {asset['name']}"
+
     def audit(self, job: dict[str, Any]) -> dict[str, Any]:
         out = Path(job["output_dir"])
         metadata = job.get("metadata") or {}
         rights_ok, rights_detail = self._asset_rights(out)
+        music_ok, music_detail = self._music_approval(job, metadata)
         checks = [
             {"id": "format", "label": "Formato publicável",
              "passed": job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800,
@@ -57,6 +78,7 @@ class PublishingCenter:
             {"id": "quality", "label": "Controle automático", "passed": bool(metadata.get("quality_gate", {}).get("passed")),
              "detail": f"Nota {metadata.get('quality_gate', {}).get('score', 0)}/100"},
             {"id": "rights", "label": "Direitos de mídia", "passed": rights_ok, "detail": rights_detail},
+            {"id": "music", "label": "Aprovação musical", "passed": music_ok, "detail": music_detail},
         ]
         blockers = [check["detail"] for check in checks if not check["passed"]]
         youtube_ready = (out / "youtube-upload.json").is_file()

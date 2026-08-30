@@ -567,9 +567,38 @@ class Store:
                 "UPDATE music_assets SET approved=?,human_review=?,human_reviewed_at=? WHERE id=?",
                 (approved, decision, now(), asset_id),
             )
+            invalidated: list[str] = []
+            if decision == "rejected":
+                for job in db.execute(
+                    "SELECT id,metadata,music_asset_id FROM jobs WHERE status IN ('approved','awaiting_approval')"
+                ).fetchall():
+                    try:
+                        metadata = json.loads(job["metadata"] or "{}")
+                    except (TypeError, json.JSONDecodeError):
+                        metadata = {}
+                    music = metadata.get("music") if isinstance(metadata, dict) else {}
+                    track_id = music.get("track_id") if isinstance(music, dict) else None
+                    track_name = music.get("track_name") if isinstance(music, dict) else None
+                    if (job["music_asset_id"] == asset_id or track_id == asset_id
+                            or (track_name and track_name == row["name"])):
+                        message = f"Música '{row['name']}' reprovada na audição; produção retirada da publicação"
+                        db.execute(
+                            "UPDATE jobs SET status='rejected',error=?,updated_at=? WHERE id=?",
+                            (message, now(), job["id"]),
+                        )
+                        db.execute(
+                            "UPDATE calendar SET status='revision',error=?,updated_at=? WHERE job_id=?",
+                            (message, now(), job["id"]),
+                        )
+                        db.execute(
+                            "INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)",
+                            (job["id"], "music_review", message, now()),
+                        )
+                        invalidated.append(str(job["id"]))
             updated = db.execute("SELECT * FROM music_assets WHERE id=?", (asset_id,)).fetchone()
         item = dict(updated)
         item["approved"] = bool(item["approved"])
+        item["invalidated_jobs"] = invalidated
         return item
 
     def get_music_asset(self, asset_id: int) -> dict[str, Any] | None:
@@ -577,14 +606,68 @@ class Store:
             row = db.execute("SELECT * FROM music_assets WHERE id=? AND approved=1", (asset_id,)).fetchone()
             return dict(row) if row else None
 
+    def get_music_asset_record(self, asset_id: int) -> dict[str, Any] | None:
+        """Return a catalog record even when it is quarantined or rejected."""
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM music_assets WHERE id=?", (asset_id,)).fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            item["approved"] = bool(item["approved"])
+            return item
+
+    def assign_music_asset(self, job_id: str, asset_id: int) -> None:
+        """Persist the automatic rotation choice so later audits remain traceable."""
+        with self.connect() as db:
+            cursor = db.execute(
+                "UPDATE jobs SET music_asset_id=?,updated_at=? WHERE id=?",
+                (asset_id, now(), job_id),
+            )
+            if not cursor.rowcount:
+                raise ValueError("Produção não encontrada")
+
+    def quarantine_legacy_music_jobs(self) -> list[str]:
+        """Remove old synthetic/fallback audio packages from the publishable queue."""
+        quarantined: list[str] = []
+        message = "Beat sintético antigo reprovado; selecione uma nova música ouvida e aprovada"
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT id,metadata FROM jobs WHERE status IN ('approved','awaiting_approval')"
+            ).fetchall()
+            for row in rows:
+                try:
+                    metadata = json.loads(row["metadata"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    metadata = {}
+                music = metadata.get("music") if isinstance(metadata, dict) else None
+                if not isinstance(music, dict) or music.get("style") != "original_lofi_chill":
+                    continue
+                db.execute(
+                    "UPDATE jobs SET status='rejected',error=?,updated_at=? WHERE id=?",
+                    (message, now(), row["id"]),
+                )
+                db.execute(
+                    "UPDATE calendar SET status='revision',error=?,updated_at=? WHERE job_id=?",
+                    (message, now(), row["id"]),
+                )
+                db.execute(
+                    "INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)",
+                    (row["id"], "music_review", message, now()),
+                )
+                quarantined.append(str(row["id"]))
+        return quarantined
+
     def reserve_music_asset(self, preferred_id: int | None = None) -> dict[str, Any] | None:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if preferred_id:
-                row = db.execute("SELECT * FROM music_assets WHERE id=? AND approved=1", (preferred_id,)).fetchone()
+                row = db.execute(
+                    "SELECT * FROM music_assets WHERE id=? AND approved=1 AND human_review='approved'",
+                    (preferred_id,),
+                ).fetchone()
             else:
                 row = db.execute(
-                    """SELECT * FROM music_assets WHERE approved=1
+                    """SELECT * FROM music_assets WHERE approved=1 AND human_review='approved'
                        ORDER BY use_count ASC, COALESCE(last_used_at,'') ASC, id ASC LIMIT 1"""
                 ).fetchone()
             if not row:

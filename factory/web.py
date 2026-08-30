@@ -268,7 +268,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return
 
     def send_music_preview(self, asset_id: int) -> None:
-        track = self.store.get_music_asset(asset_id)
+        # Quarantine removes a track from production, not from the listening history.
+        # Keeping the preview available lets the user compare it or reverse a decision.
+        track = self.store.get_music_asset_record(asset_id)
         path = Path(str(track.get("path", ""))) if track else Path()
         if not track or not path.is_file():
             return self.send_api_error("Música não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")

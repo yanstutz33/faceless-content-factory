@@ -917,8 +917,11 @@ class Pipeline:
         team = get_team(team_id)
         if not team.creation_enabled:
             raise ValueError("Esta equipe trabalha pelo Centro de Afiliados")
-        if music_asset_id is not None and not self.store.get_music_asset(int(music_asset_id)):
-            raise ValueError("A música escolhida não está aprovada na biblioteca")
+        if music_asset_id is not None:
+            selected_music = self.store.get_music_asset_record(int(music_asset_id))
+            if (not selected_music or not selected_music.get("approved")
+                    or selected_music.get("human_review") != "approved"):
+                raise ValueError("A música escolhida precisa ser ouvida e aprovada na biblioteca")
         duration = max(PROFILES[profile]["min_duration"],
                        min(int(duration), PROFILES[profile]["max_duration"]))
         assets = list(source_assets or [])
@@ -1083,7 +1086,13 @@ class Pipeline:
             music_asset = self.store.reserve_music_asset(job.get("music_asset_id"))
             if music_asset:
                 music_asset["preferred"] = bool(job.get("music_asset_id"))
+                self.store.assign_music_asset(job_id, int(music_asset["id"]))
                 music = self.create_library_audio(audio, job["duration"], sound_profile, music_asset)
+            elif job.get("profile") == "youtube_long":
+                raise RuntimeError(
+                    "Nenhuma música ouvida e aprovada está disponível. "
+                    "Importe faixas variadas na Biblioteca e aprove-as antes de renderizar vídeos longos."
+                )
             else:
                 music = self.create_ambient_audio(audio, job["duration"], sound_profile, job["topic"], creative_dna)
             metadata["sound_profile"] = sound_profile
