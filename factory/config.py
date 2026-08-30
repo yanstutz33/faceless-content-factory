@@ -53,6 +53,9 @@ class Settings:
     tts_rate: str = "-8%"
     tts_pitch: str = "-2Hz"
     tts_timeout_seconds: int = 180
+    remote_access: bool = False
+    remote_username: str = ""
+    remote_password: str = ""
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -100,4 +103,7 @@ class Settings:
             tts_rate=os.getenv("TTS_RATE", "-8%").strip(),
             tts_pitch=os.getenv("TTS_PITCH", "-2Hz").strip(),
             tts_timeout_seconds=max(30, min(600, int(os.getenv("TTS_TIMEOUT_SECONDS", "180")))),
+            remote_access=os.getenv("FACTORY_REMOTE_ACCESS", "false").lower() == "true",
+            remote_username=os.getenv("FACTORY_REMOTE_USERNAME", "").strip(),
+            remote_password=os.getenv("FACTORY_REMOTE_PASSWORD", ""),
         )

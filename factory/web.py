@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import html
 import mimetypes
@@ -196,6 +198,50 @@ class Handler(SimpleHTTPRequestHandler):
     def send_api_error(self, message: str, status: int, code: str) -> None:
         self.send_json({"error": message, "code": code, "request_id": getattr(self, "request_id", "unknown")}, status)
 
+    def is_local_request(self) -> bool:
+        peer = str(self.client_address[0]).split("%", 1)[0]
+        host = urlparse(f"//{self.headers.get('Host', '')}").hostname or ""
+        forwarded = self.headers.get("CF-Connecting-IP") or self.headers.get("X-Forwarded-For")
+        return not forwarded and peer in {"127.0.0.1", "::1"} and host in {"127.0.0.1", "localhost", "::1"}
+
+    def remote_authenticated(self) -> bool:
+        if self.is_local_request():
+            return True
+        settings = self.pipeline.settings
+        if not settings.remote_access or not settings.remote_username or not settings.remote_password:
+            return False
+        authorization = self.headers.get("Authorization", "")
+        if not authorization.startswith("Basic "):
+            return False
+        try:
+            decoded = base64.b64decode(authorization[6:], validate=True).decode("utf-8")
+            username, password = decoded.split(":", 1)
+        except (ValueError, UnicodeDecodeError):
+            return False
+        return hmac.compare_digest(username, settings.remote_username) and \
+            hmac.compare_digest(password, settings.remote_password)
+
+    def require_remote_auth(self) -> bool:
+        if self.remote_authenticated():
+            return True
+        status = HTTPStatus.UNAUTHORIZED if self.pipeline.settings.remote_access else HTTPStatus.FORBIDDEN
+        body = json.dumps({
+            "error": "Acesso remoto requer autenticação" if status == HTTPStatus.UNAUTHORIZED else "Acesso remoto desativado",
+            "code": "AUTH_REQUIRED" if status == HTTPStatus.UNAUTHORIZED else "REMOTE_DISABLED",
+            "request_id": getattr(self, "request_id", "unknown"),
+        }, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        if status == HTTPStatus.UNAUTHORIZED:
+            self.send_header("WWW-Authenticate", 'Basic realm="FFactory", charset="UTF-8"')
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass
+        return False
+
     def send_html(self, value: str, status: int = 200) -> None:
         body = value.encode("utf-8")
         self.send_response(status)
@@ -366,20 +412,29 @@ class Handler(SimpleHTTPRequestHandler):
         return value
 
     def trusted_mutation(self) -> bool:
-        host = urlparse(f"//{self.headers.get('Host', '')}").hostname or ""
-        if host not in {"127.0.0.1", "localhost", "::1"}:
+        if not self.remote_authenticated():
             return False
         if self.headers.get("Sec-Fetch-Site", "").lower() == "cross-site":
             return False
         origin = self.headers.get("Origin")
+        if self.is_local_request():
+            if not origin or origin == "null":
+                return True
+            parsed = urlparse(origin)
+            expected_port = int(self.server.server_address[1])
+            return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost", "::1"} and \
+                (parsed.port or (443 if parsed.scheme == "https" else 80)) == expected_port
         if not origin or origin == "null":
-            return True
+            return False
         parsed = urlparse(origin)
-        expected_port = int(self.server.server_address[1])
-        return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost", "::1"} and \
-            (parsed.port or (443 if parsed.scheme == "https" else 80)) == expected_port
+        request_host = urlparse(f"//{self.headers.get('Host', '')}")
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        request_port = request_host.port or (443 if parsed.scheme == "https" else 80)
+        return parsed.scheme == "https" and parsed.hostname == request_host.hostname and origin_port == request_port
 
     def do_GET(self) -> None:
+        if not self.require_remote_auth():
+            return
         try:
             self._do_GET()
         except (ValueError, KeyError, json.JSONDecodeError) as exc:
@@ -494,6 +549,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if not self.require_remote_auth():
+            return
         if not self.trusted_mutation():
             return self.send_api_error("Requisição externa bloqueada", HTTPStatus.FORBIDDEN, "UNTRUSTED_ORIGIN")
         if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
@@ -710,7 +767,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_api_error("Falha interna. Use o código da solicitação para diagnóstico.", HTTPStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR")
 
     def _method_not_allowed(self) -> None:
+        if not self.require_remote_auth():
+            return
         self.send_api_error("Método não permitido para esta rota", HTTPStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED")
+
+    def do_HEAD(self) -> None:
+        if not self.require_remote_auth():
+            return
+        super().do_HEAD()
 
     do_PUT = _method_not_allowed
     do_PATCH = _method_not_allowed
@@ -718,6 +782,9 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
+    if pipeline.settings.remote_access and (
+            not pipeline.settings.remote_username or len(pipeline.settings.remote_password) < 16):
+        raise ValueError("Acesso remoto exige usuário e senha com pelo menos 16 caracteres")
     runner = JobRunner(pipeline, pipeline.settings.workers)
     autopilot = Autopilot(pipeline.settings, store)
     nightshift = NightShift(pipeline, store, runner, autopilot)

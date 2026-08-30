@@ -160,6 +160,11 @@ class Pipeline:
             "llm_provider": {"configured": bool(self.settings.openai_api_key), "model": self.settings.openai_model},
             "music_provider": self.lyria.status(),
             "youtube_connector": {"configured": bool(self.settings.youtube_client_secrets_file), "mode": "manual-safe"},
+            "remote_access": {
+                "enabled": self.settings.remote_access,
+                "protected": bool(self.settings.remote_username and self.settings.remote_password),
+                "transport": "https-tunnel",
+            },
             "local_voice_fallback": {"enabled": self.settings.local_tts_fallback,
                                      "available": self.local_voice_available()},
         }

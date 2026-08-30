@@ -115,6 +115,19 @@ python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados ú
 python app.py bilibili-package ID_DA_PRODUCAO
 ```
 
+## Acesso de qualquer lugar
+
+O FFactory mantém o renderizador, os MP3, os vídeos e o banco neste computador e publica somente uma porta HTTPS protegida. Isso evita enviar centenas de gigabytes para uma hospedagem comum e permite controlar o Hub pelo celular ou por outro computador enquanto a máquina principal estiver ligada.
+
+1. Instale o conector oficial: `winget install --id Cloudflare.cloudflared --exact`.
+2. No `.env`, defina `FACTORY_REMOTE_ACCESS=true`, um `FACTORY_REMOTE_USERNAME` e uma senha exclusiva com pelo menos 16 caracteres em `FACTORY_REMOTE_PASSWORD`.
+3. Reinicie o Hub com `.\scripts\start.ps1`.
+4. Em outra janela, execute `.\scripts\start-remote.ps1`. O endereço temporário `https://...trycloudflare.com` impresso no terminal funciona em qualquer navegador e solicita o usuário e a senha do FFactory.
+
+O servidor continua vinculado a `127.0.0.1`: nenhuma porta do roteador é aberta. Requisições remotas sem autenticação são recusadas, alterações exigem origem HTTPS igual ao endereço aberto e o diagnóstico nunca devolve a senha. O túnel temporário é apenas para validação e muda ao reiniciar. Para operação diária, crie um túnel nomeado e uma aplicação **Cloudflare Access** ligada a um domínio; permita somente seu e-mail por código de uso único. Essa etapa exige login e seleção do domínio na sua conta Cloudflare.
+
+O computador precisa permanecer ligado e conectado. A hospedagem integral em nuvem fica como uma fase separada porque renderizar 30–60 minutos e armazenar os vídeos exige uma máquina com volume persistente e custo mensal.
+
 O renderizador codifica um ciclo visual curto uma vez e o repete sem recodificar cada quadro das 30/60 minutos, reduzindo drasticamente o tempo e o uso de CPU.
 
 ## Como os agentes trabalham

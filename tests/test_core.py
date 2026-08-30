@@ -1503,6 +1503,67 @@ class CoreTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
 
+    def test_remote_access_requires_credentials_and_same_origin_mutations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            settings = replace(self.settings(root), remote_access=True,
+                               remote_username="owner", remote_password="strong-test-password")
+            pipeline = Pipeline(settings, store)
+            server = create_server(pipeline, store, "127.0.0.1", 0, ROOT / "web")
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            forwarded = {"Host": "factory.example", "CF-Connecting-IP": "203.0.113.7"}
+            credentials = base64.b64encode(b"owner:strong-test-password").decode()
+            authenticated = {**forwarded, "Authorization": f"Basic {credentials}"}
+            try:
+                blocked_request = urllib.request.Request(base + "/api/health", headers=forwarded)
+                with self.assertRaises(urllib.error.HTTPError) as blocked:
+                    urllib.request.urlopen(blocked_request)
+                self.assertEqual(blocked.exception.code, 401)
+                self.assertIn("Basic", blocked.exception.headers["WWW-Authenticate"])
+                blocked.exception.close()
+
+                health_request = urllib.request.Request(base + "/api/health", headers=authenticated)
+                health = json.load(urllib.request.urlopen(health_request))
+                self.assertTrue(health["remote_access"]["enabled"])
+                self.assertTrue(health["remote_access"]["protected"])
+                self.assertNotIn("strong-test-password", json.dumps(health))
+
+                same_origin = urllib.request.Request(
+                    base + "/api/not-a-route", data=b"{}", method="POST",
+                    headers={**authenticated, "Origin": "https://factory.example",
+                             "Content-Type": "application/json"},
+                )
+                with self.assertRaises(urllib.error.HTTPError) as missing:
+                    urllib.request.urlopen(same_origin)
+                self.assertEqual(missing.exception.code, 404)
+                missing.exception.close()
+
+                cross_origin = urllib.request.Request(
+                    base + "/api/not-a-route", data=b"{}", method="POST",
+                    headers={**authenticated, "Origin": "https://evil.example",
+                             "Content-Type": "application/json"},
+                )
+                with self.assertRaises(urllib.error.HTTPError) as rejected:
+                    urllib.request.urlopen(cross_origin)
+                self.assertEqual(rejected.exception.code, 403)
+                rejected.exception.close()
+            finally:
+                server.shutdown()
+                server.server_close()
+
+    def test_remote_server_refuses_weak_credentials(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            settings = replace(self.settings(root), remote_access=True,
+                               remote_username="owner", remote_password="short")
+            pipeline = Pipeline(settings, store)
+            with self.assertRaisesRegex(ValueError, "pelo menos 16"):
+                create_server(pipeline, store, "127.0.0.1", 0, ROOT / "web")
+
     def test_api_internal_errors_are_traceable_without_leaking_details(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
