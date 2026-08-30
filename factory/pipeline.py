@@ -1016,13 +1016,13 @@ class Pipeline:
             (("anime", "personagem"), "lofi-anime-rainy-apartment.jpg"),
             (("cafe", "cafeteria"), "lofi-rainy-cafe.jpg"),
             (("trem", "train", "vagao"), "lofi-night-train.jpg"),
+            (("floresta", "cedro", "forest", "vidro"), "lofi-forest-glass-cabin.jpg"),
+            (("aurora", "montanha", "mountain"), "lofi-observatory-library.jpg"),
             (("lago", "cabana", "lake"), "lofi-lakeside-cabin.jpg"),
             (("disco", "vinil", "record", "loja"), "lofi-record-store.jpg"),
             (("lua", "lunar", "observatorio"), "lofi-lunar-observatory.jpg"),
             (("estufa", "rooftop", "telhado"), "lofi-rooftop-greenhouse.jpg"),
             (("lavanderia", "laundromat", "oceano", "mar"), "lofi-coastal-laundromat.jpg"),
-            (("aurora", "montanha", "mountain"), "lofi-observatory-library.jpg"),
-            (("floresta", "cedro", "forest", "vidro"), "lofi-forest-glass-cabin.jpg"),
         )
         for keywords, scene in keyword_scenes:
             if any(keyword in normalized for keyword in keywords):
