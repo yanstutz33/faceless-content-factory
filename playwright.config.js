@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { existsSync } from 'node:fs';
 
-const studioCommand = process.platform === 'win32'
+const studioCommand = process.platform === 'win32' && existsSync('.\\.venv\\Scripts\\python.exe')
   ? '.\\.venv\\Scripts\\python.exe app.py serve'
   : 'python app.py serve';
 
