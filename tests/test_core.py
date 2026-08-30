@@ -1609,6 +1609,10 @@ class CoreTests(unittest.TestCase):
         self.assertIn("package_ready:'PACOTE LOCAL PRONTO'", integrations_ui)
         publishing_ui = (ROOT / "web" / "phase12.js").read_text(encoding="utf-8")
         self.assertIn("bilibili_manual", publishing_ui)
+        self.assertIn("artifactUrl(item.job_id,'thumbnail.jpg',item.updated_at)", publishing_ui)
+        app_ui = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("const artifactUrl=", app_ui)
+        self.assertIn("artifactUrl(job.id,'thumbnail.jpg',job.updated_at)", app_ui)
 
     def test_frontend_dialogs_cannot_submit_when_cancelled(self):
         index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

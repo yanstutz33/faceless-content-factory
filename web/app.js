@@ -47,6 +47,7 @@ const api=async(url,options={})=>{
   }finally{clearTimeout(timer)}
 };
 const formatDuration=s=>s>=3600?`${Math.floor(s/3600)}h ${Math.round(s%3600/60)}min`:s>=60?`${Math.round(s/60)} min`:`${s}s`;
+const artifactUrl=(jobId,name,revision)=>`/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}?v=${encodeURIComponent(revision||Date.now())}`;
 
 function renderStats(){const s=state.summary;const cards=[['◫','Produções',s.total??0,'histórico local'],['◌','Em andamento',s.in_progress??0,'fila automática'],['◆','Para revisar',s.awaiting_approval??0,'decisão humana'],['✦','Qualidade média',s.average_quality?`${s.average_quality}/100`:'—','score dos agentes']];$('#stats').innerHTML=cards.map(c=>`<article class="stat"><div class="stat-top"><span>${c[1]}</span><span class="stat-icon">${c[0]}</span></div><strong>${c[2]}</strong><small>${c[3]}</small></article>`).join('');$('#queue-badge').textContent=(s.in_progress??0)+(s.awaiting_approval??0)}
 
@@ -59,7 +60,7 @@ function renderJobs(){
   const root=$('#jobs');
   if(!jobs.length){root.innerHTML='<div class="empty">Nenhuma produção neste filtro.</div>';return}
   root.innerHTML=jobs.map(job=>{
-    const artwork=`/api/jobs/${encodeURIComponent(job.id)}/artifacts/thumbnail.jpg`;
+    const artwork=artifactUrl(job.id,'thumbnail.jpg',job.updated_at);
     const thumbnail=hasRenderedArtifacts(job)?`<img class="thumb" src="${artwork}" alt="Capa de ${esc(job.topic)}" loading="lazy">`:'<div class="thumb thumb-placeholder" aria-hidden="true"></div>';
     return `<article class="production" data-job="${esc(job.id)}" tabindex="0">${thumbnail}<div><h3>${esc(job.topic)}</h3><div class="meta">${esc((state.profiles[job.profile]||{}).label||job.profile)} · ${formatDuration(job.duration)}</div></div><div class="stage">${esc(statusLabels[job.status]||job.status)}<div class="progress"><span style="width:${job.progress||0}%"></span></div></div><span class="status ${esc(job.status)}">${esc(statusLabels[job.status]||job.status)}</span><div class="score">${job.quality_score?`<b>${job.quality_score}</b>/100`:'—'}</div><button class="more" type="button" aria-label="Abrir detalhes">›</button></article>`;
   }).join('');
@@ -78,7 +79,7 @@ async function openJob(id){
     const agents=metadata.agents||{};
     const verificationData=metadata.verification||{};
     const ready=hasRenderedArtifacts(job)&&['awaiting_approval','approved','rejected'].includes(job.status);
-    const video=ready?`<video class="preview" controls preload="metadata" poster="/api/jobs/${encodeURIComponent(job.id)}/artifacts/thumbnail.jpg"><source src="/api/jobs/${encodeURIComponent(job.id)}/artifacts/video.mp4" type="video/mp4"></video>`:'<div class="preview preview-placeholder"><span>Prévia indisponível</span></div>';
+    const video=ready?`<video class="preview" controls preload="metadata" poster="${artifactUrl(job.id,'thumbnail.jpg',job.updated_at)}"><source src="${artifactUrl(job.id,'video.mp4',job.updated_at)}" type="video/mp4"></video>`:'<div class="preview preview-placeholder"><span>Prévia indisponível</span></div>';
     const warnings=(metadata.quality?.warnings||[]).map(warning=>`<li>${esc(warning)}</li>`).join('');
     const events=job.events||[];
     const steps=['planning','assets','rendering','reviewing','awaiting_approval'];

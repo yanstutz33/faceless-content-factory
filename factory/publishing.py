@@ -94,6 +94,7 @@ class PublishingCenter:
             "status": job["status"],
             "profile": job.get("profile", "youtube_long"),
             "duration": job["duration"],
+            "updated_at": job.get("updated_at"),
             "title": metadata.get("title") or job["topic"],
             "thumbnail_variant": job.get("thumbnail_variant") or metadata.get("selected_thumbnail") or "a",
             "checks": checks,
