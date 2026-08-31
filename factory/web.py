@@ -402,6 +402,23 @@ class Handler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
 
+    def send_template_cover(self, name: str) -> None:
+        allowed = {str(item.get("cover_asset")) for item in SERIES.values() if item.get("cover_asset")}
+        if name not in allowed:
+            return self.send_api_error("Capa de template não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        path = self.pipeline.settings.root / "assets" / "covers" / "nocturnal-rain-v1" / name
+        if not path.is_file():
+            return self.send_api_error("Capa de template indisponível", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        body = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "image/png")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > 1_000_000:
@@ -538,6 +555,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_music_preview(int(parts[2]))
         if len(parts) == 3 and parts[:2] == ["api", "channel-assets"]:
             return self.send_channel_asset(parts[2])
+        if len(parts) == 3 and parts[:2] == ["api", "template-covers"]:
+            return self.send_template_cover(parts[2])
         if len(parts) == 5 and parts[:2] == ["api", "jobs"] and parts[3] == "artifacts":
             return self.send_artifact(parts[2], parts[4])
         if len(parts) == 3 and parts[:2] == ["api", "jobs"]:

@@ -16,15 +16,16 @@ test('studio loads, navigates and keeps dialogs keyboard-safe', async ({ page })
   await expect(page.locator('#create-dialog')).not.toBeVisible();
 });
 
-test('navigation shows one workspace at a time and keeps primary actions available', async ({ page }) => {
+test('navigation shows one workspace at a time and removes duplicate global actions', async ({ page }) => {
   await page.goto('/#library');
   await expect(page.locator('main > .section:visible')).toHaveCount(1);
   await expect(page.locator('#library')).toBeVisible();
   await expect(page.locator('.hero-copy')).toBeHidden();
-  await expect(page.getByRole('button', { name: /nova produção/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /nova produção/i })).toBeHidden();
   await page.getByRole('link', { name: /visão geral/i }).click();
   await expect(page.locator('main > .section:visible')).toHaveCount(1);
   await expect(page.locator('.hero-copy')).toBeVisible();
+  await expect(page.getByRole('button', { name: /nova produção/i })).toBeVisible();
 });
 
 test('studio has no serious accessibility violations', async ({ page }) => {
@@ -51,11 +52,17 @@ test('direct publishing link lands on the publishing center after data loads', a
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
 });
 
-test('calendar shows a compact daily operations report', async ({ page }) => {
+test('calendar keeps one automation and only the active editorial agenda', async ({ page }) => {
   await page.goto('/#calendar');
-  await expect(page.locator('#daily-report')).toContainText(/resumo de hoje/i);
-  await expect(page.locator('#daily-report')).toContainText(/concluídas/i);
-  await expect(page.locator('#daily-report')).toContainText(/bloqueadas/i);
+  await expect(page.locator('#autopilot-card')).toHaveCount(1);
+  await expect(page.locator('#night-card')).toHaveCount(0);
+  await expect(page.locator('#daily-report')).toHaveCount(0);
+  await expect(page.locator('#series-grid')).toContainText(/Japão depois da chuva/i);
+  await expect(page.locator('#series-grid')).toContainText(/Anime original à meia-noite/i);
+  await expect(page.locator('#series-grid')).not.toContainText(/Foco cósmico|Mundos acolhedores/i);
+  await expect(page.locator('#series-grid .series-cover')).toHaveCount(4);
+  await expect(page.locator('#series-grid .series-cover').first()).toHaveJSProperty('complete', true);
+  await expect(page.locator('#calendar-list')).not.toContainText(/beat sintético antigo|reprovada na audição|som esta igual/i);
 });
 
 test('editorial theme preserves the supplied tokens and can be toggled', async ({ page }) => {
@@ -72,9 +79,9 @@ test('editorial theme preserves the supplied tokens and can be toggled', async (
     const style = getComputedStyle(element);
     return [style.borderTopWidth, style.borderTopStyle, style.boxShadow];
   });
-  expect(card[0]).toBe('2px');
+  expect(card[0]).toBe('1px');
   expect(card[1]).toBe('solid');
-  expect(card[2]).toContain('rgb(123, 92, 255)');
+  expect(card[2]).toBe('none');
 
   await page.getByRole('button', { name: /usar tema escuro/i }).click();
   const dark = await page.locator('html').evaluate(element => {

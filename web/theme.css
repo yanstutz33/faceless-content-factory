@@ -361,3 +361,56 @@ textarea:focus-visible,
     .verification, .artifact-summary article
   ) { box-shadow: 3px 4px 0 var(--marca) !important; }
 }
+
+/* Product surface: preserve the editorial identity with calmer commercial hierarchy. */
+body:not([data-route="overview"]) .topbar { display: none; }
+body:not([data-route="overview"]) .section { padding-top: 44px; }
+main { max-width: 1320px; }
+.section-heading { align-items: center; margin-bottom: 30px; }
+.section-heading h2 { font-size: clamp(25px,3vw,34px); }
+.section-copy { margin-top: 7px; }
+.production-heading-tools { display:flex; align-items:center; gap:12px; }
+
+:is(
+  .stat, .focus-card, .safety-card, .production, .agent, .insight,
+  .series-card, .calendar-item, .autopilot-card, .daily-report,
+  .asset-card, .library-intro, .team-card, .skill-library,
+  .connection-card, .connection-safety, .integration-row,
+  .publish-item, .publish-safety, .commerce-product, .commerce-campaign,
+  .commerce-safety, .commerce-roadmap, .creative-lab, .creative-lab-main,
+  .creative-kpis article, .learning-strip, .thumbnail-test, .agent-output,
+  .verification, .artifact-summary article, .catalog-readiness
+) {
+  border: 1px solid var(--borda) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+.production:hover,
+.series-card:hover { border-color: color-mix(in srgb,var(--marca) 45%,var(--borda)) !important; }
+.primary,.secondary,.idea-button,.icon-button,.chip {
+  border-width: 1px !important;
+  border-radius: 5px;
+  box-shadow: none;
+  transition: background .16s ease,color .16s ease,border-color .16s ease,transform .16s ease;
+}
+.primary:active,.secondary:active,.idea-button:active,.icon-button:active,.chip:active { transform: translateY(1px); box-shadow: none; }
+.dialog-shell { border: 1px solid var(--borda); border-radius: 10px; box-shadow: 0 28px 80px rgba(0,0,0,.32); }
+
+@media (max-width:760px) {
+  body:not([data-route="overview"]) .section { padding-top: 28px; }
+  .section-heading { margin-bottom: 22px; }
+  #production .section-heading { display:grid; align-items:stretch; }
+  .production-heading-tools { display:grid; grid-template-columns:minmax(0,1fr); width:100%; align-items:stretch; }
+  .production-heading-tools .filters { flex:1; }
+  .production-heading-tools .primary { width:100%; padding-inline:12px; font-size:9px; }
+  :is(
+    .stat, .focus-card, .safety-card, .production, .agent, .insight,
+    .series-card, .calendar-item, .autopilot-card, .asset-card,
+    .library-intro, .team-card, .skill-library, .connection-card,
+    .connection-safety, .integration-row, .publish-item, .publish-safety,
+    .commerce-product, .commerce-campaign, .commerce-safety,
+    .commerce-roadmap, .creative-lab, .creative-lab-main,
+    .creative-kpis article, .learning-strip, .thumbnail-test,
+    .agent-output, .verification, .artifact-summary article
+  ) { box-shadow:none !important; }
+}

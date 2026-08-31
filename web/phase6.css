@@ -1,6 +1,8 @@
-.autopilot-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;margin-bottom:14px;padding:18px 20px;border:1px solid #294458;border-radius:16px;background:radial-gradient(circle at 88% 0,rgba(82,190,154,.14),transparent 35%),#0e1b2b}
-.autopilot-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:rgba(119,224,189,.12);color:#77e0bd;font-size:20px}
-.autopilot-card h3{margin:5px 0;font-size:15px}.autopilot-card p{margin:0;color:#8495aa;font-size:11px;line-height:1.45}
-.autopilot-card.active{border-color:#438f77}.autopilot-card.paused{border-color:#8e693a}.autopilot-card.paused .autopilot-icon{background:rgba(255,179,106,.12);color:#ffb36a}
-.autopilot-actions{display:flex;gap:8px}.autopilot-series{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.autopilot-series label{padding:12px;border:1px solid #293a50;border-radius:10px;background:#0c1625;color:#aab8c9;font-size:11px}.autopilot-series input{width:auto;margin-right:7px}
+.autopilot-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;margin-bottom:0;padding:20px 22px}
+.autopilot-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:3px;background:var(--marca-suave,#112a2a);color:var(--marca,#77e0bd);font-size:18px}
+.autopilot-card h3{margin:5px 0;font-size:16px}.autopilot-card p{margin:0;color:var(--suave,#8495aa);font-size:10px;line-height:1.5}
+.autopilot-card.active{border-color:var(--ok,#438f77)!important}.autopilot-card.paused{border-color:var(--atencao,#8e693a)!important}
+.autopilot-actions{display:flex;gap:8px}.autopilot-series{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.autopilot-series label{display:flex;align-items:center;gap:8px;padding:12px;border:1px solid var(--borda,#293a50);background:var(--papel,#0c1625);color:var(--suave,#aab8c9);font-size:11px}
+.autopilot-series input{width:auto;margin:0}
 @media(max-width:700px){.autopilot-card{grid-template-columns:auto 1fr}.autopilot-actions{grid-column:1/-1}.autopilot-actions button{flex:1}.autopilot-series{grid-template-columns:1fr}}

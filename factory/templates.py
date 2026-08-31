@@ -4,33 +4,33 @@ from typing import Any
 
 
 SERIES: dict[str, dict[str, Any]] = {
-    "rainy_places": {
-        "name": "Lugares sob chuva", "description": "Cenários acolhedores para foco e leitura.",
+    "japan_after_rain": {
+        "name": "Japão depois da chuva", "description": "Ruas, lojas e cafés japoneses na madrugada azul.",
         "profile": "youtube_long", "duration": 3600, "narration": False,
         "team_id": "youtube_ambient",
-        "topics": ["Biblioteca japonesa sob chuva", "Café vazio em uma noite chuvosa", "Jardim de inverno com chuva no vidro"],
-        "color": "#67D4FF",
+        "topics": ["Loja de conveniência japonesa às 3 da manhã", "Rua residencial japonesa depois da chuva", "Café japonês na encosta sob chuva"],
+        "color": "#4d7cff", "cover_asset": "rainy-konbini-clean.png",
     },
-    "cozy_worlds": {
-        "name": "Mundos acolhedores", "description": "Abrigos quentes em climas intensos.",
+    "city_after_dark": {
+        "name": "Cidade depois das três", "description": "Janelas altas, prédios silenciosos e luzes distantes.",
         "profile": "youtube_long", "duration": 3600, "narration": False,
         "team_id": "youtube_ambient",
-        "topics": ["Cabana nórdica durante uma nevasca", "Lareira em uma casa vitoriana", "Quarto no sótão durante uma tempestade"],
-        "color": "#FFB86B",
+        "topics": ["Cidade silenciosa às 3 da manhã", "Memórias diante de uma janela chuvosa", "Apartamento alto sobre a cidade à noite"],
+        "color": "#2f8f84", "cover_asset": "emerald-city-3am.png",
     },
-    "cosmic_focus": {
-        "name": "Foco cósmico", "description": "Ficção ambiente para trabalho profundo.",
+    "rainy_refuges": {
+        "name": "Refúgios na madrugada", "description": "Interiores escuros com chuva do lado de fora e luz quente.",
         "profile": "youtube_long", "duration": 3600, "narration": False,
         "team_id": "youtube_ambient",
-        "topics": ["Estação orbital sobre Júpiter", "Nave cargueira cruzando uma nebulosa", "Observatório lunar abandonado"],
-        "color": "#D99BFF",
+        "topics": ["Quarto silencioso diante da cidade chuvosa", "Sala de discos em uma noite sem sono", "Café vazio com vista para o mar à noite"],
+        "color": "#ff9d58", "cover_asset": "rainy-vinyl-listening-room.png",
     },
-    "anime_nights": {
-        "name": "Anime Nights original", "description": "Personagens adultos originais em noites lo-fi, sem franquias.",
+    "anime_midnight": {
+        "name": "Anime original à meia-noite", "description": "Personagens adultos originais, chuva urbana e melancolia lo-fi.",
         "profile": "youtube_long", "duration": 3600, "narration": False,
         "team_id": "youtube_ambient",
-        "topics": ["Apartamento anime original sob chuva à meia-noite", "Personagem anime original estudando com música lo-fi", "Janela da cidade em uma noite anime original"],
-        "color": "#5EC8D8",
+        "topics": ["Personagem anime original descansando diante da chuva", "Personagem anime original esperando junto à máquina de bebidas", "Personagem anime original observando a cidade pela janela"],
+        "color": "#9c85ff", "cover_asset": "anime-window-night.png",
     },
     "vertical_moments": {
         "name": "Momentos verticais", "description": "Recortes para Shorts, Reels e TikTok.",

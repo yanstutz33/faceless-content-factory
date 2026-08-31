@@ -15,6 +15,14 @@ VARIATIONS = (
     "durante uma tempestade distante", "com luzes suaves", "para trabalho profundo",
 )
 
+DEFAULT_SERIES_IDS = ["japan_after_rain", "city_after_dark", "rainy_refuges"]
+LEGACY_SERIES_MAP = {
+    "rainy_places": "japan_after_rain",
+    "cozy_worlds": "rainy_refuges",
+    "cosmic_focus": "city_after_dark",
+    "anime_nights": "anime_midnight",
+}
+
 
 class Autopilot:
     def __init__(self, settings: Settings, store: Store):
@@ -24,6 +32,17 @@ class Autopilot:
     @staticmethod
     def _key(value: str) -> str:
         return re.sub(r"\W+", " ", value.lower()).strip()
+
+    @staticmethod
+    def _current_series_ids(values: Any) -> list[str]:
+        if not isinstance(values, list):
+            return DEFAULT_SERIES_IDS.copy()
+        current = []
+        for value in values:
+            series_id = LEGACY_SERIES_MAP.get(str(value), str(value))
+            if series_id in SERIES and series_id not in current:
+                current.append(series_id)
+        return current or DEFAULT_SERIES_IDS.copy()
 
     def blockers(self) -> list[str]:
         summary = self.store.summary()
@@ -39,6 +58,7 @@ class Autopilot:
 
     def status(self) -> dict[str, Any]:
         config = self.store.get_autopilot()
+        config["series_ids"] = self._current_series_ids(config.get("series_ids"))
         calendar = self.store.list_calendar()
         planned = [item for item in calendar if item.get("origin") == "autopilot" and item["status"] == "planned"]
         blockers = self.blockers()
@@ -46,7 +66,9 @@ class Autopilot:
                 "mode": "active" if config.get("enabled") and not blockers else "paused" if config.get("enabled") else "off"}
 
     def configure(self, data: dict[str, Any]) -> dict[str, Any]:
-        series_ids = data.get("series_ids") or ["rainy_places", "cozy_worlds", "cosmic_focus"]
+        if isinstance(data.get("series_ids"), list) and not data["series_ids"]:
+            raise ValueError("Escolha ao menos uma coleção válida")
+        series_ids = self._current_series_ids(data.get("series_ids"))
         if not isinstance(series_ids, list) or not series_ids or any(item not in SERIES for item in series_ids):
             raise ValueError("Escolha ao menos uma série válida")
         cadence = max(1, min(7, int(data.get("cadence", 3))))
@@ -62,6 +84,7 @@ class Autopilot:
 
     def ensure_plan(self, now_at: datetime | None = None, force: bool = False) -> list[dict[str, Any]]:
         config = self.store.get_autopilot()
+        config["series_ids"] = self._current_series_ids(config.get("series_ids"))
         if not config.get("enabled") and not force:
             return []
         now_at = now_at or datetime.now().astimezone().replace(tzinfo=None)

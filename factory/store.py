@@ -75,7 +75,7 @@ class Store:
                 );
                 CREATE TABLE IF NOT EXISTS autopilot (
                     id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
-                    series_ids TEXT NOT NULL DEFAULT '["rainy_places","cozy_worlds","cosmic_focus"]',
+                    series_ids TEXT NOT NULL DEFAULT '["japan_after_rain","city_after_dark","rainy_refuges"]',
                     cadence INTEGER NOT NULL DEFAULT 3, publish_hour TEXT NOT NULL DEFAULT '19:00',
                     duration INTEGER NOT NULL DEFAULT 1800, horizon_days INTEGER NOT NULL DEFAULT 7,
                     updated_at TEXT NOT NULL
@@ -132,7 +132,20 @@ class Store:
             db.execute(
                 """INSERT OR IGNORE INTO autopilot(id,enabled,series_ids,cadence,publish_hour,duration,horizon_days,updated_at)
                    VALUES(1,0,?,3,'19:00',1800,7,?)""",
-                (json.dumps(["rainy_places", "cozy_worlds", "cosmic_focus"]), now()),
+                (json.dumps(["japan_after_rain", "city_after_dark", "rainy_refuges"]), now()),
+            )
+            current = now()
+            db.execute(
+                """UPDATE autopilot SET series_ids=?,updated_at=?
+                   WHERE series_ids=?""",
+                (json.dumps(["japan_after_rain", "city_after_dark", "rainy_refuges"]), current,
+                 json.dumps(["rainy_places", "cozy_worlds", "cosmic_focus"])),
+            )
+            db.execute(
+                """UPDATE calendar SET status='archived',error=NULL,updated_at=?
+                   WHERE status='planned' AND job_id IS NULL
+                   AND series_id IN ('rainy_places','cozy_worlds','cosmic_focus','anime_nights')""",
+                (current,),
             )
             db.execute(
                 """INSERT OR IGNORE INTO night_shift(id,enabled,start_hour,end_hour,batch_limit,last_summary,updated_at)

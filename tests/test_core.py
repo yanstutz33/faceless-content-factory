@@ -37,6 +37,7 @@ from factory.pipeline import Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
 from factory.store import Store
 from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
+from factory.templates import series_catalog
 from factory.web import CalendarScheduler, create_server
 from factory.vault import SecureVault
 from factory.visual_style import COVER_STYLE_ID, cover_assets, select_cover_references, visual_direction
@@ -586,6 +587,22 @@ class CoreTests(unittest.TestCase):
             store.link_calendar_job(item_id, "job-123")
             self.assertEqual(store.list_calendar()[0]["job_id"], "job-123")
 
+    def test_legacy_template_plans_are_archived_without_deletion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            database = Path(tmp) / "factory.db"
+            store = Store(database)
+            item_id = store.add_calendar_item(
+                "Old cosmic plan", "cosmic_focus", "youtube_long", 3600, "2099-09-01T19:00"
+            )
+            refreshed = Store(database)
+            item = next(entry for entry in refreshed.list_calendar() if entry["id"] == item_id)
+            self.assertEqual(item["status"], "archived")
+            self.assertIsNone(item["job_id"])
+            self.assertEqual(
+                refreshed.get_autopilot()["series_ids"],
+                ["japan_after_rain", "city_after_dark", "rainy_refuges"],
+            )
+
     def test_due_calendar_item_enters_queue_automatically(self):
         class CapturingRunner:
             def __init__(self):
@@ -632,7 +649,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(second, [])
             calendar = store.list_calendar()
             self.assertEqual({item["origin"] for item in calendar}, {"autopilot"})
-            self.assertEqual({item["series_id"] for item in calendar}, {"rainy_places", "cozy_worlds"})
+            self.assertEqual({item["series_id"] for item in calendar}, {"japan_after_rain", "rainy_refuges"})
             self.assertEqual(len({item["topic"] for item in calendar}), 3)
             self.assertTrue(all(item["duration"] == 1800 for item in calendar))
 
@@ -1613,6 +1630,22 @@ class CoreTests(unittest.TestCase):
         app_ui = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         self.assertIn("const artifactUrl=", app_ui)
         self.assertIn("artifactUrl(job.id,'thumbnail.jpg',job.updated_at)", app_ui)
+        self.assertNotIn('/phase11.js', index)
+        self.assertNotIn('id="night-card"', index)
+
+    def test_series_catalog_uses_current_nocturnal_visual_identity(self):
+        catalog = series_catalog()
+        ids = {item["id"] for item in catalog}
+        names = {item["name"] for item in catalog}
+        self.assertEqual(ids, {"japan_after_rain", "city_after_dark", "rainy_refuges", "anime_midnight"})
+        self.assertNotIn("Foco cósmico", names)
+        self.assertNotIn("Mundos acolhedores", names)
+        self.assertTrue(all(item["duration"] == 3600 for item in catalog))
+        self.assertEqual(len({item["cover_asset"] for item in catalog}), len(catalog))
+        self.assertTrue(all(
+            (ROOT / "assets" / "covers" / "nocturnal-rain-v1" / item["cover_asset"]).is_file()
+            for item in catalog
+        ))
 
     def test_frontend_dialogs_cannot_submit_when_cancelled(self):
         index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
@@ -1628,7 +1661,8 @@ class CoreTests(unittest.TestCase):
         self.assertIn("$('#asset-form').addEventListener('submit'", app)
         self.assertIn("hasRenderedArtifacts", app)
         calendar_ui = (ROOT / "web" / "phase2.js").read_text(encoding="utf-8")
-        self.assertIn("friendlyError(item.error)", calendar_ui)
+        self.assertIn("activeCalendarStatuses", calendar_ui)
+        self.assertNotIn("calendar-error", calendar_ui)
 
     def test_artifact_endpoint_supports_byte_ranges(self):
         with tempfile.TemporaryDirectory() as tmp:
