@@ -179,12 +179,15 @@ class PublishingCenter:
         if not automatic_pass:
             status = "blocked"
             label = "Correções automáticas necessárias"
+            next_action = "Complete o lote e corrija os controles marcados antes da revisão humana."
         elif human_target_met:
             status = "certified"
             label = "Piloto certificado"
+            next_action = "Piloto concluído; a Fase 2 pode avançar."
         else:
             status = "human_review_pending"
             label = "Pronto tecnicamente · revisão humana pendente"
+            next_action = f"Assista e aprove pelo menos {target} vídeos. Nenhum envio externo será feito."
         return {
             "status": status,
             "label": label,
@@ -199,11 +202,7 @@ class PublishingCenter:
             "automatic_checks_passed": automatic_pass,
             "human_target_met": human_target_met,
             "checks": checks,
-            "next_action": (
-                "Piloto concluído; a Fase 2 pode avançar."
-                if human_target_met else
-                f"Assista e aprove pelo menos {target} vídeos. Nenhum envio externo será feito."
-            ),
+            "next_action": next_action,
         }
 
     def prepare(self, job_id: str, vertical_duration: int = 30) -> dict[str, Any]:
