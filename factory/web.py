@@ -450,6 +450,9 @@ class Handler(SimpleHTTPRequestHandler):
         return parsed.scheme == "https" and parsed.hostname == request_host.hostname and origin_port == request_port
 
     def do_GET(self) -> None:
+        if urlparse(self.path).path == "/healthz":
+            self.send_json({"status": "ok"})
+            return
         if not self.require_remote_auth():
             return
         try:

@@ -1,0 +1,53 @@
+services:
+  ffactory:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FACTORY_DATA_DIR: /app/data
+      FACTORY_HOST: 0.0.0.0
+      FACTORY_PORT: 8787
+      FACTORY_REMOTE_ACCESS: "true"
+      FACTORY_REMOTE_USERNAME: ${FACTORY_REMOTE_USERNAME:?configure FACTORY_REMOTE_USERNAME}
+      FACTORY_REMOTE_PASSWORD: ${FACTORY_REMOTE_PASSWORD:?configure FACTORY_REMOTE_PASSWORD}
+      FFMPEG_PATH: ffmpeg
+      FFPROBE_PATH: ffprobe
+      FACTORY_WORKERS: 1
+      ALLOW_PLATFORM_PUBLISH: "false"
+    volumes:
+      - ffactory_data:/app/data
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8787/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      ffactory:
+        condition: service_healthy
+    environment:
+      FACTORY_DOMAIN: ${FACTORY_DOMAIN:?configure FACTORY_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  ffactory_data:
+  caddy_data:
+  caddy_config:
+

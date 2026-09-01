@@ -1,4 +1,6 @@
 .env
+.env.cloud
+deploy/vps/.env
 .venv/
 .tools/
 secrets/

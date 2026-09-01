@@ -1539,6 +1539,9 @@ class CoreTests(unittest.TestCase):
                 with self.assertRaises(urllib.error.HTTPError) as blocked:
                     urllib.request.urlopen(blocked_request)
                 self.assertEqual(blocked.exception.code, 401)
+
+                public_health = json.load(urllib.request.urlopen(base + "/healthz"))
+                self.assertEqual(public_health, {"status": "ok"})
                 self.assertIn("Basic", blocked.exception.headers["WWW-Authenticate"])
                 blocked.exception.close()
 

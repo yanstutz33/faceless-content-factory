@@ -128,6 +128,8 @@ O servidor continua vinculado a `127.0.0.1`: nenhuma porta do roteador é aberta
 
 O computador precisa permanecer ligado e conectado. A hospedagem integral em nuvem fica como uma fase separada porque renderizar 30–60 minutos e armazenar os vídeos exige uma máquina com volume persistente e custo mensal.
 
+Para operar com o computador desligado, use a implantação em nuvem descrita em [`docs/cloud-hosting.md`](docs/cloud-hosting.md). O projeto inclui uma imagem Docker, configuração pronta para Render e uma opção de VPS com HTTPS automático. A nuvem exige um plano pago com disco persistente; os dados atuais não cabem com segurança nas ofertas gratuitas.
+
 O renderizador codifica um ciclo visual curto uma vez e o repete sem recodificar cada quadro das 30/60 minutos, reduzindo drasticamente o tempo e o uso de CPU.
 
 ## Como os agentes trabalham

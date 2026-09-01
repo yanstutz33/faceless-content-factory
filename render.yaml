@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: ffactory
+    runtime: docker
+    plan: 2c-4g
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 300
+    disk:
+      name: ffactory-data
+      mountPath: /app/data
+      sizeGB: 25
+    envVars:
+      - key: FACTORY_DATA_DIR
+        value: /app/data
+      - key: FACTORY_HOST
+        value: 0.0.0.0
+      - key: FACTORY_PORT
+        value: 8787
+      - key: FACTORY_REMOTE_ACCESS
+        value: "true"
+      - key: FACTORY_REMOTE_USERNAME
+        sync: false
+      - key: FACTORY_REMOTE_PASSWORD
+        sync: false
+      - key: FFMPEG_PATH
+        value: ffmpeg
+      - key: FFPROBE_PATH
+        value: ffprobe
+      - key: FACTORY_WORKERS
+        value: 1
+      - key: ALLOW_PLATFORM_PUBLISH
+        value: "false"

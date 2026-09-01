@@ -37,3 +37,38 @@ jobs:
       - name: Run browser and accessibility tests
         run: pnpm run test:e2e
 
+  cloud-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build cloud image
+        run: docker build --tag ffactory-cloud:test .
+      - name: Start cloud image
+        run: |
+          docker run --detach --name ffactory-cloud \
+            --publish 8787:8787 \
+            --env FACTORY_REMOTE_ACCESS=true \
+            --env FACTORY_REMOTE_USERNAME=ci-owner \
+            --env FACTORY_REMOTE_PASSWORD=ci-only-strong-password \
+            --env ALLOW_PLATFORM_PUBLISH=false \
+            ffactory-cloud:test
+      - name: Verify cloud health and access protection
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8787/healthz >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 30 ]; then
+              docker logs ffactory-cloud
+              exit 1
+            fi
+            sleep 2
+          done
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-For: 203.0.113.7' \
+            --header 'Host: factory.example' \
+            http://127.0.0.1:8787/api/dashboard)" = "401"
+      - name: Show container logs after failure
+        if: failure()
+        run: docker logs ffactory-cloud
+
