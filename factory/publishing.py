@@ -123,6 +123,89 @@ class PublishingCenter:
             "items": rows,
         }
 
+    def pilot_certification(self, target: int = 10) -> dict[str, Any]:
+        """Summarize automatic pilot gates without replacing human approval."""
+        jobs = [job for job in self.store.list_jobs(500)
+                if job.get("status") in {"approved", "awaiting_approval"}
+                and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
+        audits = [self.audit(job) for job in jobs]
+
+        track_names: list[str] = []
+        visual_fingerprints: list[tuple[str, str, str, str]] = []
+        novelty_scores: list[float] = []
+        for job in jobs:
+            metadata = job.get("metadata") or {}
+            music = metadata.get("music") or {}
+            track_name = str(music.get("track_name") or "").strip()
+            if track_name:
+                track_names.append(track_name.casefold())
+            dna = metadata.get("creative_fingerprint") or metadata.get("creative_dna") or {}
+            visual_fingerprints.append(tuple(str(dna.get(field) or "") for field in (
+                "scene", "treatment", "composition", "motion_effect"
+            )))
+            novelty = dna.get("novelty") or {}
+            try:
+                novelty_scores.append(float(novelty.get("score")))
+            except (TypeError, ValueError):
+                pass
+
+        total = len(jobs)
+        technical_ready = sum(
+            all(check["passed"] for check in audit["checks"] if check["id"] != "approval")
+            for audit in audits
+        )
+        unique_tracks = len(set(track_names))
+        unique_visuals = len(set(visual_fingerprints)) if visual_fingerprints else 0
+        pending_review = sum(job.get("status") == "awaiting_approval" for job in jobs)
+        approved = sum(job.get("status") == "approved" for job in jobs)
+        checks = [
+            {"id": "sample", "label": "Lote mínimo", "value": total, "target": target,
+             "passed": total >= target, "detail": f"{total} de {target} vídeos necessários"},
+            {"id": "duration", "label": "Duração válida", "value": total, "target": total,
+             "passed": bool(total) and all(int(job.get("duration", 0)) >= 1800 for job in jobs),
+             "detail": f"{total} com pelo menos 30 minutos"},
+            {"id": "audio", "label": "Faixas distintas", "value": unique_tracks, "target": total,
+             "passed": bool(total) and unique_tracks == total,
+             "detail": f"{unique_tracks} faixas para {total} vídeos"},
+            {"id": "visual", "label": "DNA visual distinto", "value": unique_visuals, "target": total,
+             "passed": bool(total) and unique_visuals == total,
+             "detail": f"{unique_visuals} combinações integrais para {total} vídeos"},
+            {"id": "technical", "label": "Qualidade e direitos", "value": technical_ready, "target": total,
+             "passed": bool(total) and technical_ready == total,
+             "detail": f"{technical_ready} de {total} passaram sem contar aprovação editorial"},
+        ]
+        automatic_pass = all(check["passed"] for check in checks)
+        human_target_met = approved >= target
+        if not automatic_pass:
+            status = "blocked"
+            label = "Correções automáticas necessárias"
+        elif human_target_met:
+            status = "certified"
+            label = "Piloto certificado"
+        else:
+            status = "human_review_pending"
+            label = "Pronto tecnicamente · revisão humana pendente"
+        return {
+            "status": status,
+            "label": label,
+            "target": target,
+            "candidate_count": total,
+            "technical_ready_count": technical_ready,
+            "approved_count": approved,
+            "pending_review_count": pending_review,
+            "unique_tracks": unique_tracks,
+            "unique_visuals": unique_visuals,
+            "minimum_novelty": round(min(novelty_scores), 1) if novelty_scores else None,
+            "automatic_checks_passed": automatic_pass,
+            "human_target_met": human_target_met,
+            "checks": checks,
+            "next_action": (
+                "Piloto concluído; a Fase 2 pode avançar."
+                if human_target_met else
+                f"Assista e aprove pelo menos {target} vídeos. Nenhum envio externo será feito."
+            ),
+        }
+
     def prepare(self, job_id: str, vertical_duration: int = 30) -> dict[str, Any]:
         job = self.store.get_job(job_id)
         if not job:

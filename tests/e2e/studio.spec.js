@@ -49,6 +49,9 @@ test('direct publishing link lands on the publishing center after data loads', a
   await page.goto('/#publishing');
   await expect(page.locator('#publishing')).toBeInViewport();
   await expect(page.getByRole('link', { name: /publicação/i })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#pilot-certification')).toContainText(/certificação do lote piloto/i);
+  await expect(page.locator('#pilot-certification')).toContainText(/revisão humana pendente/i);
+  await expect(page.locator('#pilot-certification li.pass')).toHaveCount(5);
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
 });
 

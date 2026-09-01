@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 30/08/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão.
+Última revisão: 31/08/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -29,20 +29,20 @@
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
-- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill perceptivelmente diferentes, com licença e atribuição quando exigida — **em aberto: o lote anterior foi reprovado por repetição e colocado integralmente em quarentena, sem exclusão dos arquivos**;
-- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 12 cenas-base disponíveis**;
+- gerar ou importar e validar pelo menos 12 faixas lo-fi/chill perceptivelmente diferentes, com licença e atribuição quando exigida — **concluído: 13 faixas ouvidas, aprovadas e em rotação; as 24 faixas antigas continuam preservadas em quarentena**;
+- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 21 cenas disponíveis, sendo 12 iniciais e nove referências personalizadas**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
-- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **a validação técnica passou, mas o lote musical precisa ser refeito com as novas faixas**;
+- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **concluído automaticamente: 13 pilotos de 30 minutos passaram em integridade, qualidade, direitos, áudio distinto e DNA visual integral distinto; os 13 aguardam avaliação humana**;
 - manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
 - migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: importação rastreável do Flow e geração direta em lote com Lyria 3 pela Gemini API; o Hub cria, baixa, valida e cataloga 4, 8 ou 12 faixas com direções musicalmente distintas, mantendo revisão auditiva obrigatória**.
 
-Resultado parcial: vídeos, duração, câmera e integridade técnica foram validados; as capas aprovadas já estão visíveis na Biblioteca e são escolhidas por tema. Em 30/08/2026, o catálogo musical inteiro foi reprovado por semelhança e repetição: 24 faixas foram preservadas em quarentena e 21 produções relacionadas saíram da fila publicável. A fábrica agora bloqueia vídeos longos quando não há música ouvida e aprovada. O kit público **Pausa Pra Anime · by YAMI** para YouTube continua pronto; FFactory segue apenas como infraestrutura interna. Nenhum vídeo foi publicado externamente.
+Resultado parcial: os 13 pilotos atuais têm 30 minutos, usam 13 músicas aprovadas sem repetição no lote, 13 DNAs visuais integrais distintos e nota de novidade mínima de 70,3. Todos passaram no controle técnico automático e permanecem em `aguardando aprovação`; nenhum foi publicado externamente. O Centro de Publicação agora mostra uma certificação única do lote e separa claramente os controles automáticos da revisão humana. As 24 faixas antigas continuam preservadas em quarentena. O kit público **Pausa Pra Anime · by YAMI** para YouTube continua pronto; FFactory segue apenas como infraestrutura interna.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
-Automação: ingestão, validação técnica, registro, rotação e montagem estão automatizados. Permanecem humanas a aprovação auditiva do novo catálogo, a revisão visual dos pilotos e as decisões de publicação.
+Automação: ingestão, validação técnica, registro, rotação, montagem e certificação do lote estão automatizados. Permanecem humanas a revisão visual/auditiva final dos 13 pilotos e as decisões de publicação.
 
 ### Fase 2 — Piloto automático sem publicação — próxima
 
@@ -144,4 +144,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Revisar no Hub os pilotos `Observatório lunar abandonado` e `Estação orbital sobre Júpiter`. Se ambos estiverem coerentes, renderizar automaticamente os oito pilotos restantes e executar os três lotes autônomos da Fase 2. Somente depois disso iniciar o piloto privado do YouTube.
+No Centro de Publicação, assistir e aprovar pelo menos 10 dos 13 pilotos já renderizados. Não gerar outro lote enquanto essa fila estiver cheia. Quando 10 vídeos forem aprovados, executar os três lotes autônomos da Fase 2, sempre sem publicação externa. Somente depois disso iniciar o piloto privado do YouTube, que dependerá do login manual.

@@ -1158,6 +1158,44 @@ class CoreTests(unittest.TestCase):
             queue = publishing.queue()
             self.assertEqual(queue["summary"]["total"], 0)
 
+    def test_pilot_certification_separates_automatic_gates_from_human_review(self):
+        jobs = []
+        for index in range(10):
+            jobs.append({
+                "id": f"pilot-{index}", "topic": f"Piloto {index}", "status": "awaiting_approval",
+                "profile": "youtube_long", "duration": 1800,
+                "metadata": {
+                    "music": {"track_name": f"Faixa {index}"},
+                    "creative_fingerprint": {
+                        "scene": f"scene-{index}", "treatment": f"treatment-{index}",
+                        "composition": f"composition-{index}", "motion_effect": f"motion-{index}",
+                        "novelty": {"score": 70 + index},
+                    },
+                },
+            })
+
+        class PilotStore:
+            @staticmethod
+            def list_jobs(_limit):
+                return jobs
+
+        center = PublishingCenter(object(), PilotStore())
+        automatic_checks = [
+            {"id": "approval", "passed": False},
+            {"id": "technical", "passed": True},
+            {"id": "quality", "passed": True},
+            {"id": "rights", "passed": True},
+            {"id": "music", "passed": True},
+        ]
+        with patch.object(center, "audit", side_effect=lambda job: {"checks": automatic_checks}):
+            certification = center.pilot_certification()
+        self.assertTrue(certification["automatic_checks_passed"])
+        self.assertFalse(certification["human_target_met"])
+        self.assertEqual(certification["status"], "human_review_pending")
+        self.assertEqual(certification["unique_tracks"], 10)
+        self.assertEqual(certification["unique_visuals"], 10)
+        self.assertEqual(certification["pending_review_count"], 10)
+
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_long_render_reuses_encoded_visual_loop(self):
         with tempfile.TemporaryDirectory() as tmp:

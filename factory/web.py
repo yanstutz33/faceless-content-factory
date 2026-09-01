@@ -534,6 +534,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.pipeline.library_readiness())
         if path == "/api/publishing":
             return self.send_json(self.publishing.queue())
+        if path == "/api/publishing/pilot-certification":
+            return self.send_json(self.publishing.pilot_certification())
         if path == "/api/platforms":
             return self.send_json(self.integrations.readiness())
         if path == "/api/integrations/audit":
