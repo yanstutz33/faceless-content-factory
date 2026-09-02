@@ -24,7 +24,8 @@ from .creative import CreativeDirector, MOTION_LABELS, MUSIC_ARRANGEMENTS
 from .llm import OpenAIPlanEnhancer
 from .lyria import LyriaMusicService
 from .store import Store
-from .visual_style import COVER_STYLE_ID, cover_assets, select_cover_references, visual_direction
+from .visual_style import (COVER_STYLE_ID, cover_assets, cover_reference,
+                           select_cover_references, visual_direction)
 
 
 STARTER_SCENES = {
@@ -46,6 +47,28 @@ RAIN_ZONES = {
     "lofi-coastal-laundromat": (.02, .05, .62, .66),
     "lofi-forest-glass-cabin": (.42, .00, .58, .86),
     "lofi-anime-rainy-apartment": (.48, .00, .52, .76),
+    # Approved collection: effects stay on the exterior/window plane and never
+    # cross beds, desks, people or other dry foreground objects.
+    "rainy-konbini-rest": (.00, .00, 1.00, .90),
+    "rainy-konbini-clean": (.00, .00, 1.00, .90),
+    "emerald-city-3am": (.00, .00, 1.00, .92),
+    "anime-rainy-alley": (.00, .00, .72, .92),
+    "rainy-hillside-cafe": (.43, .00, .57, .83),
+    "anime-sleeping-city": (.00, .00, 1.00, .58),
+    "anime-window-night": (.06, .00, .91, .82),
+    "rainy-window-memories": (.06, .00, .90, .68),
+}
+
+COVER_MOTION = {
+    "rainy-konbini-rest": "angled_rain",
+    "rainy-konbini-clean": "angled_rain",
+    "emerald-city-3am": "angled_rain",
+    "anime-rainy-alley": "angled_rain",
+    "rainy-hillside-cafe": "angled_rain",
+    "anime-sleeping-city": "window_drops",
+    "anime-window-night": "window_drops",
+    "rainy-window-memories": "window_drops",
+    "rainy-vinyl-listening-room": "lamp_flicker",
 }
 
 SUPPORTED_ASSET_LICENSES = {
@@ -826,13 +849,19 @@ class Pipeline:
                       "-frames:v", "1", "-q:v", "2", str(output)])
 
     def create_thumbnail_variants(self, out: Path, topic: str, width: int, height: int,
-                                  fallback_source: Path, selected: str = "a",
-                                  excluded_cover_ids: set[str] | None = None) -> dict[str, Any]:
+                                   fallback_source: Path, selected: str = "a",
+                                   excluded_cover_ids: set[str] | None = None,
+                                   canonical_cover: dict[str, Any] | None = None) -> dict[str, Any]:
         selected = selected if selected in {"a", "b"} else "a"
         cover_pair = select_cover_references(self.settings.root, topic, excluded_cover_ids)
-        if cover_pair:
-            cover_a, cover_b = cover_pair
-            source_a, source_b = Path(cover_a["path"]), Path(cover_b["path"])
+        if canonical_cover:
+            # A/B may compare crops later, but never a different scene: the
+            # poster must remain identical to what appears after pressing play.
+            cover_a = cover_b = canonical_cover
+            source_a = source_b = Path(canonical_cover["path"])
+        elif cover_pair:
+            cover_a = cover_b = cover_pair[0]
+            source_a = source_b = Path(cover_a["path"])
         else:
             cover_a = cover_b = {"id": "production-scene", "embedded_text": None}
             source_a = source_b = fallback_source
@@ -977,6 +1006,184 @@ class Pipeline:
         return {"migration_id": migration_id, "migrated": migrated, "count": len(migrated),
                 "skipped": skipped, "backup_dir": str(archive_root) if migrated else None}
 
+    def _selected_approved_cover(self, job: dict[str, Any]) -> dict[str, Any] | None:
+        """Resolve the selected poster back to an approved full-resolution source."""
+        out = Path(job["output_dir"])
+        design_path = out / "thumbnail-design.json"
+        try:
+            design = json.loads(design_path.read_text(encoding="utf-8")) if design_path.is_file() else {}
+        except (OSError, json.JSONDecodeError):
+            design = {}
+        selected = str(design.get("selected") or job.get("thumbnail_variant") or "a")
+        variant = next((item for item in design.get("variants", []) if item.get("id") == selected), None)
+        reference = cover_reference(self.settings.root, str((variant or {}).get("reference_id", "")))
+        if reference:
+            return reference
+        pair = select_cover_references(self.settings.root, job["topic"])
+        return pair[0] if pair else None
+
+    def synchronize_video_visuals(self, job_ids: list[str] | None = None) -> dict[str, Any]:
+        """Rebuild completed videos so their encoded scene equals their approved poster.
+
+        This intentionally remuxes the existing approved audio. No music is
+        regenerated and the previous package remains recoverable in the archive.
+        """
+        migration_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+        archive_root = self.settings.data_dir / "archive" / "video-visual-sync" / migration_id
+        requested = set(job_ids or [])
+        jobs = [job for job in self.store.list_jobs(500)
+                if (not requested or job["id"] in requested)
+                and job.get("status") in {"awaiting_approval", "approved", "rejected"}]
+        updated: list[str] = []
+        skipped: list[dict[str, str]] = []
+        failed: list[dict[str, str]] = []
+        backup_names = (
+            "video.mp4", "visual-loop.mp4", "motion-overlay.mp4", "background.jpg",
+            "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json",
+            "metadata.json", "render-report.json", "quality-gate.json",
+            "asset-manifest.json", "artifact-manifest.json",
+        )
+        for job in jobs:
+            out = Path(job["output_dir"])
+            video = out / "video.mp4"
+            audio = out / ("ambient-with-narration.wav" if (out / "ambient-with-narration.wav").is_file()
+                           else "ambient.wav")
+            cover = self._selected_approved_cover(job)
+            if not video.is_file() or not audio.is_file() or not cover:
+                skipped.append({"job_id": job["id"], "reason": "vídeo, áudio ou imagem aprovada ausente"})
+                continue
+            current_visual = (job.get("metadata") or {}).get("visual_source") or {}
+            if (current_visual.get("reference_id") == cover["id"]
+                    and current_visual.get("poster_matches_video") is True):
+                skipped.append({"job_id": job["id"], "reason": "imagem e vídeo já sincronizados"})
+                continue
+            token = uuid.uuid4().hex
+            candidate_background = out / f"background.sync-{token}.jpg"
+            candidate_overlay = out / f"motion-overlay.sync-{token}.mp4"
+            candidate_loop = out / f"visual-loop.sync-{token}.mp4"
+            candidate_video = out / f"video.sync-{token}.mp4"
+            candidate_thumb_a = out / f"thumbnail-a.sync-{token}.jpg"
+            candidate_thumb_b = out / f"thumbnail-b.sync-{token}.jpg"
+            candidates = (candidate_background, candidate_overlay, candidate_loop, candidate_video,
+                          candidate_thumb_a, candidate_thumb_b)
+            try:
+                profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
+                width, height, fps = profile["width"], profile["height"], profile["fps"]
+                self.create_thumbnail(Path(cover["path"]), candidate_background, width, height)
+                self.create_thumbnail(Path(cover["path"]), candidate_thumb_a, width, height)
+                self.create_thumbnail(Path(cover["path"]), candidate_thumb_b, width, height)
+                effect = COVER_MOTION.get(cover["id"], "lamp_flicker")
+                motion_dna = {
+                    "seed": int(hashlib.sha256(f"{job['id']}:{cover['id']}".encode()).hexdigest()[:8], 16),
+                    "motion_effect": effect,
+                    "motion_density": .62,
+                }
+                sound_profile = str((job.get("metadata") or {}).get("sound_profile") or "rain")
+                vf, motion = self.visual_motion(sound_profile, width, height, fps, motion_dna)
+                self.create_motion_overlay(candidate_overlay, sound_profile, fps, job["topic"], motion_dna)
+                fx_filter, effect_zone = self.effect_plate_filter(width, height, cover["id"], effect)
+                motion["effect_zone"] = effect_zone
+                blend = (f"[0:v]{vf}[base];[1:v]{fx_filter}[fx];"
+                         f"[base][fx]blend=all_mode=screen:all_opacity={motion['overlay_opacity']},"
+                         "format=yuv420p[v]")
+                self.encode_visual_loop(candidate_background, candidate_overlay, candidate_loop,
+                                        blend, motion["cycle_seconds"])
+                self.repeat_visual_loop(candidate_loop, audio, candidate_video, float(job["duration"]))
+                metadata = dict(job.get("metadata") or {})
+                metadata["motion"] = motion
+                metadata["visual_source"] = {
+                    "style_id": COVER_STYLE_ID,
+                    "reference_id": cover["id"],
+                    "source_path": cover["path"],
+                    "poster_matches_video": True,
+                    "synchronized_at": datetime.now(UTC).isoformat(),
+                }
+                metadata["render_strategy"] = {
+                    "mode": "approved_cover_loop_copy",
+                    "visual_seconds_encoded": motion["cycle_seconds"],
+                    "output_seconds": job["duration"],
+                    "video_reencoded_for_full_duration": False,
+                }
+                metadata["creative_fingerprint"] = {
+                    **dict(metadata.get("creative_fingerprint") or {}),
+                    "scene": cover["id"], "motion_effect": effect,
+                    "motion_seed": hashlib.sha256(f"{job['id']}:{effect}".encode()).hexdigest()[:12],
+                }
+                metadata["creative_dna"] = metadata["creative_fingerprint"]
+                report = self.inspect_video(candidate_video, int(job["duration"]))
+                gate = self.quality_gate(candidate_video, int(job["duration"]), metadata, report)
+                if not gate["passed"]:
+                    raise RuntimeError("controle bloqueou: " + ", ".join(gate["failed_check_ids"]))
+
+                archive = archive_root / job["id"]
+                archive.mkdir(parents=True, exist_ok=True)
+                for name in backup_names:
+                    source = out / name
+                    if source.is_file():
+                        shutil.copy2(source, archive / name)
+                os.replace(candidate_background, out / "background.jpg")
+                os.replace(candidate_overlay, out / "motion-overlay.mp4")
+                os.replace(candidate_loop, out / "visual-loop.mp4")
+                os.replace(candidate_video, out / "video.mp4")
+                os.replace(candidate_thumb_a, out / "thumbnail-a.jpg")
+                os.replace(candidate_thumb_b, out / "thumbnail-b.jpg")
+                shutil.copy2(out / "thumbnail-a.jpg", out / "thumbnail.jpg")
+                design = {
+                    "selected": "a", "style_id": COVER_STYLE_ID, "direction": visual_direction(),
+                    "variants": [
+                        {"id": "a", "file": "thumbnail-a.jpg", "style": "cena oficial do vídeo",
+                         "reference_id": cover["id"], "embedded_text": cover["embedded_text"]},
+                        {"id": "b", "file": "thumbnail-b.jpg", "style": "cena oficial do vídeo",
+                         "reference_id": cover["id"], "embedded_text": cover["embedded_text"]},
+                    ],
+                    "brief": {"style_id": COVER_STYLE_ID, "video_visual_sync": migration_id},
+                }
+                (out / "thumbnail-design.json").write_text(
+                    json.dumps(design, ensure_ascii=False, indent=2), encoding="utf-8")
+                (out / "asset-manifest.json").write_text(json.dumps([{
+                    "name": cover["id"], "path": cover["path"], "license_type": "provider_generated",
+                    "source_url": "ChatGPT · coleção fornecida pelo usuário em 2026-08-29",
+                    "approved": True, "style_id": COVER_STYLE_ID,
+                }], ensure_ascii=False, indent=2), encoding="utf-8")
+                metadata["thumbnail_variants"] = design["variants"]
+                metadata["selected_thumbnail"] = "a"
+                metadata["thumbnail_style_id"] = COVER_STYLE_ID
+                metadata["quality_gate"] = gate
+                metadata["verification"] = report
+                metadata.setdefault("files", {}).update({
+                    "video": "video.mp4", "thumbnail": "thumbnail.jpg",
+                    "motion_overlay": "motion-overlay.mp4", "visual_loop": "visual-loop.mp4",
+                })
+                (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+                (out / "render-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
+                old_manifest_path = out / "artifact-manifest.json"
+                try:
+                    old_manifest = json.loads(old_manifest_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    old_manifest = {}
+                names = [item["name"] for item in old_manifest.get("files", []) if item.get("name")]
+                names.extend(backup_names)
+                manifest = self.artifact_manifest(out, list(dict.fromkeys(names)))
+                old_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+                status = "awaiting_approval" if job["status"] == "rejected" else job["status"]
+                self.store.set_thumbnail_variant(job["id"], "a")
+                self.store.update(job["id"], status, metadata, error=None, progress=100,
+                                  quality_score=job.get("quality_score"))
+                self.store.event(job["id"], "visual_sync",
+                                 f"Imagem '{cover['id']}' aplicada à capa e ao vídeo; versão anterior preservada")
+                updated.append(job["id"])
+            except Exception as exc:
+                failed.append({"job_id": job["id"], "reason": str(exc)})
+            finally:
+                for candidate in candidates:
+                    candidate.unlink(missing_ok=True)
+        return {
+            "migration_id": migration_id, "updated": updated, "count": len(updated),
+            "skipped": skipped, "failed": failed,
+            "backup_dir": str(archive_root) if updated else None,
+        }
+
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
                source_assets: list[dict[str, Any]] | None = None,
@@ -1029,8 +1236,9 @@ class Pipeline:
         return self.crew.run(topic, duration, profile, narration, team_id)
 
     def _create_backgrounds(self, job: dict[str, Any], out: Path, width: int, height: int,
-                            sound_profile: str = "focus",
-                            creative_dna: dict[str, Any] | None = None) -> list[Path]:
+                             sound_profile: str = "focus",
+                             creative_dna: dict[str, Any] | None = None,
+                             canonical_cover: dict[str, Any] | None = None) -> list[Path]:
         creative_dna = creative_dna or {}
         crop_x = float(creative_dna.get("crop_x", .5))
         crop_y = float(creative_dna.get("crop_y", .5))
@@ -1050,6 +1258,18 @@ class Pipeline:
                 backgrounds.append(background)
             (out / "asset-manifest.json").write_text(json.dumps(assets, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.event(job["id"], "assets", f"{len(backgrounds)} asset(s) licenciado(s) enquadrado(s)")
+        elif canonical_cover:
+            background = out / "background.jpg"
+            self.command([self.settings.ffmpeg, "-y", "-i", canonical_cover["path"], "-vf",
+                          visual_filter, "-frames:v", "1", str(background)])
+            (out / "asset-manifest.json").write_text(json.dumps([{
+                "name": canonical_cover["id"], "path": canonical_cover["path"],
+                "license_type": "provider_generated",
+                "source_url": "ChatGPT · coleção fornecida pelo usuário em 2026-08-29",
+                "approved": True, "style_id": COVER_STYLE_ID,
+            }], ensure_ascii=False, indent=2), encoding="utf-8")
+            backgrounds.append(background)
+            self.store.event(job["id"], "assets", f"Imagem aprovada '{canonical_cover['id']}' aplicada ao vídeo e à capa")
         else:
             background = out / "background.jpg"
             starter_name = str(creative_dna.get("scene") or self.select_starter_scene(job["topic"], sound_profile))
@@ -1127,13 +1347,22 @@ class Pipeline:
             plan = self.generate_plan(job["topic"], job["duration"], job.get("profile", "youtube_long"),
                                       job["narration"], job.get("team_id", DEFAULT_TEAM_ID))
             sound_profile = plan["visual"].get("sound_profile", "focus")
+            cover_pair = None if job.get("source_assets") else select_cover_references(
+                self.settings.root, job["topic"]
+            )
+            canonical_cover = cover_pair[0] if cover_pair else None
             asset_scenes = tuple(str(asset.get("name") or Path(str(asset.get("path", "scene"))).stem)
                                  for asset in (job.get("source_assets") or []))
             creative_dna = self.creative.plan(
                 job["topic"], sound_profile, job.get("profile", "youtube_long"),
-                asset_scenes or self.scene_candidates(job["topic"], sound_profile),
+                asset_scenes or ((canonical_cover["id"],) if canonical_cover else
+                                 self.scene_candidates(job["topic"], sound_profile)),
                 self.store.list_jobs(500), self.store.performance_insights(), job_id,
             )
+            if canonical_cover:
+                creative_dna["scene"] = canonical_cover["id"]
+                creative_dna["motion_effect"] = COVER_MOTION.get(canonical_cover["id"], "lamp_flicker")
+                creative_dna["motion_density"] = min(.72, float(creative_dna.get("motion_density", .65)))
             plan["visual"]["creative_dna"] = creative_dna
             if creative_dna["novelty"]["risk"] == "high":
                 plan["review"]["warnings"].append("DNA criativo ainda próximo do histórico; revise antes de publicar.")
@@ -1154,7 +1383,7 @@ class Pipeline:
 
             self.store.update(job_id, "assets", metadata=metadata, progress=40)
             backgrounds = self._create_backgrounds(job, out, profile["width"], profile["height"],
-                                                   sound_profile, creative_dna)
+                                                   sound_profile, creative_dna, canonical_cover)
             audio = out / "ambient.wav"
             music_asset = self.store.reserve_music_asset(job.get("music_asset_id"))
             if music_asset:
@@ -1265,7 +1494,14 @@ class Pipeline:
                               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", str(job["duration"]),
                               "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(render_candidate)])
                 self.store.event(job_id, "rendering", f"Composição multicena concluída com {len(backgrounds)} cenas")
-            thumbnail_design = self.create_thumbnail_variants(out, job["topic"], width, height, backgrounds[0], "a")
+            rendered_cover = canonical_cover or {
+                "id": "production-scene", "path": str(backgrounds[0].resolve()),
+                "embedded_text": None,
+            }
+            thumbnail_design = self.create_thumbnail_variants(
+                out, job["topic"], width, height, backgrounds[0], "a",
+                canonical_cover=rendered_cover,
+            )
             thumbnail_design["brief"] = plan["visual"]["thumbnail"]
             (out / "thumbnail-design.json").write_text(json.dumps(thumbnail_design, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -1300,6 +1536,12 @@ class Pipeline:
                                  "visual_loop": "visual-loop.mp4" if (out / "visual-loop.mp4").is_file() else None}
             metadata["thumbnail_variants"] = thumbnail_design["variants"]
             metadata["selected_thumbnail"] = "a"
+            metadata["visual_source"] = {
+                "style_id": COVER_STYLE_ID if canonical_cover else "licensed_production_scene",
+                "reference_id": rendered_cover["id"],
+                "source_path": rendered_cover["path"],
+                "poster_matches_video": True,
+            }
             metadata["verification"] = media_report
             metadata["quality"] = plan["review"]
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")

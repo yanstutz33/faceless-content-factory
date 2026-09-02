@@ -58,6 +58,18 @@ def cover_assets(root: Path) -> list[dict[str, Any]]:
     ]
 
 
+def cover_reference(root: Path, reference_id: str) -> dict[str, Any] | None:
+    """Resolve one approved reference and only return it when its source exists."""
+    directory = cover_reference_dir(root)
+    item = next((entry for entry in COVER_REFERENCES if entry["id"] == reference_id), None)
+    if not item:
+        return None
+    path = directory / item["file"]
+    if not path.is_file():
+        return None
+    return {**item, "path": str(path.resolve())}
+
+
 def select_cover_references(root: Path, topic: str,
                             excluded_ids: set[str] | None = None) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """Return two distinct, deterministic covers from the approved visual collection."""

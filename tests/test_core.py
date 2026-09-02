@@ -40,7 +40,8 @@ from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
 from factory.templates import series_catalog
 from factory.web import CalendarScheduler, create_server
 from factory.vault import SecureVault
-from factory.visual_style import COVER_STYLE_ID, cover_assets, select_cover_references, visual_direction
+from factory.visual_style import (COVER_STYLE_ID, cover_assets, cover_reference,
+                                  select_cover_references, visual_direction)
 
 
 ROOT = Path(__file__).parents[1]
@@ -96,6 +97,37 @@ class CoreTests(unittest.TestCase):
             excluded.add(pair[0]["id"])
         self.assertEqual(len(set(selected)), 9)
         self.assertIsNone(select_cover_references(ROOT, "Coleção esgotada", excluded))
+
+    def test_thumbnail_variants_cannot_show_a_different_scene_after_play(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cover_source = ROOT / "assets" / "covers" / COVER_STYLE_ID.replace("_", "-")
+            cover_target = root / "assets" / "covers" / COVER_STYLE_ID.replace("_", "-")
+            shutil.copytree(cover_source, cover_target)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            out = root / "data" / "jobs" / "same-scene"
+            out.mkdir(parents=True)
+            pair = select_cover_references(root, "Observatório sob a aurora")
+            assert pair is not None
+            canonical = cover_reference(root, pair[0]["id"])
+            assert canonical is not None
+
+            def copy_thumbnail(source: Path, output: Path, width: int, height: int) -> None:
+                del width, height
+                shutil.copy2(source, output)
+
+            with patch.object(pipeline, "create_thumbnail", side_effect=copy_thumbnail):
+                design = pipeline.create_thumbnail_variants(
+                    out, "Observatório sob a aurora", 1280, 720,
+                    Path(canonical["path"]), canonical_cover=canonical,
+                )
+
+            self.assertEqual(design["variants"][0]["reference_id"], canonical["id"])
+            self.assertEqual(design["variants"][1]["reference_id"], canonical["id"])
+            self.assertEqual((out / "thumbnail-a.jpg").read_bytes(), Path(canonical["path"]).read_bytes())
+            self.assertEqual((out / "thumbnail-b.jpg").read_bytes(), Path(canonical["path"]).read_bytes())
+            self.assertEqual((out / "thumbnail.jpg").read_bytes(), Path(canonical["path"]).read_bytes())
 
     def test_thumbnail_batch_uses_nine_collection_covers_then_unique_scene(self):
         with tempfile.TemporaryDirectory() as tmp:

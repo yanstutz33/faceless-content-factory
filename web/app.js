@@ -249,7 +249,7 @@ $('#lyria-batch-form').addEventListener('submit',async event=>{
 });
 
 $('#new-music').onclick=()=>$('#music-dialog').showModal();
-$('#migrate-covers').onclick=async event=>{const button=event.currentTarget;button.disabled=true;button.textContent='Atualizando capas…';try{const result=await api('/api/covers/migrate',{method:'POST',timeoutMs:180000,body:'{}'});apiCache.clear();await load();toast(result.count?`${result.count} produção(ões) atualizada(s); capas antigas preservadas em backup.`:'Todas as capas já usam o padrão atual.','success')}catch(error){toast(error.message,'error')}finally{button.disabled=false;button.textContent='↻ Atualizar capas antigas'}};
+$('#migrate-covers').onclick=async event=>{const button=event.currentTarget;button.disabled=true;button.textContent='Sincronizando vídeos…';try{const result=await api('/api/covers/migrate',{method:'POST',timeoutMs:900000,body:'{}'});apiCache.clear();await load();toast(result.count?`${result.count} produção(ões) corrigida(s); imagem e vídeo agora são os mesmos.`:'Todos os vídeos já correspondem às capas aprovadas.','success')}catch(error){toast(error.message,'error')}finally{button.disabled=false;button.textContent='↻ Sincronizar imagens e vídeos'}};
 $('#music-form').addEventListener('submit',async event=>{
   event.preventDefault();const form=event.currentTarget;const fields=new FormData(form);const error=$('#music-form-error');error.textContent='';
   const button=event.submitter;button.disabled=true;button.textContent='Validando arquivos…';

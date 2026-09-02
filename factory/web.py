@@ -733,7 +733,7 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/music-assets/bootstrap":
                 return self.send_json(self.pipeline.bootstrap_original_music_catalog(), HTTPStatus.CREATED)
             if path == "/api/covers/migrate":
-                return self.send_json(self.pipeline.migrate_existing_covers())
+                return self.send_json(self.pipeline.synchronize_video_visuals())
             if path.startswith("/api/calendar/") and path.endswith("/produce"):
                 item_id = int(path.split("/")[-2])
                 item = self.store.claim_calendar_item(item_id)
