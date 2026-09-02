@@ -98,6 +98,7 @@ class Store:
                 "thumbnail_variant": "TEXT NOT NULL DEFAULT 'a'",
                 "team_id": "TEXT NOT NULL DEFAULT 'youtube_ambient'",
                 "music_asset_id": "INTEGER",
+                "cohort_id": "TEXT",
             }
             for column, definition in additions.items():
                 if column not in existing:
@@ -158,13 +159,15 @@ class Store:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO jobs(id,topic,status,duration,narration,subtitles,output_dir,metadata,
-                   profile,priority,progress,source_asset,source_assets,team_id,music_asset_id,created_at,updated_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   profile,priority,progress,source_asset,source_assets,team_id,music_asset_id,cohort_id,
+                   created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (job["id"], job["topic"], "queued", job["duration"], int(job["narration"]),
                  int(job["subtitles"]), job["output_dir"], "{}", job.get("profile", "youtube_long"),
                  int(job.get("priority", 2)), 0, job.get("source_asset"),
                  json.dumps(job.get("source_assets", []), ensure_ascii=False),
-                 job.get("team_id", "youtube_ambient"), job.get("music_asset_id"), timestamp, timestamp),
+                  job.get("team_id", "youtube_ambient"), job.get("music_asset_id"), job.get("cohort_id"),
+                  timestamp, timestamp),
             )
         self.event(job["id"], "queued", "Produção adicionada à fila")
 
@@ -669,6 +672,63 @@ class Store:
                 )
                 quarantined.append(str(row["id"]))
         return quarantined
+
+    def establish_pilot_cohort(self, cohort_id: str, eligible_job_ids: list[str],
+                               candidate_job_ids: list[str]) -> dict[str, list[str]]:
+        """Tag one auditable pilot cohort and remove historical jobs from its review queue.
+
+        Files are never deleted. Historical packages remain recoverable and can
+        be rerendered later with a currently approved music asset.
+        """
+        cohort_id = cohort_id.strip()
+        eligible = set(eligible_job_ids)
+        candidates = set(candidate_job_ids)
+        if not cohort_id or not eligible or not eligible.issubset(candidates):
+            raise ValueError("Coorte piloto inválida")
+        tagged: list[str] = []
+        quarantined: list[str] = []
+        message = "Produção histórica fora da coorte piloto; arquivos preservados para possível rerenderização"
+        with self.connect() as db:
+            placeholders = ",".join("?" for _ in candidates)
+            rows = db.execute(
+                f"SELECT id,metadata,status FROM jobs WHERE id IN ({placeholders})",
+                tuple(candidates),
+            ).fetchall()
+            if len(rows) != len(candidates):
+                raise ValueError("Uma ou mais produções da coorte não foram encontradas")
+            for row in rows:
+                try:
+                    metadata = json.loads(row["metadata"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    metadata = {}
+                if row["id"] in eligible:
+                    metadata["pilot_cohort_id"] = cohort_id
+                    db.execute(
+                        "UPDATE jobs SET cohort_id=?,metadata=?,error=NULL,updated_at=? WHERE id=?",
+                        (cohort_id, json.dumps(metadata, ensure_ascii=False), now(), row["id"]),
+                    )
+                    db.execute(
+                        "INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)",
+                        (row["id"], "pilot_cohort", f"Incluída na coorte {cohort_id}", now()),
+                    )
+                    tagged.append(str(row["id"]))
+                    continue
+                metadata.pop("pilot_cohort_id", None)
+                metadata["archive_reason"] = "historical_package_without_current_music_binding"
+                db.execute(
+                    "UPDATE jobs SET status='rejected',cohort_id=NULL,metadata=?,error=?,updated_at=? WHERE id=?",
+                    (json.dumps(metadata, ensure_ascii=False), message, now(), row["id"]),
+                )
+                db.execute(
+                    "UPDATE calendar SET status='revision',error=?,updated_at=? WHERE job_id=?",
+                    (message, now(), row["id"]),
+                )
+                db.execute(
+                    "INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)",
+                    (row["id"], "pilot_archive", message, now()),
+                )
+                quarantined.append(str(row["id"]))
+        return {"tagged": sorted(tagged), "quarantined": sorted(quarantined)}
 
     def reserve_music_asset(self, preferred_id: int | None = None) -> dict[str, Any] | None:
         with self.connect() as db:

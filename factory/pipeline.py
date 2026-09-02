@@ -352,6 +352,10 @@ class Pipeline:
     def artifact_manifest(out: Path, names: list[str]) -> dict[str, Any]:
         files = []
         for name in names:
+            # A manifest cannot contain a stable hash of itself: writing the
+            # digest changes the file and invalidates that same digest.
+            if name == "artifact-manifest.json":
+                continue
             path = out / name
             if not path.is_file():
                 continue
@@ -361,6 +365,35 @@ class Pipeline:
                     digest.update(chunk)
             files.append({"name": name, "size_bytes": path.stat().st_size, "sha256": digest.hexdigest()})
         return {"algorithm": "sha256", "files": files}
+
+    @staticmethod
+    def verify_artifact_manifest(out: Path) -> dict[str, Any]:
+        """Validate every file registered by the immutable artifact manifest."""
+        manifest_path = out / "artifact-manifest.json"
+        if not manifest_path.is_file():
+            raise ValueError("Manifesto de integridade ausente; execute a auditoria novamente")
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("Manifesto de integridade inválido; execute a auditoria novamente") from exc
+        entries = manifest.get("files") or []
+        if not entries or any(item.get("name") == "artifact-manifest.json" for item in entries):
+            raise ValueError("Manifesto de integridade contém referência autorreferente ou está vazio")
+        verified = []
+        for item in entries:
+            name = str(item.get("name") or "")
+            artifact = out / name
+            if not name or not artifact.is_file():
+                raise ValueError(f"Artefato ausente no manifesto: {name or 'sem nome'}")
+            digest = hashlib.sha256()
+            with artifact.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            actual = digest.hexdigest()
+            if actual != item.get("sha256") or artifact.stat().st_size != item.get("size_bytes"):
+                raise ValueError(f"{name} mudou após a validação; renderize ou audite novamente")
+            verified.append(name)
+        return {"passed": True, "verified": verified, "count": len(verified)}
 
     @staticmethod
     def verify_artifact_checksum(out: Path, name: str = "video.mp4") -> dict[str, Any]:
@@ -1184,11 +1217,72 @@ class Pipeline:
             "backup_dir": str(archive_root) if updated else None,
         }
 
+    def repair_artifact_manifests(self) -> dict[str, Any]:
+        """Remove impossible self-hashes and revalidate every registered artifact."""
+        repaired: list[str] = []
+        skipped: list[str] = []
+        failed: list[dict[str, str]] = []
+        for job in self.store.list_jobs(500):
+            out = Path(str(job.get("output_dir") or ""))
+            manifest_path = out / "artifact-manifest.json"
+            if not manifest_path.is_file():
+                skipped.append(job["id"])
+                continue
+            try:
+                old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                names = [str(item.get("name")) for item in old_manifest.get("files", [])
+                         if item.get("name") and item.get("name") != "artifact-manifest.json"]
+                manifest = self.artifact_manifest(out, names)
+                manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+                self.verify_artifact_manifest(out)
+                self.store.event(job["id"], "integrity", "Manifesto completo reparado e validado sem autorreferência")
+                repaired.append(job["id"])
+            except Exception as exc:
+                failed.append({"job_id": job["id"], "reason": str(exc)})
+        return {"repaired": repaired, "count": len(repaired), "skipped": skipped, "failed": failed}
+
+    def establish_current_pilot_cohort(self, cohort_id: str = "pilot-flow-2026-08-30") -> dict[str, Any]:
+        """Identify traceable current pilots and archive historical packages from review."""
+        candidates = [job for job in self.store.list_jobs(500)
+                      if (job.get("status") in {"approved", "awaiting_approval"}
+                          or (job.get("metadata") or {}).get("archive_reason")
+                          == "historical_package_without_current_music_binding")
+                      and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
+        eligible: list[str] = []
+        for job in candidates:
+            metadata = job.get("metadata") or {}
+            music = metadata.get("music") or {}
+            asset_id = job.get("music_asset_id")
+            asset = self.store.get_music_asset_record(int(asset_id)) if asset_id else None
+            if (asset and asset.get("approved") and asset.get("human_review") == "approved"
+                    and music.get("style") == "licensed_music_library"
+                    and int(music.get("track_id") or 0) == int(asset_id)
+                    and (metadata.get("quality_gate") or {}).get("passed") is True
+                    and (metadata.get("visual_source") or {}).get("poster_matches_video") is True):
+                eligible.append(job["id"])
+        if len(eligible) < 10:
+            raise ValueError(f"A coorte piloto teria somente {len(eligible)} produções rastreáveis; mínimo 10")
+        result = self.store.establish_pilot_cohort(
+            cohort_id, eligible, [job["id"] for job in candidates],
+        )
+        for job_id in (*result["tagged"], *result["quarantined"]):
+            updated = self.store.get_job(job_id)
+            if not updated:
+                continue
+            metadata_path = Path(updated["output_dir"]) / "metadata.json"
+            if metadata_path.is_file():
+                metadata_path.write_text(
+                    json.dumps(updated.get("metadata") or {}, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+        return {"cohort_id": cohort_id, **result, "tagged_count": len(result["tagged"]),
+                "quarantined_count": len(result["quarantined"])}
+
     def create(self, topic: str, duration: int, narration: bool = False, subtitles: bool = True,
                profile: str = "youtube_long", source_asset: str | None = None, priority: int = 2,
                source_assets: list[dict[str, Any]] | None = None,
                team_id: str = DEFAULT_TEAM_ID, source_asset_rights_confirmed: bool = False,
-               music_asset_id: int | None = None) -> str:
+               music_asset_id: int | None = None, cohort_id: str | None = None) -> str:
         topic = " ".join(topic.split()).strip()
         if len(topic) < 3:
             raise ValueError("Descreva um tema com pelo menos 3 caracteres")
@@ -1225,8 +1319,9 @@ class Pipeline:
         output_dir.mkdir(parents=True)
         self.store.create_job({"id": job_id, "topic": topic, "duration": duration, "narration": narration,
                                "subtitles": subtitles, "profile": profile, "priority": priority,
-                               "team_id": team.id,
-                               "music_asset_id": music_asset_id,
+                                "team_id": team.id,
+                                "music_asset_id": music_asset_id,
+                                "cohort_id": cohort_id,
                                "source_asset": normalized_assets[0]["path"] if normalized_assets else None,
                                "source_assets": normalized_assets, "output_dir": str(output_dir)})
         return job_id
@@ -1566,7 +1661,7 @@ class Pipeline:
             raise ValueError("A produção ainda não está pronta para aprovação")
         if not job.get("metadata", {}).get("quality_gate", {}).get("passed"):
             raise ValueError("Execute e aprove o controle de qualidade antes da aprovação")
-        self.verify_artifact_checksum(Path(job["output_dir"]))
+        self.verify_artifact_manifest(Path(job["output_dir"]))
         self.store.update(job_id, "approved", job["metadata"], progress=100, quality_score=job.get("quality_score"))
         self.store.event(job_id, "approved", "Aprovado para publicação manual")
 
@@ -1610,7 +1705,7 @@ class Pipeline:
         if not metadata.get("quality_gate", {}).get("passed"):
             raise ValueError("O arquivo ainda não passou pelo controle de qualidade v0.9")
         out = Path(job["output_dir"])
-        self.verify_artifact_checksum(out)
+        self.verify_artifact_manifest(out)
         payload = {
             "mode": "prepared_not_uploaded",
             "api": "youtube_data_api_v3",
@@ -1644,7 +1739,7 @@ class Pipeline:
         if not job.get("metadata", {}).get("quality_gate", {}).get("passed"):
             raise ValueError("O arquivo ainda não passou pelo controle de qualidade v0.9")
         out = Path(job["output_dir"])
-        self.verify_artifact_checksum(out)
+        self.verify_artifact_manifest(out)
         source = out / "video.mp4"
         if not source.is_file():
             raise ValueError("Vídeo principal não encontrado")

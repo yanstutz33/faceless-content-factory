@@ -1,6 +1,10 @@
 registerJobDetailExtension(async({id,job,dialog,actions})=>{
   const variants=job.metadata?.thumbnail_variants||[];
   if(!variants.length)return;
+  const distinctScenes=new Set(variants.map(item=>item.reference_id||item.file));
+  // Do not present a fake A/B test when both files intentionally use the
+  // exact scene encoded in the video. The video player already shows it.
+  if(distinctScenes.size<2)return;
   const selected=job.metadata?.selected_thumbnail||job.thumbnail_variant||'a';
   const section=document.createElement('section');
   section.className='thumbnail-test';

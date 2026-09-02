@@ -58,7 +58,7 @@ Narração é opcional. `--narration` usa o provedor dedicado configurado por `T
 
 ## Imagem e música automáticas
 
-Os primeiros testes sem asset usavam apenas um fundo procedural escuro e ruídos ambientais; por isso pareciam não ter imagem e soavam semelhantes. Todo pacote novo agora recebe uma cena ilustrada real do starter pack. As capas históricas podem ser atualizadas pelo botão **Atualizar capas antigas** ou por `python app.py migrate-covers`; antes de qualquer substituição, os arquivos anteriores são preservados em `data/archive/cover-migrations/`.
+Os primeiros testes sem asset usavam apenas um fundo procedural escuro e ruídos ambientais; por isso pareciam não ter imagem e soavam semelhantes. Todo pacote novo agora recebe uma cena aprovada incorporada ao próprio MP4. O botão **Sincronizar imagens e vídeos** e o comando `python app.py sync-video-visuals` nunca trocam apenas o pôster: eles reconstroem o vídeo com a mesma imagem e preservam a versão anterior em `data/archive/video-visual-sync/`.
 
 A série opcional `Anime Nights original` usa uma personagem adulta criada exclusivamente para o projeto, sem copiar franquias, personagens ou artistas. Ela só é escolhida quando o tema menciona explicitamente anime ou personagem; as demais séries continuam sem personagens.
 
@@ -110,6 +110,8 @@ python app.py generate --topic "Café ao amanhecer" --duration 3600 --profile yo
 python app.py doctor
 python app.py integrations
 python app.py backup
+python app.py establish-pilot-cohort --cohort-id pilot-flow-2026-08-30
+python app.py repair-manifests
 python app.py commerce-overview
 python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados úteis"
 python app.py bilibili-package ID_DA_PRODUCAO

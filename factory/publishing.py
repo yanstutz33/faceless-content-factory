@@ -125,9 +125,17 @@ class PublishingCenter:
 
     def pilot_certification(self, target: int = 10) -> dict[str, Any]:
         """Summarize automatic pilot gates without replacing human approval."""
-        jobs = [job for job in self.store.list_jobs(500)
-                if job.get("status") in {"approved", "awaiting_approval"}
-                and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
+        publishable = [job for job in self.store.list_jobs(500)
+                       if job.get("status") in {"approved", "awaiting_approval"}
+                       and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
+        cohort_jobs = [job for job in publishable if job.get("cohort_id")]
+        cohort_id = None
+        if cohort_jobs:
+            cohort_id = max(cohort_jobs, key=lambda item: str(item.get("created_at") or "")).get("cohort_id")
+            jobs = [job for job in cohort_jobs if job.get("cohort_id") == cohort_id]
+        else:
+            # Compatibility for fresh/test stores created before explicit cohorts.
+            jobs = publishable
         audits = [self.audit(job) for job in jobs]
 
         track_names: list[str] = []
@@ -189,6 +197,7 @@ class PublishingCenter:
             label = "Pronto tecnicamente · revisão humana pendente"
             next_action = f"Assista e aprove pelo menos {target} vídeos. Nenhum envio externo será feito."
         return {
+            "cohort_id": cohort_id,
             "status": status,
             "label": label,
             "target": target,

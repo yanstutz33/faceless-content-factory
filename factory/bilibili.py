@@ -76,7 +76,7 @@ class BilibiliPackager:
             raise ValueError("O vídeo ainda não passou pelo controle automático")
 
         out = Path(job["output_dir"])
-        self.pipeline.verify_artifact_checksum(out)
+        self.pipeline.verify_artifact_manifest(out)
         video = out / "video.mp4"
         cover = out / "bilibili-cover.jpg"
         self.pipeline.command([

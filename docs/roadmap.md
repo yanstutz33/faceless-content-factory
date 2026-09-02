@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 31/08/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
+Última revisão: 01/09/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -13,6 +13,7 @@
 - agentes de planejamento, criação, áudio, montagem, qualidade, aprovação e empacotamento;
 - detector histórico de repetição e DNA criativo para imagem, composição, movimento e som;
 - quality gate, aprovação manual, pacotes de publicação e registro local de métricas;
+- coortes explícitas de piloto, manifestos completos sem hash autorreferente e validação integral antes da aprovação;
 - Hub responsivo com navegação direta, acessibilidade automatizada, feedback de erro e tema editorial;
 - conectores preparados somente até o ponto anterior à autenticação das plataformas.
 
@@ -30,19 +31,21 @@
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
 - gerar ou importar e validar pelo menos 12 faixas lo-fi/chill perceptivelmente diferentes, com licença e atribuição quando exigida — **concluído: 13 faixas ouvidas, aprovadas e em rotação; as 24 faixas antigas continuam preservadas em quarentena**;
-- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 21 cenas disponíveis, sendo 12 iniciais e nove referências personalizadas**;
+- ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 23 registros visuais disponíveis; a coorte oficial usa somente as nove referências personalizadas aprovadas e ignora assets históricos/de teste**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
 - gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **concluído automaticamente: 13 pilotos de 30 minutos passaram em integridade, qualidade, direitos, áudio distinto e DNA visual integral distinto; os 13 aguardam avaliação humana**;
 - manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
-- migrar capas históricas para o padrão aprovado com backup recuperável — **implementado; disponível no hub e na linha de comando**;
+- sincronizar capas e vídeos históricos com backup recuperável — **concluído em 35 pacotes: a imagem aprovada foi incorporada ao MP4 e comparada após o play; 22 pacotes históricos foram preservados fora da fila publicável**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: importação rastreável do Flow e geração direta em lote com Lyria 3 pela Gemini API; o Hub cria, baixa, valida e cataloga 4, 8 ou 12 faixas com direções musicalmente distintas, mantendo revisão auditiva obrigatória**.
 
-Resultado parcial: os 13 pilotos atuais têm 30 minutos, usam 13 músicas aprovadas sem repetição no lote, 13 DNAs visuais integrais distintos e nota de novidade mínima de 70,3. Todos passaram no controle técnico automático e permanecem em `aguardando aprovação`; nenhum foi publicado externamente. O Centro de Publicação agora mostra uma certificação única do lote e separa claramente os controles automáticos da revisão humana. As 24 faixas antigas continuam preservadas em quarentena. O kit público **Pausa Pra Anime · by YAMI** para YouTube continua pronto; FFactory segue apenas como infraestrutura interna.
+Resultado parcial: a coorte explícita `pilot-flow-2026-08-30` contém somente os 13 pilotos atuais. Eles têm 30 minutos, usam 13 músicas aprovadas sem repetição no lote, 13 DNAs visuais integrais distintos e nota de novidade mínima de 70,3. Todos passaram no controle técnico automático e permanecem em `aguardando aprovação`; nenhum foi publicado externamente. Outros 22 pacotes históricos foram movidos para revisão/quarentena sem exclusão de arquivos. Os 35 manifestos completos foram reparados e validados sem hash autorreferente. O Centro de Publicação certifica apenas a coorte oficial e separa os controles automáticos da revisão humana. As 24 faixas antigas continuam preservadas em quarentena. O kit público **Pausa Pra Anime · by YAMI** para YouTube continua pronto; FFactory segue apenas como infraestrutura interna.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
 Automação: ingestão, validação técnica, registro, rotação, montagem e certificação do lote estão automatizados. Permanecem humanas a revisão visual/auditiva final dos 13 pilotos e as decisões de publicação.
+
+Nota sobre A/B: as variantes atuais usam deliberadamente a mesma cena do vídeo para impedir que o pôster seja trocado por uma imagem diferente após o play. Um experimento A/B real deverá variar apenas enquadramento ou tratamento da mesma cena, sem quebrar essa identidade.
 
 ### Fase 2 — Piloto automático sem publicação — próxima
 

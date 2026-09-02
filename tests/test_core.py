@@ -854,6 +854,43 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(store.get_job(job_id)["status"], "rejected")
             self.assertEqual(artifact.read_bytes(), b"preserved")
 
+    def test_pilot_cohort_archives_historical_jobs_without_deleting_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            current = pipeline.create("Current pilot", 1800)
+            historical = pipeline.create("Historical package", 1800)
+            current_out = Path(store.get_job(current)["output_dir"])
+            historical_out = Path(store.get_job(historical)["output_dir"])
+            (current_out / "video.mp4").write_bytes(b"current")
+            (historical_out / "video.mp4").write_bytes(b"historical")
+            store.update(current, "awaiting_approval", {}, progress=100)
+            store.update(historical, "awaiting_approval", {}, progress=100)
+
+            result = store.establish_pilot_cohort("pilot-test", [current], [current, historical])
+
+            self.assertEqual(result["tagged"], [current])
+            self.assertEqual(result["quarantined"], [historical])
+            self.assertEqual(store.get_job(current)["cohort_id"], "pilot-test")
+            self.assertEqual(store.get_job(historical)["status"], "rejected")
+            self.assertEqual((historical_out / "video.mp4").read_bytes(), b"historical")
+
+    def test_artifact_manifest_never_hashes_itself_and_validates_every_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "video.mp4").write_bytes(b"video")
+            (out / "metadata.json").write_bytes(b"metadata")
+            manifest = Pipeline.artifact_manifest(
+                out, ["video.mp4", "metadata.json", "artifact-manifest.json"],
+            )
+            (out / "artifact-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertNotIn("artifact-manifest.json", [item["name"] for item in manifest["files"]])
+            self.assertEqual(Pipeline.verify_artifact_manifest(out)["count"], 2)
+            (out / "metadata.json").write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "metadata.json"):
+                Pipeline.verify_artifact_manifest(out)
+
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_legacy_cover_migration_is_recoverable_and_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1227,6 +1264,37 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(certification["unique_tracks"], 10)
         self.assertEqual(certification["unique_visuals"], 10)
         self.assertEqual(certification["pending_review_count"], 10)
+
+    def test_pilot_certification_uses_latest_explicit_cohort_only(self):
+        jobs = []
+        for index in range(10):
+            jobs.append({
+                "id": f"current-{index}", "topic": f"Atual {index}", "status": "awaiting_approval",
+                "profile": "youtube_long", "duration": 1800, "cohort_id": "pilot-current",
+                "created_at": f"2026-08-30T00:00:{index:02}Z",
+                "metadata": {"music": {"track_name": f"Current {index}"},
+                             "creative_fingerprint": {"scene": f"current-{index}"}},
+            })
+        jobs.append({
+            "id": "historical", "topic": "Antigo", "status": "awaiting_approval",
+            "profile": "youtube_long", "duration": 1800, "cohort_id": None,
+            "created_at": "2026-08-01T00:00:00Z",
+            "metadata": {"music": {"track_name": "Repeated"},
+                         "creative_fingerprint": {"scene": "historical"}},
+        })
+
+        class CohortStore:
+            @staticmethod
+            def list_jobs(_limit):
+                return jobs
+
+        center = PublishingCenter(object(), CohortStore())
+        checks = [{"id": "approval", "passed": False}, {"id": "technical", "passed": True}]
+        with patch.object(center, "audit", return_value={"checks": checks}):
+            certification = center.pilot_certification()
+        self.assertEqual(certification["cohort_id"], "pilot-current")
+        self.assertEqual(certification["candidate_count"], 10)
+        self.assertEqual(certification["unique_tracks"], 10)
 
     @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
     def test_long_render_reuses_encoded_visual_loop(self):

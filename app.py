@@ -51,6 +51,9 @@ def main() -> None:
     sub.add_parser("serve", help="Open the local operations dashboard")
     sub.add_parser("migrate-covers", help="Replace legacy thumbnails with the approved visual collection")
     sub.add_parser("sync-video-visuals", help="Rebuild videos from the same approved image used by their poster")
+    sub.add_parser("repair-manifests", help="Repair and validate complete artifact manifests")
+    pilot = sub.add_parser("establish-pilot-cohort", help="Tag current pilots and archive historical review jobs")
+    pilot.add_argument("--cohort-id", default="pilot-flow-2026-08-30")
     lyria = sub.add_parser("lyria-generate", help="Generate and register one instrumental track with Google Lyria 3")
     lyria.add_argument("--name", required=True)
     lyria.add_argument("--prompt", required=True)
@@ -115,6 +118,10 @@ def main() -> None:
         print(json.dumps(pipeline.synchronize_video_visuals(), ensure_ascii=False, indent=2))
     elif args.command == "sync-video-visuals":
         print(json.dumps(pipeline.synchronize_video_visuals(), ensure_ascii=False, indent=2))
+    elif args.command == "repair-manifests":
+        print(json.dumps(pipeline.repair_artifact_manifests(), ensure_ascii=False, indent=2))
+    elif args.command == "establish-pilot-cohort":
+        print(json.dumps(pipeline.establish_current_pilot_cohort(args.cohort_id), ensure_ascii=False, indent=2))
     elif args.command == "lyria-generate":
         print(json.dumps(pipeline.lyria.generate(args.name, args.prompt, args.model, args.confirm_rights),
                          ensure_ascii=False, indent=2))
