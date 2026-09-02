@@ -53,6 +53,15 @@ test('direct publishing link lands on the publishing center after data loads', a
   await expect(page.locator('#pilot-certification h3')).toContainText(/correções automáticas|revisão humana pendente|piloto certificado/i);
   await expect(page.locator('#pilot-certification li')).toHaveCount(5);
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
+  const guidedReview=page.locator('#start-pilot-review');
+  await expect(guidedReview).toBeVisible();
+  if(await guidedReview.isEnabled()){
+    await guidedReview.click();
+    await expect(page.locator('#job-dialog')).toBeVisible();
+    await expect(page.locator('.guided-review-bar')).toContainText(/piloto 1 de \d+/i);
+    await expect(page.locator('.guided-review-bar').getByRole('button',{name:/próximo/i})).toBeVisible();
+    await page.locator('#job-dialog [data-close]').click();
+  }
 });
 
 test('calendar keeps one automation and only the active editorial agenda', async ({ page }) => {

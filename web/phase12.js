@@ -1,6 +1,8 @@
 let publishingState={summary:{total:0,eligible:0,ready:0,blocked:0},items:[]};
 let pilotCertification=null;
 let phase2Certification=null;
+let guidedReviewIds=[];
+let guidedReviewCurrent=null;
 
 function publishStatus(item){
   if(item.release_ready)return {label:'PACOTE COMPLETO',tone:'ready'};
@@ -26,6 +28,10 @@ async function loadPublishing(){
       phase2.innerHTML=`<div><span class="tag">AUTOMAÇÃO LOCAL · SEM PUBLICAÇÃO</span><h3>${esc(phase2Labels[phase2Certification.status]||'Certificação da Fase 2')}</h3><p>${esc(phase2Certification.next_action)}</p></div><strong>${Number(phase2Certification.consecutive_successful_batches||0)}<small>/${Number(phase2Certification.target||3)} lotes</small></strong>`;
     }
     const s=publishingState.summary||{};
+    const reviewItems=publishingState.items.filter(item=>item.status==='awaiting_approval');
+    const reviewButton=document.querySelector('#start-pilot-review');
+    reviewButton.disabled=!reviewItems.length;
+    reviewButton.textContent=reviewItems.length?`▶ Revisar ${reviewItems.length} piloto${reviewItems.length===1?'':'s'}`:'✓ Revisão concluída';
     document.querySelector('#publish-badge').textContent=String(s.eligible||0);
     document.querySelector('#publish-summary').innerHTML=[
       ['Na central',s.total||0,'Vídeos aprovados ou em revisão'],
@@ -50,10 +56,36 @@ async function loadPublishing(){
 }
 
 document.querySelector('#refresh-publishing').onclick=loadPublishing;
-registerJobDetailExtension(({dialog})=>{
+document.querySelector('#start-pilot-review').onclick=()=>{
+  guidedReviewIds=publishingState.items.filter(item=>item.status==='awaiting_approval').map(item=>item.job_id);
+  guidedReviewCurrent=guidedReviewIds[0]||null;
+  if(!guidedReviewCurrent)return toast('Não há pilotos aguardando revisão.');
+  openJob(guidedReviewCurrent);
+};
+window.guidedReviewAdvance=async id=>{
+  if(!guidedReviewIds.includes(id))return;
+  const index=guidedReviewIds.indexOf(id);
+  guidedReviewIds=guidedReviewIds.filter(jobId=>jobId!==id);
+  await loadPublishing();
+  if(!guidedReviewIds.length){guidedReviewCurrent=null;return toast('Revisão guiada concluída.','success')}
+  guidedReviewCurrent=guidedReviewIds[Math.min(index,guidedReviewIds.length-1)];
+  await openJob(guidedReviewCurrent);
+};
+registerJobDetailExtension(({id,dialog})=>{
   const platform=dialog.querySelector('#metric-form select[name="platform"]');
-  if(!platform||platform.querySelector('[value="bilibili"]'))return;
-  platform.insertAdjacentHTML('beforeend','<option value="pinterest">Pinterest</option><option value="bilibili">Bilibili</option>');
+  if(platform&&!platform.querySelector('[value="bilibili"]'))platform.insertAdjacentHTML('beforeend','<option value="pinterest">Pinterest</option><option value="bilibili">Bilibili</option>');
+  if(!guidedReviewIds.includes(id))return;
+  guidedReviewCurrent=id;
+  const index=guidedReviewIds.indexOf(id);
+  const bar=document.createElement('div');
+  bar.className='guided-review-bar';
+  bar.innerHTML=`<div><span class="tag">REVISÃO GUIADA · DECISÃO HUMANA</span><b>Piloto ${index+1} de ${guidedReviewIds.length}</b></div><div><button class="secondary" type="button" data-guided-step="-1" ${guidedReviewIds.length<2?'disabled':''}>← Anterior</button><button class="secondary" type="button" data-guided-step="1" ${guidedReviewIds.length<2?'disabled':''}>Próximo →</button></div>`;
+  dialog.querySelector('.detail-hero')?.before(bar);
+  bar.onclick=async event=>{
+    const button=event.target.closest('[data-guided-step]');if(!button)return;
+    const target=(index+Number(button.dataset.guidedStep)+guidedReviewIds.length)%guidedReviewIds.length;
+    guidedReviewCurrent=guidedReviewIds[target];dialog.close();await openJob(guidedReviewCurrent);
+  };
 });
 document.querySelector('#publish-list').addEventListener('click',async event=>{
   const release=event.target.closest('[data-release-job]');

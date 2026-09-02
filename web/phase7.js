@@ -11,6 +11,7 @@ registerJobDetailExtension(async({id,job,dialog,actions})=>{
   }
   const form=dialog.querySelector('#metric-form');
   if(!form)return;
+  if(form.querySelector('[name="impressions"]'))return;
   const button=form.querySelector('button');
   const fields=document.createElement('div');
   fields.className='metric-extended';
