@@ -56,6 +56,8 @@ Objetivo: provar que a fábrica consegue trabalhar sozinha de ponta a ponta.
 - priorizar automaticamente ideias com maior novidade e menor risco de repetição;
 - criar um relatório diário simples: concluídos, bloqueados, motivo e ação recomendada — **implementado no Calendário, com endpoint somente leitura e garantia explícita de que não publica**;
 - manter todos os resultados na fila de aprovação local.
+- registrar cada execução como uma coorte autônoma auditável e certificar automaticamente a sequência de três lotes — **implementado: cada turno recebe um identificador próprio, valida manifesto, mídia, qualidade e pacote local; nenhuma aprovação ou publicação é inferida**;
+- impedir o início da Fase 2 enquanto o piloto explícito não tiver pelo menos dez aprovações humanas — **implementado no turno noturno e exposto no diagnóstico da Fase 2**.
 
 Critério de conclusão: três lotes consecutivos terminam sem intervenção e sem artefatos inválidos.
 
@@ -147,4 +149,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-No Centro de Publicação, assistir e aprovar pelo menos 10 dos 13 pilotos já renderizados. Não gerar outro lote enquanto essa fila estiver cheia. Quando 10 vídeos forem aprovados, executar os três lotes autônomos da Fase 2, sempre sem publicação externa. Somente depois disso iniciar o piloto privado do YouTube, que dependerá do login manual.
+No Centro de Publicação, assistir e aprovar pelo menos 10 dos 13 pilotos já renderizados. Não gerar outro lote enquanto essa fila estiver cheia. Quando 10 vídeos forem aprovados, executar os três lotes autônomos da Fase 2, sempre sem publicação externa; o progresso fica disponível em `/api/operations/phase2-certification` e no comando `phase2-status`. Somente depois disso iniciar o piloto privado do YouTube, que dependerá do login manual.

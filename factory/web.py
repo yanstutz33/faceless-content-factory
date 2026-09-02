@@ -522,6 +522,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.nightshift.status())
         if path == "/api/operations/daily-report":
             return self.send_json(self.nightshift.daily_report())
+        if path == "/api/operations/phase2-certification":
+            return self.send_json(self.nightshift.phase2_certification())
         if path == "/api/calendar":
             return self.send_json(self.store.list_calendar())
         if path == "/api/assets":

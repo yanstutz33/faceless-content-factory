@@ -112,6 +112,7 @@ python app.py integrations
 python app.py backup
 python app.py establish-pilot-cohort --cohort-id pilot-flow-2026-08-30
 python app.py repair-manifests
+python app.py phase2-status
 python app.py commerce-overview
 python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados úteis"
 python app.py bilibili-package ID_DA_PRODUCAO

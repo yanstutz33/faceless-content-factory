@@ -1,5 +1,6 @@
 let publishingState={summary:{total:0,eligible:0,ready:0,blocked:0},items:[]};
 let pilotCertification=null;
+let phase2Certification=null;
 
 function publishStatus(item){
   if(item.release_ready)return {label:'PACOTE COMPLETO',tone:'ready'};
@@ -9,13 +10,21 @@ function publishStatus(item){
 
 async function loadPublishing(){
   try{
-    [publishingState,pilotCertification]=await Promise.all([
-      api('/api/publishing'),api('/api/publishing/pilot-certification')
+    [publishingState,pilotCertification,phase2Certification]=await Promise.all([
+      api('/api/publishing'),api('/api/publishing/pilot-certification'),api('/api/operations/phase2-certification')
     ]);
     const certificate=document.querySelector('#pilot-certification');
     const certificateChecks=(pilotCertification.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
     certificate.className=`pilot-certification ${esc(pilotCertification.status||'blocked')}`;
     certificate.innerHTML=`<div class="pilot-certificate-head"><div><span class="tag">CERTIFICAÇÃO DO LOTE PILOTO</span><h3>${esc(pilotCertification.label)}</h3><p>${esc(pilotCertification.next_action)}</p></div><strong>${Number(pilotCertification.approved_count||0)}<small>/${Number(pilotCertification.target||10)} aprovados</small></strong></div><ul>${certificateChecks}</ul>`;
+    const phase2=document.querySelector('#phase2-certification');
+    const showPhase2=pilotCertification.status==='certified'||(phase2Certification.batches||[]).length>0;
+    phase2.hidden=!showPhase2;
+    if(showPhase2){
+      const phase2Labels={certified:'Fase 2 certificada',in_progress:'Lote autônomo em andamento',ready:'Pronto para o próximo lote',blocked_by_pilot:'Aguardando o piloto'};
+      phase2.className=`phase2-certification ${esc(phase2Certification.status||'ready')}`;
+      phase2.innerHTML=`<div><span class="tag">AUTOMAÇÃO LOCAL · SEM PUBLICAÇÃO</span><h3>${esc(phase2Labels[phase2Certification.status]||'Certificação da Fase 2')}</h3><p>${esc(phase2Certification.next_action)}</p></div><strong>${Number(phase2Certification.consecutive_successful_batches||0)}<small>/${Number(phase2Certification.target||3)} lotes</small></strong>`;
+    }
     const s=publishingState.summary||{};
     document.querySelector('#publish-badge').textContent=String(s.eligible||0);
     document.querySelector('#publish-summary').innerHTML=[

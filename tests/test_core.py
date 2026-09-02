@@ -713,7 +713,10 @@ class CoreTests(unittest.TestCase):
             result = night.run_once(force=True)
             self.assertEqual(len(result["created"]), 2)
             self.assertFalse(result["publish_performed"])
+            self.assertTrue(result["cohort_id"].startswith("phase2-"))
             self.assertEqual(len(runner.active), 2)
+            self.assertEqual({store.get_job(job_id)["cohort_id"] for job_id in result["created"]},
+                             {result["cohort_id"]})
             self.assertEqual(sum(item["status"] == "producing" for item in store.list_calendar()), 2)
 
             report = night.daily_report()
@@ -721,6 +724,59 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(report["summary"]["blocked"], 0)
             self.assertFalse(report["publish_performed"])
             self.assertIn("andamento", report["next_action"])
+
+    def test_night_shift_blocks_phase2_until_ten_pilot_approvals(self):
+        class FakeRunner:
+            @staticmethod
+            def snapshot():
+                return {"active": [], "worker_limit": 1}
+
+            @staticmethod
+            def submit(_job_id):
+                raise AssertionError("A Fase 2 não deveria iniciar")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            autopilot = Autopilot(self.settings(root), store)
+            for index in range(10):
+                job_id = pipeline.create(f"Piloto humano {index}", 1800, cohort_id="pilot-explicit")
+                store.update(job_id, "awaiting_approval")
+            night = NightShift(pipeline, store, FakeRunner(), autopilot)
+            result = night.run_once(force=True)
+            self.assertEqual(result["created"], [])
+            self.assertIn("Aprove 10 vídeo(s)", result["reason"])
+            self.assertEqual(night.phase2_certification()["status"], "blocked_by_pilot")
+
+    def test_phase2_certification_requires_three_integral_autonomous_batches(self):
+        class FakeRunner:
+            @staticmethod
+            def snapshot():
+                return {"active": [], "worker_limit": 1}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            night = NightShift(pipeline, store, FakeRunner(), Autopilot(self.settings(root), store))
+            for batch in range(3):
+                job_id = pipeline.create(f"Lote autônomo {batch}", 1800,
+                                         cohort_id=f"phase2-2026-09-0{batch + 1}-220000")
+                job = store.get_job(job_id)
+                out = Path(job["output_dir"])
+                (out / "video.mp4").write_bytes(f"video-{batch}".encode())
+                (out / "publication-package.json").write_text("{}", encoding="utf-8")
+                manifest = pipeline.artifact_manifest(out, ["video.mp4", "publication-package.json"])
+                (out / "artifact-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+                store.update(job_id, "awaiting_approval", metadata={
+                    "verification": {"passed": True}, "quality_gate": {"passed": True},
+                })
+            certification = night.phase2_certification()
+            self.assertEqual(certification["status"], "certified")
+            self.assertEqual(certification["consecutive_successful_batches"], 3)
+            self.assertEqual(certification["remaining_batches"], 0)
+            self.assertTrue(all(not batch["publish_performed"] for batch in certification["batches"]))
 
     def test_manual_calendar_bypasses_autopilot_pause(self):
         with tempfile.TemporaryDirectory() as tmp:
