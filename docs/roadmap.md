@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 01/09/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
+Última revisão: 02/09/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -47,7 +47,7 @@ Automação: ingestão, validação técnica, registro, rotação, montagem e ce
 
 Nota sobre A/B: as variantes atuais usam deliberadamente a mesma cena do vídeo para impedir que o pôster seja trocado por uma imagem diferente após o play. Um experimento A/B real deverá variar apenas enquadramento ou tratamento da mesma cena, sem quebrar essa identidade.
 
-### Fase 2 — Piloto automático sem publicação — próxima
+### Fase 2 — Piloto automático sem publicação — concluída
 
 Objetivo: provar que a fábrica consegue trabalhar sozinha de ponta a ponta.
 
@@ -62,6 +62,8 @@ Objetivo: provar que a fábrica consegue trabalhar sozinha de ponta a ponta.
 Critério de conclusão: três lotes consecutivos terminam sem intervenção e sem artefatos inválidos.
 
 Automação: completa, sem publicar externamente.
+
+Resultado verificado em 02/09/2026: três coortes autônomas consecutivas produziram seis vídeos de 30 minutos, todos com nota automática 92/100, manifestos íntegros e pacotes locais. Não houve falha, recuperação manual, artefato inválido ou publicação externa. A certificação da Fase 2 permanece auditável no Hub.
 
 ### Fase 3 — YouTube privado e métricas reais
 
@@ -149,4 +151,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-No Centro de Publicação, assistir e aprovar pelo menos 10 dos 13 pilotos já renderizados. Não gerar outro lote enquanto essa fila estiver cheia. Quando 10 vídeos forem aprovados, executar os três lotes autônomos da Fase 2, sempre sem publicação externa; o progresso fica disponível em `/api/operations/phase2-certification` e no comando `phase2-status`. Somente depois disso iniciar o piloto privado do YouTube, que dependerá do login manual.
+Piloto criativo e Fase 2 concluídos. A próxima ação é configurar o OAuth da conta oficial do YouTube e preparar o primeiro envio privado, mantendo confirmação humana antes de qualquer publicação pública. Essa etapa depende do login manual do proprietário da conta.

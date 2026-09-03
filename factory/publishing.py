@@ -128,7 +128,10 @@ class PublishingCenter:
         publishable = [job for job in self.store.list_jobs(500)
                        if job.get("status") in {"approved", "awaiting_approval"}
                        and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
-        cohort_jobs = [job for job in publishable if job.get("cohort_id")]
+        # Phase 2 and later runs also use cohort identifiers. Pilot
+        # certification must remain pinned to the explicit human pilot.
+        cohort_jobs = [job for job in publishable
+                       if str(job.get("cohort_id") or "").startswith("pilot-")]
         cohort_id = None
         if cohort_jobs:
             cohort_id = max(cohort_jobs, key=lambda item: str(item.get("created_at") or "")).get("cohort_id")

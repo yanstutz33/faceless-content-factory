@@ -1338,6 +1338,13 @@ class CoreTests(unittest.TestCase):
             "metadata": {"music": {"track_name": "Repeated"},
                          "creative_fingerprint": {"scene": "historical"}},
         })
+        jobs.append({
+            "id": "autonomous-newer", "topic": "Fase 2", "status": "awaiting_approval",
+            "profile": "youtube_long", "duration": 1800, "cohort_id": "phase2-2026-09-02-220000",
+            "created_at": "2026-09-02T22:00:00Z",
+            "metadata": {"music": {"track_name": "Autonomous"},
+                         "creative_fingerprint": {"scene": "phase2"}},
+        })
 
         class CohortStore:
             @staticmethod
