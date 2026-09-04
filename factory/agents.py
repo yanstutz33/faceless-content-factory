@@ -44,6 +44,42 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:42] or "ambient"
 
 
+ENGLISH_AMBIENT_TITLES = (
+    "Go to Sleep, It's 3 A.M.",
+    "It's Okay. Get Some Rest.",
+    "You Don't Have to Figure It Out Tonight.",
+    "The World Can Wait Until Morning.",
+    "Stay Here Until the Rain Stops.",
+    "Let Your Mind Be Quiet for a While.",
+    "Some Nights Are Meant for Letting Go.",
+    "You Made It Through Another Day.",
+    "Nothing Is Expected of You Tonight.",
+    "Take a Breath. You're Safe Here.",
+    "Maybe Tomorrow Will Feel Lighter.",
+    "Rest Now. You've Done Enough.",
+    "Leave the Noise Outside for Tonight.",
+    "It's Late. Be Gentle with Yourself.",
+    "You Can Start Again in the Morning.",
+    "Let the Rain Carry Today Away.",
+)
+
+
+def english_ambient_metadata(topic: str, duration: int, use_case: str) -> tuple[str, str, list[str]]:
+    """Create deterministic, natural English packaging without exposing Portuguese working topics."""
+    index = sum(ord(character) for character in topic.casefold()) % len(ENGLISH_AMBIENT_TITLES)
+    phrase = ENGLISH_AMBIENT_TITLES[index]
+    purpose = "sleep and unwinding" if "sono" in use_case else "focus and quiet reflection"
+    minutes = max(1, math.ceil(duration / 60))
+    title = f"{phrase} | Rainy Night Lo-fi"
+    description = (
+        f"A quiet {minutes}-minute lo-fi session for {purpose}. Let the soft music and rainy-night "
+        "atmosphere stay with you while you rest, read, study, or simply slow down.\n\n"
+        "Headphones recommended. Original visual and licensed or original music.\n\n"
+        "#lofi #rainynight #sleepmusic #studywithme"
+    )
+    return title[:96], description, ["lofi", "rainy night", "sleep music", "study music", "relax", "3 a.m."]
+
+
 class ContentCrew:
     """Deterministic local agents. Each output can later be replaced by an API provider."""
 
@@ -118,17 +154,11 @@ class ContentCrew:
                 "composition": "cena 16:9 limpa, noturna e cinematográfica; texto curto central opcional",
             },
         }
-        minutes = max(1, math.ceil(duration / 60))
-        duration_label = f"{duration} s" if duration < 60 else f"{minutes} min"
-        title = f"{topic} — Música Lo-fi Chill para {use_case}"
+        title, description, tags = english_ambient_metadata(topic, duration, use_case)
         seo = {
-            "title": title[:96],
-            "description": (
-                f"Entre em uma atmosfera de {topic_lower} criada para {use_case}.\n\n"
-                f"Duração: {duration_label} · experiência original · use fones.\n\n"
-                "#lofi #chill #focus #relax"
-            ),
-            "tags": ["lofi", "chill", "focus", "relax", "study", slug(topic), profile["label"].lower()],
+            "title": title,
+            "description": description,
+            "tags": tags,
         }
         compliance = {
             "publish_mode": "manual_safe",

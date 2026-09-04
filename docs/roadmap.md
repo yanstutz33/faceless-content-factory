@@ -36,6 +36,7 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
 - gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **concluído automaticamente: 13 pilotos de 30 minutos passaram em integridade, qualidade, direitos, áudio distinto e DNA visual integral distinto; os 13 aguardam avaliação humana**;
 - manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
+- manter títulos e descrições públicas em inglês natural, com frases emocionais curtas e reconfortantes — **concluído: gerador e os 13 pilotos oficiais migrados para inglês; os temas internos em português continuam preservados apenas para operação do Hub**;
 - sincronizar capas e vídeos históricos com backup recuperável — **concluído em 35 pacotes: a imagem aprovada foi incorporada ao MP4 e comparada após o play; 22 pacotes históricos foram preservados fora da fila publicável**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: importação rastreável do Flow e geração direta em lote com Lyria 3 pela Gemini API; o Hub cria, baixa, valida e cataloga 4, 8 ou 12 faixas com direções musicalmente distintas, mantendo revisão auditiva obrigatória**.
 
@@ -75,7 +76,7 @@ Objetivo: validar o canal principal com risco mínimo.
 - importar impressões, CTR, retenção e tempo de exibição;
 - manter confirmação humana antes de tornar um vídeo público durante o piloto.
 
-Progresso verificado em 03/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição íntegros, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada. A reprodução no YouTube Studio confirmou que a imagem aprovada permanece depois do play. O envio usa renovação segura do OAuth, trava de pacote aprovado, privacidade fixa e proteção contra duplicação. A publicação pública não foi acionada.
+Progresso verificado em 03/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição em inglês, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada. A reprodução no YouTube Studio confirmou que a imagem aprovada permanece depois do play. O envio usa renovação segura do OAuth, trava de pacote aprovado, privacidade fixa e proteção contra duplicação. A publicação pública não foi acionada.
 
 Critério de conclusão: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube.
 

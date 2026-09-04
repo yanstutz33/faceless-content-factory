@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .agents import ContentCrew, PROFILES
+from .agents import ContentCrew, ENGLISH_AMBIENT_TITLES, PROFILES, english_ambient_metadata
 from .teams import DEFAULT_TEAM_ID, get_team
 from .config import Settings
 from .creative import CreativeDirector, MOTION_LABELS, MUSIC_ARRANGEMENTS
@@ -1240,6 +1240,70 @@ class Pipeline:
             except Exception as exc:
                 failed.append({"job_id": job["id"], "reason": str(exc)})
         return {"repaired": repaired, "count": len(repaired), "skipped": skipped, "failed": failed}
+
+    def migrate_pilot_metadata_to_english(self, cohort_id: str = "pilot-flow-2026-08-30") -> dict[str, Any]:
+        """Move the official pilot cohort to English packaging while preserving recoverable originals."""
+        jobs = sorted((job for job in self.store.list_jobs(500) if job.get("cohort_id") == cohort_id),
+                      key=lambda job: (job.get("created_at", ""), job["id"]))
+        migration_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        archive_root = self.settings.data_dir / "archive" / "metadata-migrations" / migration_id
+        updated: list[dict[str, str]] = []
+        reserved_title = "It's Okay. Get Some Rest."
+        phrases = [phrase for phrase in ENGLISH_AMBIENT_TITLES if phrase != reserved_title]
+        for index, job in enumerate(jobs):
+            out = Path(job["output_dir"])
+            archive = archive_root / job["id"]
+            archive.mkdir(parents=True, exist_ok=True)
+            mutable_names = ("metadata.json", "agents.json", "youtube-upload.json", "vertical-package.json",
+                             "bilibili-upload.json", "artifact-manifest.json")
+            for name in mutable_names:
+                source = out / name
+                if source.is_file():
+                    shutil.copy2(source, archive / name)
+            metadata = dict(job.get("metadata") or {})
+            use_case = "relaxamento e sono" if any(word in job["topic"].casefold()
+                                                    for word in ("quarto", "cabana", "apartamento", "madrugada")) else "foco e leitura"
+            _, description, tags = english_ambient_metadata(job["topic"], int(job["duration"]), use_case)
+            phrase = reserved_title if job["id"] == "apartamento-anime-original-diante-da-cidad-2e6ac0c5" else phrases[index % len(phrases)]
+            title = f"{phrase} | Rainy Night Lo-fi"[:96]
+            metadata.update({"title": title, "description": description, "tags": tags,
+                             "editorial_language": "en", "title_style": "emotional_reassurance_v1"})
+            agents = dict(metadata.get("agents") or {})
+            agents.setdefault("seo", {}).update({"title": title, "description": description, "tags": tags})
+            metadata["agents"] = agents
+            (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+            agents_path = out / "agents.json"
+            if agents_path.is_file():
+                agents_document = json.loads(agents_path.read_text(encoding="utf-8"))
+                agents_document.setdefault("seo", {}).update({"title": title, "description": description, "tags": tags})
+                agents_path.write_text(json.dumps(agents_document, ensure_ascii=False, indent=2), encoding="utf-8")
+            youtube_path = out / "youtube-upload.json"
+            if youtube_path.is_file():
+                youtube = json.loads(youtube_path.read_text(encoding="utf-8"))
+                youtube.setdefault("snippet", {}).update({"title": title, "description": description, "tags": tags})
+                youtube_path.write_text(json.dumps(youtube, ensure_ascii=False, indent=2), encoding="utf-8")
+            vertical_path = out / "vertical-package.json"
+            if vertical_path.is_file():
+                vertical = json.loads(vertical_path.read_text(encoding="utf-8"))
+                platforms = vertical.get("platforms") or {}
+                platforms.get("youtube_shorts", {}).update({"title": f"{phrase} #Shorts"[:100], "description": description})
+                platforms.get("instagram_reels", {}).update({"caption": f"{title}\n\n#lofi #rainynight #reels"})
+                platforms.get("tiktok", {}).update({"caption": f"{phrase} #lofi #rainynight"})
+                vertical_path.write_text(json.dumps(vertical, ensure_ascii=False, indent=2), encoding="utf-8")
+            manifest_path = out / "artifact-manifest.json"
+            if manifest_path.is_file():
+                old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                names = [str(item.get("name")) for item in old_manifest.get("files", [])
+                         if item.get("name") and item.get("name") != "artifact-manifest.json"]
+                manifest_path.write_text(json.dumps(self.artifact_manifest(out, names), ensure_ascii=False, indent=2),
+                                         encoding="utf-8")
+                self.verify_artifact_manifest(out)
+            self.store.update(job["id"], job["status"], metadata, progress=job.get("progress", 100),
+                              quality_score=job.get("quality_score"))
+            self.store.event(job["id"], "metadata", "English emotional title and description applied")
+            updated.append({"job_id": job["id"], "title": title})
+        return {"cohort_id": cohort_id, "count": len(updated), "updated": updated,
+                "backup_dir": str(archive_root)}
 
     def establish_current_pilot_cohort(self, cohort_id: str = "pilot-flow-2026-08-30") -> dict[str, Any]:
         """Identify traceable current pilots and archive historical packages from review."""

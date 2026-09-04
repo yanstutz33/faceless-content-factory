@@ -64,11 +64,12 @@ class CoreTests(unittest.TestCase):
         required = {"research", "strategy", "script", "visual", "seo", "compliance", "review", "production"}
         self.assertTrue(required.issubset(plan))
         self.assertGreaterEqual(plan["review"]["score"], 80)
-        self.assertIn("Biblioteca", plan["seo"]["title"])
+        self.assertTrue(plan["seo"]["title"].isascii())
         self.assertEqual(plan["compliance"]["publish_mode"], "manual_safe")
         self.assertEqual(plan["visual"]["sound_profile"], "rain")
         self.assertIn("lo-fi", plan["visual"]["sound"].lower())
         self.assertIn("Lo-fi", plan["seo"]["title"])
+        self.assertNotIn("Duração", plan["seo"]["description"])
         self.assertGreaterEqual(len(ContentCrew().ideas()), 5)
         self.assertEqual(plan["visual"]["thumbnail"]["style_id"], COVER_STYLE_ID)
         self.assertNotIn("faixa escura", plan["visual"]["thumbnail"]["composition"])
@@ -1045,7 +1046,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(job["status"], "queued")
             self.assertEqual(job["profile"], "preview")
             self.assertEqual(store.summary()["in_progress"], 1)
-            self.assertIn("Night rain", pipeline.generate_plan("Night rain", 15, "preview")["seo"]["title"])
+            self.assertIn("Lo-fi", pipeline.generate_plan("Night rain", 15, "preview")["seo"]["title"])
 
     def test_interrupted_jobs_are_recovered(self):
         with tempfile.TemporaryDirectory() as tmp:

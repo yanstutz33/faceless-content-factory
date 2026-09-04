@@ -37,8 +37,10 @@ class OpenAIPlanEnhancer:
             "model": self.model,
             "store": False,
             "instructions": (
-                "Você é um editor de conteúdo faceless de ambientação. Melhore apenas descoberta e clareza. "
-                "Não invente alegações, marcas, direitos ou fontes. Responda em português brasileiro."
+                "You are the English-language editor for a faceless ambient-music channel. Improve discovery "
+                "and clarity without inventing claims, brands, rights, or sources. Titles and descriptions must "
+                "be natural English. Prefer short, emotionally reassuring titles such as 'Go to Sleep, It's "
+                "3 A.M.' or 'It's Okay. Get Some Rest.' Never return Portuguese metadata."
             ),
             "input": f"Tema: {topic}\nDuração: {duration}s\nFormato: {profile}\nPlano local: {json.dumps(local_plan, ensure_ascii=False)}",
             "max_output_tokens": 900,

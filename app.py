@@ -54,6 +54,8 @@ def main() -> None:
     sub.add_parser("migrate-covers", help="Replace legacy thumbnails with the approved visual collection")
     sub.add_parser("sync-video-visuals", help="Rebuild videos from the same approved image used by their poster")
     sub.add_parser("repair-manifests", help="Repair and validate complete artifact manifests")
+    english_metadata = sub.add_parser("migrate-english-metadata", help="Apply English titles to one pilot cohort")
+    english_metadata.add_argument("--cohort-id", default="pilot-flow-2026-08-30")
     sub.add_parser("phase2-status", help="Show the audited progress of the three autonomous local batches")
     pilot = sub.add_parser("establish-pilot-cohort", help="Tag current pilots and archive historical review jobs")
     pilot.add_argument("--cohort-id", default="pilot-flow-2026-08-30")
@@ -123,6 +125,8 @@ def main() -> None:
         print(json.dumps(pipeline.synchronize_video_visuals(), ensure_ascii=False, indent=2))
     elif args.command == "repair-manifests":
         print(json.dumps(pipeline.repair_artifact_manifests(), ensure_ascii=False, indent=2))
+    elif args.command == "migrate-english-metadata":
+        print(json.dumps(pipeline.migrate_pilot_metadata_to_english(args.cohort_id), ensure_ascii=False, indent=2))
     elif args.command == "phase2-status":
         class _IdleRunner:
             @staticmethod
