@@ -301,3 +301,101 @@ class IntegrationManager:
                   "network_contacted": False, "upload_performed": False, "delivery": delivery}
         self.audit.record("preflight", platform, result)
         return result
+
+    def _youtube_access_token(self) -> str:
+        token = self.vault.get("token:youtube") or {}
+        access_token = str(token.get("access_token", ""))
+        refresh_token = str(token.get("refresh_token", ""))
+        try:
+            stored_at = datetime.fromisoformat(str(token.get("stored_at", "")))
+            expires_at = stored_at + timedelta(seconds=int(token.get("expires_in", 3600)))
+            expired = datetime.now(UTC) >= expires_at - timedelta(minutes=2)
+        except (TypeError, ValueError):
+            expired = not access_token
+        if not expired and access_token:
+            return access_token
+        if not refresh_token:
+            raise ValueError("A autorização do YouTube expirou; conecte a conta novamente")
+        config = self._config("youtube")
+        refreshed = self._post_form("https://oauth2.googleapis.com/token", {
+            "client_id": config["client_id"], "client_secret": config["client_secret"],
+            "refresh_token": refresh_token, "grant_type": "refresh_token",
+        })
+        access_token = str(refreshed.get("access_token", ""))
+        if not access_token:
+            raise RuntimeError("O Google não renovou a autorização do YouTube")
+        self.vault.set("token:youtube", {
+            **token, **refreshed, "refresh_token": refresh_token,
+            "stored_at": datetime.now(UTC).isoformat(),
+        })
+        self.audit.record("oauth_refreshed", "youtube", {"response_keys": sorted(refreshed)})
+        return access_token
+
+    def youtube_upload_private(self, job_id: str, confirmed: bool = False) -> dict[str, Any]:
+        """Upload one approved release package; public/unlisted uploads are intentionally unsupported."""
+        if not confirmed:
+            raise ValueError("Confirmação explícita do envio privado é obrigatória")
+        previous = next((row for row in self.deliveries.list()
+                         if row.get("job_id") == job_id and row.get("platform") == "youtube"), None)
+        if previous and previous.get("status") in {"uploaded_private", "uploaded_verification_pending"}:
+            raise ValueError("Este vídeo já foi enviado; a proteção contra upload duplicado bloqueou a operação")
+        preflight = self.preflight("youtube", job_id)
+        if not preflight["ready_after_manual_approval"]:
+            raise ValueError("Pré-teste do YouTube bloqueado: " + "; ".join(preflight["blockers"]))
+        item = next((entry for entry in self.publishing.queue()["items"] if entry["job_id"] == job_id), None)
+        if not item or not item["release_ready"]:
+            raise ValueError("Pacote completo e aprovado não encontrado")
+        job = self.store.get_job(job_id)
+        if not job:
+            raise ValueError("Produção não encontrada")
+        out = Path(job["output_dir"])
+        video = out / "video.mp4"
+        package_path = out / "youtube-upload.json"
+        if not video.is_file() or not package_path.is_file():
+            raise ValueError("Vídeo ou pacote do YouTube ausente")
+        package = json.loads(package_path.read_text(encoding="utf-8"))
+        status = package.get("status") or {}
+        if status.get("privacyStatus") != "private":
+            raise ValueError("O primeiro envio aceita somente privacidade privada")
+        access_token = self._youtube_access_token()
+        metadata = {"snippet": package.get("snippet") or {}, "status": {
+            "privacyStatus": "private", "selfDeclaredMadeForKids": bool(status.get("selfDeclaredMadeForKids", False))}}
+        initiate = Request(
+            "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+            data=json.dumps(metadata, ensure_ascii=False).encode("utf-8"), method="POST",
+            headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json; charset=UTF-8",
+                     "X-Upload-Content-Type": "video/mp4", "X-Upload-Content-Length": str(video.stat().st_size)},
+        )
+        with urlopen(initiate, timeout=30) as response:
+            upload_url = response.headers.get("Location", "")
+        if not upload_url:
+            raise RuntimeError("O YouTube não iniciou a sessão de upload")
+        with video.open("rb") as stream:
+            upload = Request(upload_url, data=stream, method="PUT",
+                             headers={"Authorization": f"Bearer {access_token}", "Content-Type": "video/mp4",
+                                      "Content-Length": str(video.stat().st_size)})
+            with urlopen(upload, timeout=7200) as response:
+                result = json.loads(response.read())
+        video_id = str(result.get("id", ""))
+        if not video_id:
+            raise RuntimeError("O YouTube não confirmou o vídeo enviado")
+        self.deliveries.stage(job_id, "youtube", "uploaded_verification_pending", [])
+        self.audit.record("uploaded_verification_pending", "youtube", {"job_id": job_id, "video_id": video_id})
+        thumbnail = out / "thumbnail.jpg"
+        if thumbnail.is_file():
+            thumb_request = Request(
+                "https://www.googleapis.com/upload/youtube/v3/thumbnails/set?uploadType=media&videoId=" + video_id,
+                data=thumbnail.read_bytes(), method="POST",
+                headers={"Authorization": f"Bearer {access_token}", "Content-Type": "image/jpeg"},
+            )
+            with urlopen(thumb_request, timeout=120) as response:
+                response.read()
+        remote_privacy = (result.get("status") or {}).get("privacyStatus")
+        if remote_privacy != "private":
+            self.audit.record("upload_privacy_unverified", "youtube", {"job_id": job_id, "video_id": video_id})
+            raise RuntimeError("O envio terminou, mas a privacidade privada não pôde ser confirmada")
+        delivery = self.deliveries.stage(job_id, "youtube", "uploaded_private", [])
+        safe = {"platform": "youtube", "job_id": job_id, "video_id": video_id,
+                "privacy_status": "private", "upload_performed": True, "delivery": delivery}
+        self.audit.record("uploaded_private", "youtube", safe)
+        return safe

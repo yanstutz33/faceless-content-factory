@@ -614,6 +614,9 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json(self.integrations.disconnect(platform))
                 if action == "preflight":
                     return self.send_json(self.integrations.preflight(platform, data.get("job_id")))
+                if action == "upload-private" and platform == "youtube":
+                    return self.send_json(self.integrations.youtube_upload_private(
+                        str(data.get("job_id", "")), data.get("confirmed") is True))
             if path == "/api/jobs":
                 asset_ids = [int(value) for value in data.get("asset_ids", [])]
                 selected_assets = self.store.get_assets(asset_ids)
