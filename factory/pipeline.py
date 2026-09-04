@@ -1085,9 +1085,14 @@ class Pipeline:
             if not video.is_file() or not audio.is_file() or not cover:
                 skipped.append({"job_id": job["id"], "reason": "vídeo, áudio ou imagem aprovada ausente"})
                 continue
-            current_visual = (job.get("metadata") or {}).get("visual_source") or {}
+            current_metadata = job.get("metadata") or {}
+            current_visual = current_metadata.get("visual_source") or {}
+            current_video = (current_metadata.get("verification") or {}).get("video") or {}
+            target_profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
             if (current_visual.get("reference_id") == cover["id"]
-                    and current_visual.get("poster_matches_video") is True):
+                    and current_visual.get("poster_matches_video") is True
+                    and int(current_video.get("width") or 0) == int(target_profile["width"])
+                    and int(current_video.get("height") or 0) == int(target_profile["height"])):
                 skipped.append({"job_id": job["id"], "reason": "imagem e vídeo já sincronizados"})
                 continue
             token = uuid.uuid4().hex
@@ -1100,7 +1105,7 @@ class Pipeline:
             candidates = (candidate_background, candidate_overlay, candidate_loop, candidate_video,
                           candidate_thumb_a, candidate_thumb_b)
             try:
-                profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
+                profile = target_profile
                 width, height, fps = profile["width"], profile["height"], profile["fps"]
                 self.create_thumbnail(Path(cover["path"]), candidate_background, width, height)
                 self.create_thumbnail(Path(cover["path"]), candidate_thumb_a, width, height)

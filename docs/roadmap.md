@@ -76,7 +76,7 @@ Objetivo: validar o canal principal com risco mínimo.
 - importar impressões, CTR, retenção e tempo de exibição;
 - manter confirmação humana antes de tornar um vídeo público durante o piloto.
 
-Progresso verificado em 03/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição em inglês, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada. A reprodução no YouTube Studio confirmou que a imagem aprovada permanece depois do play. O envio usa renovação segura do OAuth, trava de pacote aprovado, privacidade fixa e proteção contra duplicação. A publicação pública não foi acionada.
+Progresso verificado em 03/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição em inglês, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada temporária enquanto o processamento HD termina. A reprodução no YouTube Studio confirmou que a imagem aprovada permanece depois do play. Os outros 12 pilotos oficiais foram reconstruídos e revalidados em 1920×1080, sem falhas, antes de qualquer upload. O envio usa renovação segura do OAuth, trava de pacote aprovado, proteção contra duplicação e monitoramento do processamento HD. A publicação pública do piloto será feita somente depois que o YouTube disponibilizar HD.
 
 Critério de conclusão: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube.
 
