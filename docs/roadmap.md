@@ -145,12 +145,13 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 1. nenhum vídeo longo tem menos de 30 minutos;
 2. início, meio e fim decodificam corretamente;
-3. faixa e cena não repetem a janela configurada;
-4. imagem, movimento e efeitos respeitam a lógica física da cena;
-5. música e imagens possuem origem e direitos registrados;
-6. título, descrição, thumbnail e arquivo final pertencem à mesma produção;
-7. testes automatizados e CI estão verdes;
-8. publicação permanece manual até o piloto específico da plataforma ser aprovado.
+3. vídeo público do YouTube é produzido em 1920×1080 e só é liberado depois que o processamento HD termina;
+4. faixa e cena não repetem a janela configurada;
+5. imagem, movimento e efeitos respeitam a lógica física da cena;
+6. música e imagens possuem origem e direitos registrados;
+7. título, descrição, thumbnail e arquivo final pertencem à mesma produção;
+8. testes automatizados e CI estão verdes;
+9. publicação permanece manual até o piloto específico da plataforma ser aprovado.
 
 ## Próxima ação recomendada
 

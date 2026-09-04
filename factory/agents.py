@@ -31,7 +31,7 @@ AGENTS = [
 
 
 PROFILES = {
-    "youtube_long": {"label": "YouTube longo", "width": 1280, "height": 720, "fps": 30,
+    "youtube_long": {"label": "YouTube longo", "width": 1920, "height": 1080, "fps": 30,
                      "min_duration": 1800, "default_duration": 3600, "max_duration": 3600},
     "vertical_short": {"label": "Shorts · Reels · TikTok", "width": 720, "height": 1280, "fps": 30,
                        "min_duration": 15, "default_duration": 45, "max_duration": 180},
