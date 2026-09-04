@@ -68,9 +68,30 @@ def english_ambient_metadata(topic: str, duration: int, use_case: str) -> tuple[
     """Create deterministic, natural English packaging without exposing Portuguese working topics."""
     index = sum(ord(character) for character in topic.casefold()) % len(ENGLISH_AMBIENT_TITLES)
     phrase = ENGLISH_AMBIENT_TITLES[index]
+    folded = topic.casefold()
+    if any(word in folded for word in ("espaço", "espaco", "orbital", "júpiter", "jupiter", "lunar")):
+        setting = "Deep Space Lo-fi"
+    elif any(word in folded for word in ("nevasca", "nórdica", "nordica")):
+        setting = "Cozy Winter Lo-fi"
+    elif any(word in folded for word in ("trem", "train")):
+        setting = "Midnight Train Lo-fi"
+    elif any(word in folded for word in ("café", "cafe", "cafeteria")):
+        setting = "Late Night Café Lo-fi"
+    elif any(word in folded for word in ("biblioteca", "library")):
+        setting = "Rainy Library Lo-fi"
+    elif any(word in folded for word in ("discos", "record")):
+        setting = "After Hours Lo-fi"
+    elif any(word in folded for word in ("lavanderia", "costeira", "mar")):
+        setting = "Coastal Night Lo-fi"
+    elif any(word in folded for word in ("estufa", "telhado")):
+        setting = "Rooftop Rain Lo-fi"
+    elif any(word in folded for word in ("cabana", "cedros", "lago")):
+        setting = "Cozy Cabin Lo-fi"
+    else:
+        setting = "Rainy Night Lo-fi"
     purpose = "sleep and unwinding" if "sono" in use_case else "focus and quiet reflection"
     minutes = max(1, math.ceil(duration / 60))
-    title = f"{phrase} | Rainy Night Lo-fi"
+    title = f"{phrase} | {setting}"
     description = (
         f"A quiet {minutes}-minute lo-fi session for {purpose}. Let the soft music and rainy-night "
         "atmosphere stay with you while you rest, read, study, or simply slow down.\n\n"

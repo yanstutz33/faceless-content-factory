@@ -1268,9 +1268,10 @@ class Pipeline:
             metadata = dict(job.get("metadata") or {})
             use_case = "relaxamento e sono" if any(word in job["topic"].casefold()
                                                     for word in ("quarto", "cabana", "apartamento", "madrugada")) else "foco e leitura"
-            _, description, tags = english_ambient_metadata(job["topic"], int(job["duration"]), use_case)
+            generated_title, description, tags = english_ambient_metadata(job["topic"], int(job["duration"]), use_case)
             phrase = reserved_title if job["id"] == "apartamento-anime-original-diante-da-cidad-2e6ac0c5" else phrases[index % len(phrases)]
-            title = f"{phrase} | Rainy Night Lo-fi"[:96]
+            setting = generated_title.split(" | ", 1)[-1]
+            title = f"{phrase} | {setting}"[:96]
             metadata.update({"title": title, "description": description, "tags": tags,
                              "editorial_language": "en", "title_style": "emotional_reassurance_v1"})
             agents = dict(metadata.get("agents") or {})
