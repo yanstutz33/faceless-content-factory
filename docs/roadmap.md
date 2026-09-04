@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 02/09/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
+Última revisão: 03/09/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação pública automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -15,14 +15,14 @@
 - quality gate, aprovação manual, pacotes de publicação e registro local de métricas;
 - coortes explícitas de piloto, manifestos completos sem hash autorreferente e validação integral antes da aprovação;
 - Hub responsivo com navegação direta, acessibilidade automatizada, feedback de erro e tema editorial;
-- conectores preparados somente até o ponto anterior à autenticação das plataformas.
+- conector do YouTube autenticado e envio privado controlado operacional; os demais conectores continuam preparados até o ponto anterior à autenticação.
 
 ### Limites atuais
 
 - variedade real de áudio depende de uma biblioteca com faixas diferentes e direitos documentados;
 - a fábrica não deve prometer diversidade visual antes de ampliar e validar o catálogo de cenas;
-- YouTube, TikTok, Instagram, Pinterest, Shopee e Bilibili ainda exigem login/configuração manual;
-- nenhuma plataforma recebe upload automático antes de um piloto privado aprovado.
+- TikTok, Instagram, Pinterest, Shopee e Bilibili ainda exigem login/configuração manual;
+- o YouTube aceita somente upload privado com confirmação humana explícita; publicação pública permanece bloqueada.
 
 ## Próximas fases, em ordem
 
@@ -74,6 +74,8 @@ Objetivo: validar o canal principal com risco mínimo.
 - confirmar título, descrição, thumbnail, duração, áudio e processamento da plataforma;
 - importar impressões, CTR, retenção e tempo de exibição;
 - manter confirmação humana antes de tornar um vídeo público durante o piloto.
+
+Progresso verificado em 03/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição íntegros, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada. A reprodução no YouTube Studio confirmou que a imagem aprovada permanece depois do play. O envio usa renovação segura do OAuth, trava de pacote aprovado, privacidade fixa e proteção contra duplicação. A publicação pública não foi acionada.
 
 Critério de conclusão: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube.
 
@@ -151,4 +153,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Piloto criativo e Fase 2 concluídos. A próxima ação é configurar o OAuth da conta oficial do YouTube e preparar o primeiro envio privado, mantendo confirmação humana antes de qualquer publicação pública. Essa etapa depende do login manual do proprietário da conta.
+Piloto criativo e Fase 2 concluídos. OAuth oficial do YouTube e primeiro envio privado também foram concluídos. A próxima ação é a revisão humana integral do áudio e do movimento do primeiro piloto; aprovado esse conteúdo, selecionar e enviar mais quatro pilotos privados, um de cada vez, mantendo confirmação humana antes de cada envio e de qualquer publicação pública.

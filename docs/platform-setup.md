@@ -1,6 +1,6 @@
 # Conexões oficiais — etapa manual
 
-O Studio 1.8 já prepara OAuth, cofre criptografado, callbacks, auditoria, pré-validação e pacotes localizados. Esta etapa exige ação humana porque cada plataforma precisa confirmar a identidade e o canal/conta corretos. O modo de publicação continua bloqueado por padrão.
+O Studio 1.8 já prepara OAuth, cofre criptografado, callbacks, auditoria, pré-validação e pacotes localizados. O YouTube também possui envio privado controlado, sempre dependente de confirmação humana explícita e com proteção contra duplicação. As demais plataformas ainda exigem ação humana para confirmar identidade e conta. A publicação pública continua bloqueada por padrão.
 
 ## Antes de conectar
 
@@ -15,6 +15,7 @@ O Studio 1.8 já prepara OAuth, cofre criptografado, callbacks, auditoria, pré-
 2. Crie um cliente OAuth para aplicativo web e registre exatamente `http://127.0.0.1:8787/api/oauth/callback/youtube`.
 3. Baixe o JSON do cliente para fora do repositório e defina `YOUTUBE_CLIENT_SECRETS_FILE` no `.env`.
 4. Reinicie o Studio e clique em **Conectar**. O escopo pedido é apenas `youtube.upload`.
+5. Prepare e aprove o pacote completo. O primeiro envio deve permanecer privado e requer confirmação humana explícita; o Studio envia vídeo e thumbnail e registra o identificador devolvido pelo YouTube.
 
 Documentação oficial: https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps
 
