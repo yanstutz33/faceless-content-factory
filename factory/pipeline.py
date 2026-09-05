@@ -833,13 +833,15 @@ class Pipeline:
                 proc.stderr.close()
 
     def encode_visual_loop(self, background: Path, motion_overlay: Path, output: Path,
-                           blend: str, seconds: int) -> None:
+                           blend: str, seconds: int, fps: int = 30) -> None:
         """Encode the expensive visual composition once so long videos can reuse it."""
         self.command([
-            self.settings.ffmpeg, "-y", "-loop", "1", "-i", str(background),
+            self.settings.ffmpeg, "-y", "-loop", "1", "-framerate", str(fps), "-i", str(background),
             "-stream_loop", "-1", "-i", str(motion_overlay), "-filter_complex", blend,
             "-map", "[v]", "-t", str(seconds), "-an", "-c:v", "libx264",
-            "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+            "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-r", str(fps),
+            "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+            "-maxrate", "8M", "-bufsize", "16M",
             "-g", "240", "-sc_threshold", "0", str(output),
         ])
 
@@ -1055,7 +1057,8 @@ class Pipeline:
         pair = select_cover_references(self.settings.root, job["topic"])
         return pair[0] if pair else None
 
-    def synchronize_video_visuals(self, job_ids: list[str] | None = None) -> dict[str, Any]:
+    def synchronize_video_visuals(self, job_ids: list[str] | None = None,
+                                  force: bool = False) -> dict[str, Any]:
         """Rebuild completed videos so their encoded scene equals their approved poster.
 
         This intentionally remuxes the existing approved audio. No music is
@@ -1089,7 +1092,8 @@ class Pipeline:
             current_visual = current_metadata.get("visual_source") or {}
             current_video = (current_metadata.get("verification") or {}).get("video") or {}
             target_profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
-            if (current_visual.get("reference_id") == cover["id"]
+            if (not force
+                    and current_visual.get("reference_id") == cover["id"]
                     and current_visual.get("poster_matches_video") is True
                     and int(current_video.get("width") or 0) == int(target_profile["width"])
                     and int(current_video.get("height") or 0) == int(target_profile["height"])):
@@ -1125,7 +1129,7 @@ class Pipeline:
                          f"[base][fx]blend=all_mode=screen:all_opacity={motion['overlay_opacity']},"
                          "format=yuv420p[v]")
                 self.encode_visual_loop(candidate_background, candidate_overlay, candidate_loop,
-                                        blend, motion["cycle_seconds"])
+                                        blend, motion["cycle_seconds"], fps)
                 self.repeat_visual_loop(candidate_loop, audio, candidate_video, float(job["duration"]))
                 metadata = dict(job.get("metadata") or {})
                 metadata["motion"] = motion
@@ -1626,7 +1630,7 @@ class Pipeline:
             }
             if len(backgrounds) == 1 and optimized_loop:
                 visual_loop = out / "visual-loop.mp4"
-                self.encode_visual_loop(backgrounds[0], motion_overlay, visual_loop, blend, motion["cycle_seconds"])
+                self.encode_visual_loop(backgrounds[0], motion_overlay, visual_loop, blend, motion["cycle_seconds"], fps)
                 self.repeat_visual_loop(visual_loop, audio, render_candidate, job["duration"])
                 self.store.event(job_id, "rendering", f"Loop visual codificado uma vez e repetido por {job['duration']} s sem recodificação")
             elif len(backgrounds) == 1:
@@ -1645,7 +1649,7 @@ class Pipeline:
                     clips.append(clip)
                     if optimized_loop:
                         scene_loop = scene_dir / f"loop-{index + 1:02}.mp4"
-                        self.encode_visual_loop(background, motion_overlay, scene_loop, blend, motion["cycle_seconds"])
+                        self.encode_visual_loop(background, motion_overlay, scene_loop, blend, motion["cycle_seconds"], fps)
                         self.command([self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(scene_loop),
                                       "-t", f"{base_duration:.3f}", "-an", "-c:v", "copy", str(clip)])
                     else:

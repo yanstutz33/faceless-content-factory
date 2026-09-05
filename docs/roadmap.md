@@ -76,7 +76,7 @@ Objetivo: validar o canal principal com risco mínimo.
 - importar impressões, CTR, retenção e tempo de exibição;
 - manter confirmação humana antes de tornar um vídeo público durante o piloto.
 
-Progresso verificado em 03/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição em inglês, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada temporária enquanto o processamento HD termina. A reprodução no YouTube Studio confirmou que a imagem aprovada permanece depois do play. Os outros 12 pilotos oficiais foram reconstruídos e revalidados em 1920×1080, sem falhas, antes de qualquer upload. O envio usa renovação segura do OAuth, trava de pacote aprovado, proteção contra duplicação e monitoramento do processamento HD. A publicação pública do piloto será feita somente depois que o YouTube disponibilizar HD.
+Progresso verificado em 04/09/2026: **1 de 5 uploads privados concluído**. O piloto `apartamento-anime-original-diante-da-cidad-2e6ac0c5` chegou ao YouTube com 30:00, título e descrição em inglês, thumbnail personalizada, conteúdo não destinado a crianças e visibilidade privada. A reprodução confirmou que a imagem aprovada permanece depois do play e que o YouTube disponibilizou 720p; o arquivo daquele primeiro envio, porém, havia sido produzido em 1280×720. O pacote local foi reconstruído e revalidado em 1920×1080, H.264 High, 30 fps, `yuv420p` limitado BT.709 e áudio AAC, com controle automático 100/100. Os outros 12 pilotos oficiais também permanecem validados em 1920×1080. O vídeo privado antigo não será excluído nem substituído até o novo envio em 1080p ser revisado.
 
 Critério de conclusão: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube.
 
@@ -155,4 +155,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Piloto criativo e Fase 2 concluídos. OAuth oficial do YouTube e primeiro envio privado também foram concluídos. A próxima ação é a revisão humana integral do áudio e do movimento do primeiro piloto; aprovado esse conteúdo, selecionar e enviar mais quatro pilotos privados, um de cada vez, mantendo confirmação humana antes de cada envio e de qualquer publicação pública.
+Piloto criativo e Fase 2 concluídos. OAuth oficial do YouTube e primeiro envio privado também foram concluídos. O primeiro pacote foi corrigido localmente para 1080p real e aguarda revisão antes do reenvio privado. Depois dessa revisão, o vídeo antigo poderá ser arquivado e mais quatro pilotos poderão ser enviados, um de cada vez, mantendo confirmação humana antes de cada envio e de qualquer publicação pública.
