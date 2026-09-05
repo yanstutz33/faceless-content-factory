@@ -1464,6 +1464,14 @@ class CoreTests(unittest.TestCase):
         )
         self.assertIn("crop=", rainy_filter)
         self.assertIn("pad=1280:720", rainy_filter)
+
+        apartment_filter, apartment_zone = Pipeline.effect_plate_filter(
+            1920, 1080, "anime-window-night", "window_drops"
+        )
+        self.assertEqual(apartment_zone["mode"], "window_mask")
+        self.assertGreaterEqual(apartment_zone["x"], 0.48)
+        self.assertLessEqual(apartment_zone["y"] + apartment_zone["height"], 0.70)
+        self.assertIn("pad=1920:1080", apartment_filter)
         self.assertEqual(rainy_zone["mode"], "window_mask")
         self.assertLess(rainy_zone["width"], 1)
         self.assertNotIn("crop=", steam_filter)

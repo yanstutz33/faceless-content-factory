@@ -55,7 +55,7 @@ RAIN_ZONES = {
     "anime-rainy-alley": (.00, .00, .72, .92),
     "rainy-hillside-cafe": (.43, .00, .57, .83),
     "anime-sleeping-city": (.00, .00, 1.00, .58),
-    "anime-window-night": (.06, .00, .91, .82),
+    "anime-window-night": (.48, .00, .49, .69),
     "rainy-window-memories": (.06, .00, .90, .68),
 }
 
