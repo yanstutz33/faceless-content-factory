@@ -33,7 +33,7 @@ from factory.llm import OpenAIPlanEnhancer
 from factory.lyria import LYRIA_MODELS
 from factory.music_sources import FLOW_MUSIC_PROMPTS, flow_music_guide
 from factory.nightshift import NightShift
-from factory.pipeline import Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
+from factory.pipeline import COVER_MOTION, Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
 from factory.store import Store
 from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
@@ -1472,6 +1472,7 @@ class CoreTests(unittest.TestCase):
         self.assertGreaterEqual(apartment_zone["x"], 0.48)
         self.assertLessEqual(apartment_zone["y"] + apartment_zone["height"], 0.70)
         self.assertIn("pad=1920:1080", apartment_filter)
+        self.assertEqual(COVER_MOTION["rainy-window-memories"], "lamp_flicker")
         self.assertEqual(rainy_zone["mode"], "window_mask")
         self.assertLess(rainy_zone["width"], 1)
         self.assertNotIn("crop=", steam_filter)

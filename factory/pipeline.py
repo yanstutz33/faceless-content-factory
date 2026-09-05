@@ -67,7 +67,10 @@ COVER_MOTION = {
     "rainy-hillside-cafe": "angled_rain",
     "anime-sleeping-city": "window_drops",
     "anime-window-night": "window_drops",
-    "rainy-window-memories": "window_drops",
+    # This scene already contains rain on several separate panes divided by
+    # thick interior frames. A rectangular rain plate would cross the ceiling
+    # and mullions, so animate only the distant light instead.
+    "rainy-window-memories": "lamp_flicker",
     "rainy-vinyl-listening-room": "lamp_flicker",
 }
 
