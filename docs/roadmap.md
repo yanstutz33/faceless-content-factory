@@ -23,7 +23,7 @@
 - a fábrica não deve prometer diversidade visual antes de ampliar e validar o catálogo de cenas;
 - TikTok, Instagram, Pinterest, Shopee e Bilibili ainda exigem login/configuração manual;
 - o conector envia ao YouTube somente como privado; a mudança para público é feita no Studio depois da confirmação de HD;
-- coleta automática de métricas do YouTube está implementada; a autorização antiga precisa ser renovada uma vez com os escopos somente leitura antes da primeira coleta real.
+- coleta de métricas do YouTube está operacional em modo somente leitura; a autorização foi renovada e a YouTube Analytics API foi ativada no projeto oficial.
 
 ## Próximas fases, em ordem
 
@@ -67,7 +67,7 @@ Automação: completa, sem publicar externamente.
 
 Resultado verificado em 02/09/2026: três coortes autônomas consecutivas produziram seis vídeos de 30 minutos, todos com nota automática 92/100, manifestos íntegros e pacotes locais. Não houve falha, recuperação manual, artefato inválido ou publicação externa. A certificação da Fase 2 permanece auditável no Hub.
 
-### Fase 3 — YouTube publicado; coletor concluído, aguardando reautorização
+### Fase 3 — YouTube publicado e coletor real operacional — concluída
 
 Objetivo: validar o canal principal com risco mínimo.
 
@@ -79,7 +79,7 @@ Objetivo: validar o canal principal com risco mínimo.
 
 Progresso verificado em 06/09/2026: **cinco pilotos publicados, todos processados em HD a partir de arquivos 1920×1080, H.264, 30 fps, `yuv420p` limitado BT.709 e áudio AAC**. O player público confirmou 1080p e 30:00 nos novos envios. Os títulos foram alinhados às cenas realmente codificadas, e a thumbnail usa a mesma fonte visual vista após o play. Publicações: `VijwOMULOiE`, `rv-Vl0wlns4`, `08UvW-_bB7w`, `4F-wDCrSxYk` e `kF_khVghtrc`. O envio original em 720p `3qfjb0BCuPU` e os vídeos históricos continuam privados e preservados. O Hub registra os cinco como `uploaded_public` e impede que um pré-teste posterior apague esse estado.
 
-Critério de publicação concluído: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube. O coletor oficial agora consulta Data API e Analytics API em modo somente leitura, vincula cada `video_id` ao trabalho local, registra snapshots diários idempotentes e preserva entradas manuais. A tentativa real confirmou que o token antigo tem apenas o escopo de upload; falta somente reconectar a conta uma vez e deixar o canal acumular volume suficiente.
+Critério de publicação concluído: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube. O coletor oficial consulta Data API e Analytics API em modo somente leitura, vincula cada `video_id` ao trabalho local, registra snapshots diários idempotentes e preserva entradas manuais. Em 06/09/2026 a conta foi reautorizada com os escopos de leitura, a YouTube Analytics API foi ativada e os primeiros cinco snapshots reais foram importados. Uma segunda sincronização atualizou os mesmos cinco registros, sem duplicá-los e sem alterar publicação alguma. Como os vídeos ainda não tinham visualizações registradas, o aprendizado permanece corretamente em exploração até atingir a amostra mínima.
 
 Automação: preparação, upload privado e coleta de métricas. Manual: login inicial e confirmação de publicação.
 
@@ -95,7 +95,7 @@ Objetivo: aprender com desempenho sem transformar todos os vídeos em cópias do
 
 Critério de conclusão: recomendações reproduzíveis, auditáveis e baseadas em volume mínimo de dados.
 
-Estado técnico em 06/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; snapshots possuem fonte, data e identificador externo. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática quando não há amostra suficiente. A conclusão estatística depende de dados reais futuros, não de números inventados.
+Estado técnico em 06/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; cinco snapshots reais possuem fonte, data e identificador externo. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática quando não há amostra suficiente. O motor está pronto, mas a conclusão estatística depende do acúmulo natural de audiência futura, não de números inventados.
 
 ### Fase 5 — Cortes inteligentes verticais
 
@@ -166,4 +166,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Todo o trabalho local e automatizável deste roadmap está implementado. A próxima ação é manual: reconectar o YouTube uma vez para liberar os escopos de leitura e sincronizar as primeiras métricas reais. Depois, revisar os cortes 9:16 gerados. TikTok, Instagram, Shopee, Pinterest e Bilibili continuam aguardando contas e autenticação; hospedagem permanente continua pausada para manter custo zero. Nenhuma dessas pendências deve ser simulada com dados ou integrações não oficiais.
+Todo o trabalho local e automatizável deste roadmap está implementado e o ciclo real do YouTube foi fechado: cinco vídeos públicos em 1080p, cinco snapshots reais importados e 15 cortes verticais validados localmente. O que resta é deliberadamente manual ou depende de terceiros: revisar os cortes 9:16 antes do envio; criar/autenticar as contas de TikTok, Instagram, Shopee, Pinterest e Bilibili; revisar a localização chinesa; e escolher hospedagem permanente quando houver orçamento. A otimização estatística continuará automaticamente em modo de exploração até os vídeos acumularem audiência mínima. Nenhuma dessas pendências deve ser simulada com dados, integrações não oficiais ou publicação sem revisão.

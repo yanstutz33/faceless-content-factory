@@ -245,7 +245,7 @@ Cada pacote novo inclui `render-report.json`, com o resultado técnico da mídia
 2. **Microvariações sonoras:** implementadas por seed, BPM, progressão, melodia e perfil.
 3. **CTR e capas:** implementados no banco, API e painel; a fábrica recomenda vencedoras por série sem fazer trocas cegas.
 4. **YouTube:** pacote privado oficial preparado após aprovação. O upload real depende do arquivo OAuth da conta e continuará exigindo confirmação humana.
-5. **Retenção:** captura e ranking implementados. A coleta automática depende da autorização da conta/plataforma.
+5. **Retenção:** captura e ranking implementados. A conta do YouTube foi reautorizada em modo somente leitura, a Analytics API foi ativada e os cinco primeiros snapshots reais foram sincronizados de forma idempotente.
 6. **Voz dedicada e offline:** Edge TTS configurável e voz SAPI local estão implementados e diagnosticados. A ambientação segura continua funcionando quando os dois mecanismos estiverem indisponíveis.
 7. **Shopee + Pinterest:** trilha comercial aprovada para transformar produtos oficiais em vídeos próprios e publicar Video Pins rastreáveis; Pinterest nunca será fonte automática de mídia de terceiros.
 8. **Bilibili:** pacote localizado entregue no Studio 1.8 com capa neutra, títulos, descrições e legendas em chinês simplificado e inglês; upload manual pelo Creator Studio.

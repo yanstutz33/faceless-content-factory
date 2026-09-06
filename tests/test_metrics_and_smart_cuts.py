@@ -1,8 +1,10 @@
 import json
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from factory.config import Settings
 from factory.integrations import IntegrationManager
@@ -51,6 +53,19 @@ class MetricsAndSmartCutsTests(unittest.TestCase):
         automatic = next(row for row in rows if row["source"] == "youtube_api")
         self.assertEqual(automatic["views"], 12)
         self.assertEqual(self.store.metrics_sync_status()["jobs"], 1)
+
+    def test_disabled_youtube_analytics_api_has_an_actionable_error(self):
+        body = json.dumps({"error": {"message": "disabled", "errors": [
+            {"reason": "accessNotConfigured"}], "details": []}}).encode()
+        error = HTTPError("https://youtubeanalytics.googleapis.com/v2/reports", 403,
+                          "Forbidden", {}, BytesIO(body))
+        manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))
+        try:
+            with patch("factory.integrations.urlopen", side_effect=error):
+                with self.assertRaisesRegex(ValueError, "Analytics API está desativada"):
+                    manager._authorized_json("https://youtubeanalytics.googleapis.com/v2/reports", "token")
+        finally:
+            error.close()
 
     def test_youtube_sync_imports_read_only_metrics_for_audited_delivery(self):
         job_id, _ = self.approved_job()

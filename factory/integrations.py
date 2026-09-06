@@ -361,11 +361,21 @@ class IntegrationManager:
             with urlopen(request, timeout=45) as response:
                 value = json.loads(response.read())
         except HTTPError as exc:
+            reason = ""
             try:
                 payload = json.loads(exc.read())
-                detail = str((payload.get("error") or {}).get("message") or "")
+                error = payload.get("error") or {}
+                detail = str(error.get("message") or "")
+                reasons = [str(item.get("reason") or "") for item in error.get("errors") or []]
+                reasons.extend(str((item.get("metadata") or {}).get("service") or "")
+                               for item in error.get("details") or [])
+                reason = " ".join(reasons)
             except (ValueError, AttributeError):
                 detail = ""
+            if "accessNotConfigured" in reason or "youtubeanalytics.googleapis.com" in reason:
+                raise ValueError(
+                    "A YouTube Analytics API está desativada no projeto Google Cloud. Ative o serviço e tente novamente."
+                ) from exc
             if exc.code in {401, 403}:
                 raise ValueError(
                     "A autorização do YouTube ainda não inclui métricas. Reconecte a conta uma vez no Hub."
