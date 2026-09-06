@@ -79,17 +79,9 @@ class MetricsAndSmartCutsTests(unittest.TestCase):
                                "averageViewPercentage", "likes", "comments", "shares")],
             "rows": [[18, 54, 180, 10, 4, 1, 2]],
         }
-        reach = {
-            "columnHeaders": [{"name": "videoThumbnailImpressions"},
-                              {"name": "videoThumbnailImpressionsClickRate"}],
-            "rows": [[100, 5.0]],
-        }
-
         def response(url, _token):
             if "youtube/v3/videos" in url:
                 return data_api
-            if "videoThumbnailImpressions" in url:
-                return reach
             return core
 
         with patch.object(manager, "_youtube_access_token", return_value="token"), \
@@ -97,8 +89,10 @@ class MetricsAndSmartCutsTests(unittest.TestCase):
             result = manager.sync_youtube_metrics()
         self.assertEqual(result["count"], 1)
         self.assertFalse(result["upload_performed"])
+        self.assertEqual(result["warnings"], [])
+        self.assertEqual(result["reach"]["status"], "bulk_reporting_required")
         row = self.store.get_job(job_id)["metrics"][0]
-        self.assertEqual((row["views"], row["impressions"], row["clicks"]), (18, 100, 5))
+        self.assertEqual((row["views"], row["impressions"], row["clicks"]), (18, 0, 0))
         self.assertEqual(row["average_view_percentage"], 10)
         self.assertEqual(row["source"], "youtube_api")
 

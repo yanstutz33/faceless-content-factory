@@ -443,7 +443,6 @@ class IntegrationManager:
         statistics = {str(item.get("id")): item.get("statistics") or {} for item in stats_payload.get("items", [])}
         end_date = (datetime.now(UTC) - timedelta(days=1)).date().isoformat()
         synced: list[dict[str, Any]] = []
-        warnings: list[str] = []
         for publication in publications:
             video_id = publication["video_id"]
             base_params = {
@@ -456,20 +455,14 @@ class IntegrationManager:
                     "metrics": "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares",
                 }), access_token,
             ))
-            reach: dict[str, float] = {}
-            try:
-                reach = self._analytics_row(self._authorized_json(
-                    "https://youtubeanalytics.googleapis.com/v2/reports?" + urlencode({
-                        **base_params, "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
-                    }), access_token,
-                ))
-            except RuntimeError:
-                warnings.append(f"Alcance detalhado ainda indisponível para {video_id}")
             public_stats = statistics.get(video_id, {})
             views = int(core.get("views", public_stats.get("viewCount", 0)) or 0)
             likes = int(core.get("likes", public_stats.get("likeCount", 0)) or 0)
-            impressions = int(reach.get("videoThumbnailImpressions", 0) or 0)
-            ctr = float(reach.get("videoThumbnailImpressionsClickRate", 0) or 0)
+            # Thumbnail reach belongs to YouTube's asynchronous bulk Reporting API,
+            # not the targeted Analytics query used here. Keep the daily snapshot
+            # honest instead of turning an unsupported query into five false errors.
+            impressions = 0
+            ctr = 0.0
             operation = self.store.upsert_metrics_snapshot(
                 publication["job_id"], "youtube", views=views, likes=likes,
                 watch_minutes=float(core.get("estimatedMinutesWatched", 0) or 0),
@@ -483,7 +476,9 @@ class IntegrationManager:
             synced.append({"job_id": publication["job_id"], "video_id": video_id, "operation": operation,
                            "views": views, "impressions": impressions, "ctr": ctr})
         result = {"provider": "youtube", "mode": "read_only", "snapshot_date": end_date,
-                  "synced": synced, "count": len(synced), "warnings": warnings,
+                  "synced": synced, "count": len(synced), "warnings": [],
+                  "reach": {"status": "bulk_reporting_required",
+                            "detail": "Impressões e CTR exigem relatórios assíncronos da YouTube Reporting API."},
                   "upload_performed": False, "publication_changed": False}
         self.audit.record("metrics_synchronized", "youtube", result)
         return result

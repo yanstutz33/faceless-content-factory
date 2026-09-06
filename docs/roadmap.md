@@ -95,7 +95,7 @@ Objetivo: aprender com desempenho sem transformar todos os vídeos em cópias do
 
 Critério de conclusão: recomendações reproduzíveis, auditáveis e baseadas em volume mínimo de dados.
 
-Estado técnico em 06/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; cinco snapshots reais possuem fonte, data e identificador externo. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática quando não há amostra suficiente. O motor está pronto, mas a conclusão estatística depende do acúmulo natural de audiência futura, não de números inventados.
+Estado técnico em 06/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; cinco snapshots reais possuem fonte, data e identificador externo. A coleta direcionada oficial já traz visualizações, retenção, tempo assistido e engajamento. O alcance de thumbnail não é aceito pela API de consultas direcionadas e depende do relatório assíncrono da YouTube Reporting API; até esse relatório existir, impressões e CTR permanecem zerados em vez de serem inventados. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática quando não há amostra suficiente.
 
 ### Fase 5 — Cortes inteligentes verticais
 
