@@ -17,6 +17,7 @@ data/integration-audit.jsonl
 data/deliveries.json
 data/*.log
 data/*.jpg
+data/review/
 data/logs/
 node_modules/
 playwright-report/

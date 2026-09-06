@@ -52,6 +52,7 @@ test('direct publishing link lands on the publishing center after data loads', a
   await expect(page.locator('#pilot-certification')).toContainText(/certificação do lote piloto/i);
   await expect(page.locator('#pilot-certification h3')).toContainText(/correções automáticas|revisão humana pendente|piloto certificado/i);
   await expect(page.locator('#pilot-certification li')).toHaveCount(5);
+  await expect(page.locator('#publish-list')).toHaveAttribute('aria-busy', 'false', { timeout: 20000 });
   await expect(page.locator('#publish-list')).not.toContainText(/\b(?:5|8|10|12|30)s\b/);
   const guidedReview=page.locator('#start-pilot-review');
   await expect(guidedReview).toBeVisible();
@@ -75,6 +76,32 @@ test('calendar keeps one automation and only the active editorial agenda', async
   await expect(page.locator('#series-grid .series-cover')).toHaveCount(4);
   await expect(page.locator('#series-grid .series-cover').first()).toHaveJSProperty('complete', true);
   await expect(page.locator('#calendar-list')).not.toContainText(/beat sintético antigo|reprovada na audição|som esta igual/i);
+});
+
+test('published delivery remains public in the hub and its package opens a readable dialog', async ({ page }) => {
+  await page.route('**/api/integrations/deliveries', route => route.fulfill({ json: [
+    { job_id: 'public-pilot', platform: 'youtube', status: 'uploaded_public' },
+  ] }));
+  await page.route('**/api/publishing', route => route.fulfill({ json: {
+    summary: { total: 1, eligible: 1, ready: 1, blocked: 0 }, items: [{
+      job_id: 'public-pilot', title: 'Rest Tonight. | Rainy Night Lo-fi', topic: 'Internal old topic',
+      status: 'approved', duration: 1800, eligible: true, release_ready: true, checks: [],
+      packages: { youtube_private: true, vertical_manual: true, bilibili_manual: true },
+    }],
+  } }));
+  await page.route('**/api/jobs/public-pilot/artifacts/release-manifest.json', route => route.fulfill({ json: {
+    audit: { title: 'Rest Tonight. | Rainy Night Lo-fi', release_ready: true, duration: 1800 },
+    files: ['video.mp4'], source_artifacts: { 'video.mp4': { sha256: 'test' } },
+  } }));
+  await page.goto('/#publishing');
+  const published = page.locator('#publish-list');
+  await expect(published).toContainText('PUBLICADO NO YOUTUBE');
+  await expect(published).toContainText('YouTube público');
+  await expect(published).not.toContainText('Internal old topic');
+  await published.getByRole('button', { name: 'Conferir pacote', exact: true }).click();
+  await expect(page.locator('#artifact-dialog')).toBeVisible();
+  await expect(page.locator('#artifact-dialog')).toContainText('Preparado e validado na emissão');
+  await expect(page.locator('#artifact-dialog')).toContainText('Rest Tonight. | Rainy Night Lo-fi');
 });
 
 test('editorial theme preserves the supplied tokens and can be toggled', async ({ page }) => {
@@ -113,10 +140,12 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.locator('#catalog-readiness')).toContainText(/faixas lo-fi distintas/i);
   await expect(page.locator('#flow-music-guide')).toContainText(/geração direta ou importação do flow/i);
   await expect(page.getByRole('link', { name: /abrir flow/i })).toHaveAttribute('href', 'https://www.flowmusic.app/');
-  await expect(page.getByRole('heading', { name: /identidade pública assinada pela yami/i })).toBeVisible();
-  await expect(page.locator('.channel-kit-actions a[download]')).toHaveCount(3);
-  await expect(page.getByAltText('Avatar Pausa Pra Anime')).toHaveJSProperty('complete', true);
-  await expect(page.getByAltText('Banner Pausa Pra Anime para YouTube')).toHaveJSProperty('complete', true);
+  const channelIdentity = page.getByRole('article', { name: '3AM Shelter' });
+  await expect(channelIdentity.getByRole('heading', { name: '3AM Shelter', exact: true })).toBeVisible();
+  await expect(channelIdentity).toContainText('Identificador atual no YouTube: @Pausapraanime.');
+  await expect(channelIdentity.getByRole('link', { name: 'Abrir canal no YouTube' })).toHaveAttribute('href', 'https://www.youtube.com/channel/UCaxI2elEbTGftx6QIXNhvsw');
+  await expect(channelIdentity).not.toContainText(/yami/i);
+  await expect(channelIdentity.locator('img, a[download], a[href^="/api/channel-assets/"]')).toHaveCount(0);
   await expect(page.locator('#lyria-key-form [name=api_key]')).toHaveAttribute('type', 'password');
   await page.getByText('Ver as 12 direções musicais', { exact: true }).click();
   await expect(page.locator('#flow-music-guide [data-copy-flow]')).toHaveCount(12);

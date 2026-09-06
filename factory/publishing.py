@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from .bilibili import BilibiliPackager
@@ -13,10 +14,108 @@ from .store import Store
 class PublishingCenter:
     """Build manual-safe release packages without contacting any platform."""
 
+    SOURCE_ARTIFACTS = (
+        "video.mp4", "thumbnail.jpg", "metadata.json", "render-report.json",
+        "quality-gate.json", "asset-manifest.json", "publication-package.json",
+    )
+    AUXILIARY_ARTIFACTS = (
+        "motion-overlay.mp4", "visual-loop.mp4", "thumbnail-a.jpg", "thumbnail-b.jpg",
+        "thumbnail-design.json", "subtitles.srt", "agents.json", "commerce-package.json",
+        "pinterest-package.json",
+    )
+    PACKAGE_FILES = {
+        "youtube_private": ("video.mp4", "thumbnail.jpg", "youtube-upload.json"),
+        "vertical_manual": ("vertical-short.mp4", "vertical-thumbnail.jpg", "vertical-package.json"),
+        "bilibili_manual": ("bilibili-cover.jpg", "bilibili-subtitles-zh-Hans.srt",
+                            "bilibili-subtitles-en.srt", "bilibili-upload.json"),
+    }
+
     def __init__(self, pipeline: Pipeline, store: Store):
         self.pipeline = pipeline
         self.store = store
         self.bilibili = BilibiliPackager(pipeline, store)
+        self._integrity_cache: dict[str, tuple[Any, dict[str, Any]]] = {}
+        self._integrity_lock = Lock()
+
+    def _verified_manifest(self, out: Path, *, refresh: bool = False) -> dict[str, Any]:
+        """Reuse hashes only while the manifest and every artifact's file stats match."""
+        path = out / "artifact-manifest.json"
+        if not path.is_file():
+            raise ValueError("Manifesto de integridade ausente; execute a auditoria novamente")
+        try:
+            raw = path.read_text(encoding="utf-8")
+            manifest = json.loads(raw)
+            entries = manifest.get("files") if isinstance(manifest, dict) else None
+            if not isinstance(entries, list) or not entries or any(
+                not isinstance(item, dict) or not isinstance(item.get("name"), str)
+                or not item["name"] for item in entries
+            ):
+                raise ValueError("Manifesto de integridade inválido; execute a auditoria novamente")
+            stats = []
+            for item in entries:
+                name = item["name"]
+                if Path(name).is_absolute() or ".." in Path(name).parts:
+                    raise ValueError(f"Caminho inválido no manifesto de integridade: {name}")
+                artifact = out / name
+                if not artifact.is_file():
+                    raise ValueError(f"Artefato ausente no manifesto: {name}")
+                stat = artifact.stat()
+                stats.append((name, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
+            signature = (raw, tuple(stats))
+            key = str(out.resolve())
+            with self._integrity_lock:
+                cached = self._integrity_cache.get(key)
+                if refresh or cached is None or cached[0] != signature:
+                    self.pipeline.verify_artifact_manifest(out)
+                    self._integrity_cache[key] = (signature, manifest)
+            return manifest
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Manifesto de integridade ilegível; execute a auditoria novamente") from exc
+
+    def _release_checks(self, out: Path, *, refresh_integrity: bool = False) -> list[dict[str, Any]]:
+        checks = []
+        for destination, names in self.PACKAGE_FILES.items():
+            missing = [name for name in names if not (out / name).is_file()]
+            checks.append({
+                "id": destination, "label": destination, "passed": not missing,
+                "detail": "Arquivos do pacote presentes" if not missing else
+                "Prepare novamente o pacote; arquivos ausentes: " + ", ".join(missing),
+            })
+        release_path = out / "release-manifest.json"
+        checks.append({"id": "release_manifest", "label": "Manifesto de publicação",
+                       "passed": release_path.is_file(),
+                       "detail": "Manifesto de publicação presente" if release_path.is_file() else
+                       "Prepare o pacote completo para gerar release-manifest.json"})
+        try:
+            manifest = self._verified_manifest(out, refresh=refresh_integrity)
+            registered = {item["name"]: item for item in manifest["files"]}
+            required = set(self.SOURCE_ARTIFACTS) | {"release-manifest.json"}
+            required.update(name for names in self.PACKAGE_FILES.values() for name in names)
+            required.update(name for name in self.AUXILIARY_ARTIFACTS if (out / name).is_file())
+            missing = sorted(required - registered.keys())
+            if missing:
+                raise ValueError("Prepare novamente o pacote; artefatos sem integridade registrada: "
+                                 + ", ".join(missing))
+            checks.append({"id": "integrity", "label": "Integridade completa", "passed": True,
+                           "detail": f"{len(registered)} artefatos com integridade validada"})
+            try:
+                release = json.loads(release_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise ValueError("Manifesto de publicação inválido; prepare o pacote completo novamente") from exc
+            sources = release.get("source_artifacts") if isinstance(release, dict) else None
+            if not isinstance(sources, dict) or not set(self.SOURCE_ARTIFACTS).issubset(sources):
+                raise ValueError("Prepare novamente o pacote para vincular os derivados à versão atual do vídeo")
+            stale = [name for name in self.SOURCE_ARTIFACTS if sources[name] != registered[name]]
+            if stale:
+                raise ValueError("Pacote desatualizado; prepare os derivados novamente após alterações em: "
+                                 + ", ".join(stale))
+            checks.append({"id": "source_version", "label": "Versão dos derivados", "passed": True,
+                           "detail": "Pacotes vinculados aos arquivos de origem atuais"})
+        except (ValueError, OSError, UnicodeError) as exc:
+            checks.append({"id": "source_version" if any(check["id"] == "integrity" for check in checks)
+                           else "integrity", "label": "Integridade do pacote", "passed": False,
+                           "detail": str(exc)})
+        return checks
 
     @staticmethod
     def _asset_rights(out: Path) -> tuple[bool, str]:
@@ -60,7 +159,8 @@ class PublishingCenter:
             return False, f"Música reprovada ou ainda não ouvida: {asset.get('name', 'sem nome')}"
         return True, f"Música ouvida e aprovada: {asset['name']}"
 
-    def audit(self, job: dict[str, Any]) -> dict[str, Any]:
+    def audit(self, job: dict[str, Any], *, refresh_integrity: bool = False,
+              check_release: bool = True) -> dict[str, Any]:
         out = Path(job["output_dir"])
         metadata = job.get("metadata") or {}
         rights_ok, rights_detail = self._asset_rights(out)
@@ -80,14 +180,9 @@ class PublishingCenter:
             {"id": "rights", "label": "Direitos de mídia", "passed": rights_ok, "detail": rights_detail},
             {"id": "music", "label": "Aprovação musical", "passed": music_ok, "detail": music_detail},
         ]
-        blockers = [check["detail"] for check in checks if not check["passed"]]
-        youtube_ready = (out / "youtube-upload.json").is_file()
-        vertical_ready = (out / "vertical-package.json").is_file() and (out / "vertical-short.mp4").is_file()
-        bilibili_ready = all((out / name).is_file() for name in (
-            "bilibili-upload.json", "bilibili-cover.jpg", "bilibili-subtitles-zh-Hans.srt",
-            "bilibili-subtitles-en.srt",
-        ))
-        release_manifest_ready = (out / "release-manifest.json").is_file()
+        eligibility_blockers = [check["detail"] for check in checks if not check["passed"]]
+        release_checks = self._release_checks(out, refresh_integrity=refresh_integrity) if check_release else []
+        blockers = eligibility_blockers + [check["detail"] for check in release_checks if not check["passed"]]
         return {
             "job_id": job["id"],
             "topic": job["topic"],
@@ -98,11 +193,13 @@ class PublishingCenter:
             "title": metadata.get("title") or job["topic"],
             "thumbnail_variant": job.get("thumbnail_variant") or metadata.get("selected_thumbnail") or "a",
             "checks": checks,
+            "release_checks": release_checks,
             "blockers": blockers,
-            "eligible": not blockers,
-            "packages": {"youtube_private": youtube_ready, "vertical_manual": vertical_ready,
-                         "bilibili_manual": bilibili_ready},
-            "release_ready": not blockers and youtube_ready and vertical_ready and bilibili_ready and release_manifest_ready,
+            "eligibility_blockers": eligibility_blockers,
+            "eligible": not eligibility_blockers,
+            "packages": {check["id"]: check["passed"] for check in release_checks
+                         if check["id"] in self.PACKAGE_FILES},
+            "release_ready": check_release and not blockers,
             "automatic_upload_allowed": False,
         }
 
@@ -139,7 +236,10 @@ class PublishingCenter:
         else:
             # Compatibility for fresh/test stores created before explicit cohorts.
             jobs = publishable
-        audits = [self.audit(job) for job in jobs]
+        # Certification reports creative/editorial gates, not package readiness.
+        # Keep it responsive even on a cold cache with many gigabytes of video.
+        # The queue and final upload still perform full release validation.
+        audits = [self.audit(job, check_release=False) for job in jobs]
 
         track_names: list[str] = []
         visual_fingerprints: list[tuple[str, str, str, str]] = []
@@ -221,21 +321,35 @@ class PublishingCenter:
         job = self.store.get_job(job_id)
         if not job:
             raise ValueError("Produção não encontrada")
-        before = self.audit(job)
+        before = self.audit(job, refresh_integrity=True)
         if not before["eligible"]:
-            raise ValueError("Pacote bloqueado: " + "; ".join(before["blockers"]))
+            raise ValueError("Pacote bloqueado: " + "; ".join(before["eligibility_blockers"]))
+        out = Path(job["output_dir"])
+        original_manifest = self._verified_manifest(out)
+        missing = [name for name in self.SOURCE_ARTIFACTS if not (out / name).is_file()]
+        if missing:
+            raise ValueError("Audite a produção antes de preparar o pacote; arquivos ausentes: " + ", ".join(missing))
+        names = [item["name"] for item in original_manifest["files"]]
+        names.extend(self.SOURCE_ARTIFACTS)
+        names.extend(self.AUXILIARY_ARTIFACTS)
+        names.extend(name for files in self.PACKAGE_FILES.values() for name in files)
         youtube = self.pipeline.prepare_youtube_package(job_id)
-        vertical = self.pipeline.prepare_vertical_package(job_id, vertical_duration)
+        self.pipeline.prepare_vertical_package(job_id, vertical_duration)
         bilibili = self.bilibili.prepare(job_id)
         job = self.store.get_job(job_id) or job
-        audit = self.audit(job)
-        out = Path(job["output_dir"])
+        # Destination packagers rebuild narrower manifests; restore every source
+        # entry as well as the technical, rights and release evidence.
+        manifest = self.pipeline.artifact_manifest(
+            out, [name for name in dict.fromkeys(names) if name != "release-manifest.json"],
+        )
+        registered = {item["name"]: item for item in manifest["files"]}
         release = {
             "mode": "prepared_not_uploaded",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "job_id": job_id,
             "automatic_upload_allowed": False,
-            "audit": audit,
+            "audit": before,
+            "source_artifacts": {name: registered[name] for name in self.SOURCE_ARTIFACTS},
             "destinations": {
                 "youtube": {"privacy": youtube["status"]["privacyStatus"], "package": "youtube-upload.json"},
                 "shorts_reels_tiktok": {"upload": "manual", "package": "vertical-package.json"},
@@ -250,7 +364,18 @@ class PublishingCenter:
         (out / "release-manifest.json").write_text(
             json.dumps(release, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        manifest = self.pipeline.artifact_manifest(out, release["files"] + ["release-manifest.json"])
+        manifest["files"].extend(self.pipeline.artifact_manifest(out, ["release-manifest.json"])["files"])
+        (out / "artifact-manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        release["audit"] = self.audit(job, refresh_integrity=True)
+        if not release["audit"]["release_ready"]:
+            raise ValueError("Pacote bloqueado: " + "; ".join(release["audit"]["blockers"]))
+        (out / "release-manifest.json").write_text(
+            json.dumps(release, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        manifest["files"] = [item for item in manifest["files"] if item["name"] != "release-manifest.json"]
+        manifest["files"].extend(self.pipeline.artifact_manifest(out, ["release-manifest.json"])["files"])
         (out / "artifact-manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )

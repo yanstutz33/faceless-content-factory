@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .agents import ContentCrew, ENGLISH_AMBIENT_TITLES, PROFILES, english_ambient_metadata
+from .agents import ContentCrew, ENGLISH_AMBIENT_TITLES, PROFILES, align_title_to_scene, english_ambient_metadata
 from .teams import DEFAULT_TEAM_ID, get_team
 from .config import Settings
 from .creative import CreativeDirector, MOTION_LABELS, MUSIC_ARRANGEMENTS
@@ -853,7 +853,7 @@ class Pipeline:
         self.command([
             self.settings.ffmpeg, "-y", "-stream_loop", "-1", "-i", str(visual_loop),
             "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-t", f"{duration:.3f}",
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest",
+            "-c:v", "copy", "-af", "apad", "-c:a", "aac", "-b:a", "160k",
             "-movflags", "+faststart", str(output),
         ])
 
@@ -1080,7 +1080,7 @@ class Pipeline:
             "video.mp4", "visual-loop.mp4", "motion-overlay.mp4", "background.jpg",
             "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json",
             "metadata.json", "render-report.json", "quality-gate.json",
-            "asset-manifest.json", "artifact-manifest.json",
+            "asset-manifest.json", "artifact-manifest.json", "agents.json", "publication-package.json",
         )
         for job in jobs:
             out = Path(job["output_dir"])
@@ -1135,6 +1135,13 @@ class Pipeline:
                                         blend, motion["cycle_seconds"], fps)
                 self.repeat_visual_loop(candidate_loop, audio, candidate_video, float(job["duration"]))
                 metadata = dict(job.get("metadata") or {})
+                metadata["title"] = align_title_to_scene(metadata.get("title", job["topic"]), cover["id"])
+                metadata.setdefault("agents", {}).setdefault("seo", {})["title"] = metadata["title"]
+                metadata.setdefault("production", {}).update({
+                    "resolution": f"{width}x{height}", "fps": fps,
+                    "duration_seconds": job["duration"],
+                })
+                metadata["agents"]["production"] = dict(metadata["production"])
                 metadata["motion"] = motion
                 metadata["visual_source"] = {
                     "style_id": COVER_STYLE_ID,
@@ -1195,11 +1202,18 @@ class Pipeline:
                 metadata["thumbnail_style_id"] = COVER_STYLE_ID
                 metadata["quality_gate"] = gate
                 metadata["verification"] = report
+                publication_path = out / "publication-package.json"
+                if publication_path.is_file():
+                    checklist = json.loads(publication_path.read_text(encoding="utf-8"))
+                    checklist["media_validation"] = report
+                    checklist["quality_gate"] = gate
+                    publication_path.write_text(json.dumps(checklist, ensure_ascii=False, indent=2), encoding="utf-8")
                 metadata.setdefault("files", {}).update({
                     "video": "video.mp4", "thumbnail": "thumbnail.jpg",
                     "motion_overlay": "motion-overlay.mp4", "visual_loop": "visual-loop.mp4",
                 })
                 (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+                (out / "agents.json").write_text(json.dumps(metadata["agents"], ensure_ascii=False, indent=2), encoding="utf-8")
                 (out / "render-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
                 (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
                 old_manifest_path = out / "artifact-manifest.json"
@@ -1716,6 +1730,8 @@ class Pipeline:
             }
             metadata["verification"] = media_report
             metadata["quality"] = plan["review"]
+            metadata["title"] = align_title_to_scene(metadata["title"], rendered_cover["id"])
+            plan.setdefault("seo", {})["title"] = metadata["title"]
             (out / "agents.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
             (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
             manifest = self.artifact_manifest(out, ["video.mp4", "motion-overlay.mp4", "visual-loop.mp4", "thumbnail.jpg", "thumbnail-a.jpg", "thumbnail-b.jpg", "thumbnail-design.json", "subtitles.srt", "metadata.json", "agents.json", "publication-package.json", "render-report.json", "quality-gate.json"])

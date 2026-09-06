@@ -1033,7 +1033,9 @@ class CoreTests(unittest.TestCase):
         self.assertIn('/api/music-assets/${Number(track.id)}/preview', app)
         self.assertIn('/api/music-assets/${Number(button.dataset.trackId)}/review', app)
         self.assertIn('Aprovar faixa', app)
-        self.assertIn('/api/channel-assets/pausa-pra-anime-youtube-banner-2560x1440.png', index)
+        self.assertIn('3AM Shelter', index)
+        self.assertIn('https://www.youtube.com/channel/UCaxI2elEbTGftx6QIXNhvsw', index)
+        self.assertNotIn('/api/channel-assets/pausa-pra-anime-youtube-banner-2560x1440.png', index)
         self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
 
     def test_queue_profile_summary_and_plan(self):
@@ -1313,7 +1315,7 @@ class CoreTests(unittest.TestCase):
             {"id": "rights", "passed": True},
             {"id": "music", "passed": True},
         ]
-        with patch.object(center, "audit", side_effect=lambda job: {"checks": automatic_checks}):
+        with patch.object(center, "audit", side_effect=lambda job, **kwargs: {"checks": automatic_checks}):
             certification = center.pilot_certification()
         self.assertTrue(certification["automatic_checks_passed"])
         self.assertFalse(certification["human_target_met"])

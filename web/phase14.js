@@ -1,7 +1,7 @@
 let integrationState={platforms:[],backups:[],audit:[],deliveries:[]};
 
 const integrationLabels={config_required:'CONFIGURAÇÃO NECESSÁRIA',login_required:'PRONTA PARA LOGIN',connected:'CONTA CONECTADA',planned:'NO ROADMAP',package_ready:'PACOTE LOCAL PRONTO'};
-const deliveryLabels={blocked_auth:'Aguardando conta',blocked_package:'Aguardando pacote',manual_approval:'Aguardando sua confirmação'};
+const deliveryLabels={blocked_auth:'Aguardando conta',blocked_package:'Aguardando pacote',manual_approval:'Aguardando sua confirmação',uploaded_public:'Publicado · público',uploaded_private:'Enviado · privado',uploaded_unlisted:'Enviado · não listado',uploaded_verification_pending:'Enviado · conferência pendente'};
 
 function renderIntegrationLists(){
   const deliveries=document.querySelector('#delivery-list');

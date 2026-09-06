@@ -64,6 +64,23 @@ ENGLISH_AMBIENT_TITLES = (
 )
 
 
+def align_title_to_scene(title: str, reference_id: str) -> str:
+    """Keep the emotional phrase, but describe the image actually encoded."""
+    settings = {
+        "anime-window-night": "Rainy Night Lo-fi",
+        "anime-sleeping-city": "Rainy Night Lo-fi",
+        "rainy-window-memories": "Rainy Night Lo-fi",
+        "emerald-city-3am": "3 A.M. City Lo-fi",
+        "rainy-konbini-rest": "Rainy Night Lo-fi",
+        "rainy-konbini-clean": "Rainy Night Lo-fi",
+        "anime-rainy-alley": "Rainy Night Lo-fi",
+        "rainy-hillside-cafe": "Rainy Night Café Lo-fi",
+        "rainy-vinyl-listening-room": "After Hours Lo-fi",
+    }
+    setting = settings.get(reference_id)
+    return f"{title.split(' | ', 1)[0]} | {setting}"[:96] if setting else title
+
+
 def english_ambient_metadata(topic: str, duration: int, use_case: str) -> tuple[str, str, list[str]]:
     """Create deterministic, natural English packaging without exposing Portuguese working topics."""
     index = sum(ord(character) for character in topic.casefold()) % len(ENGLISH_AMBIENT_TITLES)

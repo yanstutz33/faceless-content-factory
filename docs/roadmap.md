@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 03/09/2026. O roadmap separa o que já foi validado localmente, o que a fábrica pode automatizar sem contas externas e o que depende de login ou decisão humana. Publicação pública automática continua desativada por padrão. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
+Última revisão: 06/09/2026. O roadmap separa o que foi validado localmente, o que foi confirmado no YouTube e o que ainda depende de contas ou dados externos. Publicação pública automática continua desativada por padrão: o envio começa privado, passa por integridade e processamento HD e somente então recebe a liberação já autorizada no Studio. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -22,11 +22,12 @@
 - variedade real de áudio depende de uma biblioteca com faixas diferentes e direitos documentados;
 - a fábrica não deve prometer diversidade visual antes de ampliar e validar o catálogo de cenas;
 - TikTok, Instagram, Pinterest, Shopee e Bilibili ainda exigem login/configuração manual;
-- o YouTube aceita somente upload privado com confirmação humana explícita; publicação pública permanece bloqueada.
+- o conector envia ao YouTube somente como privado; a mudança para público é feita no Studio depois da confirmação de HD;
+- coleta automática de métricas do YouTube ainda não foi ligada e precisa ser validada com dados reais do canal.
 
 ## Próximas fases, em ordem
 
-### Fase 1 — Catálogo criativo de produção — pilotos em revisão
+### Fase 1 — Catálogo criativo de produção — concluída
 
 Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 
@@ -34,17 +35,17 @@ Objetivo: eliminar a repetição perceptível antes de aumentar o volume.
 - ampliar para pelo menos 12 cenas-base originais, com zonas de movimento coerentes — **concluído: 23 registros visuais disponíveis; a coorte oficial usa somente as nove referências personalizadas aprovadas e ignora assets históricos/de teste**;
 - criar combinações por intenção: foco, leitura, sono, madrugada, melancolia e relaxamento;
 - impedir repetição recente de faixa, cena, paleta, enquadramento e arranjo;
-- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **concluído automaticamente: 13 pilotos de 30 minutos passaram em integridade, qualidade, direitos, áudio distinto e DNA visual integral distinto; os 13 aguardam avaliação humana**;
+- gerar 10 vídeos longos de validação e aprovar apenas os que passarem no controle técnico e criativo — **concluído: 13 pilotos de 30 minutos passaram em integridade, qualidade, direitos, áudio distinto e DNA visual integral distinto; os 13 foram aprovados**;
 - manter capas 16:9 no padrão cinematográfico noturno aprovado — **concluído: nove referências únicas em `nocturnal_rain_v1`, incluindo uma nova cena original gerada pela fábrica, sem banners, títulos longos ou câmera artificial**;
 - manter títulos e descrições públicas em inglês natural, com frases emocionais curtas e reconfortantes — **concluído: gerador e os 13 pilotos oficiais migrados para inglês; os temas internos em português continuam preservados apenas para operação do Hub**;
 - sincronizar capas e vídeos históricos com backup recuperável — **concluído em 35 pacotes: a imagem aprovada foi incorporada ao MP4 e comparada após o play; 22 pacotes históricos foram preservados fora da fila publicável**;
 - preparar geração musical externa sem tornar a montagem dependente de uma plataforma — **implementado: importação rastreável do Flow e geração direta em lote com Lyria 3 pela Gemini API; o Hub cria, baixa, valida e cataloga 4, 8 ou 12 faixas com direções musicalmente distintas, mantendo revisão auditiva obrigatória**.
 
-Resultado parcial: a coorte explícita `pilot-flow-2026-08-30` contém somente os 13 pilotos atuais. Eles têm 30 minutos, usam 13 músicas aprovadas sem repetição no lote, 13 DNAs visuais integrais distintos e nota de novidade mínima de 70,3. Todos passaram no controle técnico automático e permanecem em `aguardando aprovação`; nenhum foi publicado externamente. Outros 22 pacotes históricos foram movidos para revisão/quarentena sem exclusão de arquivos. Os 35 manifestos completos foram reparados e validados sem hash autorreferente. O Centro de Publicação certifica apenas a coorte oficial e separa os controles automáticos da revisão humana. As 24 faixas antigas continuam preservadas em quarentena. O kit público **Pausa Pra Anime · by YAMI** para YouTube continua pronto; FFactory segue apenas como infraestrutura interna.
+Resultado verificado em 06/09/2026: a coorte explícita `pilot-flow-2026-08-30` contém 13 pilotos aprovados. Eles têm pelo menos 30 minutos, usam 13 músicas aprovadas sem repetição no lote, 13 DNAs visuais integrais distintos e nota de novidade mínima de 70,3. Outros 22 pacotes históricos foram movidos para revisão/quarentena sem exclusão de arquivos. Os manifestos são validados sem hash autorreferente e os derivados ficam vinculados por hash à versão exata do vídeo, thumbnail e metadados. As 24 faixas antigas continuam preservadas em quarentena. A identidade pública ativa é **3AM Shelter**; FFactory segue como infraestrutura interna.
 
 Critério de conclusão: 10 de 10 vídeos com duração válida, áudio distinto no lote, imagem coerente, sem chuva dentro de ambientes, sem tremor de câmera e com manifesto de direitos completo.
 
-Automação: ingestão, validação técnica, registro, rotação, montagem e certificação do lote estão automatizados. Permanecem humanas a revisão visual/auditiva final dos 13 pilotos e as decisões de publicação.
+Automação: ingestão, validação técnica, registro, rotação, montagem e certificação do lote estão automatizados. Permanecem humanas a decisão editorial e a liberação pública.
 
 Nota sobre A/B: as variantes atuais usam deliberadamente a mesma cena do vídeo para impedir que o pôster seja trocado por uma imagem diferente após o play. Um experimento A/B real deverá variar apenas enquadramento ou tratamento da mesma cena, sem quebrar essa identidade.
 
@@ -66,7 +67,7 @@ Automação: completa, sem publicar externamente.
 
 Resultado verificado em 02/09/2026: três coortes autônomas consecutivas produziram seis vídeos de 30 minutos, todos com nota automática 92/100, manifestos íntegros e pacotes locais. Não houve falha, recuperação manual, artefato inválido ou publicação externa. A certificação da Fase 2 permanece auditável no Hub.
 
-### Fase 3 — YouTube privado e métricas reais
+### Fase 3 — YouTube publicado; métricas em maturação
 
 Objetivo: validar o canal principal com risco mínimo.
 
@@ -76,9 +77,9 @@ Objetivo: validar o canal principal com risco mínimo.
 - importar impressões, CTR, retenção e tempo de exibição;
 - manter confirmação humana antes de tornar um vídeo público durante o piloto.
 
-Progresso verificado em 04/09/2026: **dois pilotos publicados com sucesso em 1080p, um terceiro piloto privado pronto em HD e o envio original preservado em privado**. O envio original `3qfjb0BCuPU` confirmou capa, áudio e 720p, mas sua fonte havia sido produzida em 1280×720. O pacote foi reconstruído em 1920×1080, H.264 High, 30 fps, `yuv420p` limitado BT.709 e áudio AAC, com controle automático 100/100. A revisão visual também restringiu a chuva animada ao plano das janelas, sem atravessar a personagem ou a cama. O substituto `VijwOMULOiE` foi publicado com título e descrição em inglês, thumbnail personalizada e conteúdo não destinado a crianças. O segundo piloto `rv-Vl0wlns4` também foi reconstruído no padrão de 1080p e publicado após a conclusão do HD; sua cena de múltiplos vidros passou a animar somente a luz distante, evitando chuva artificial sobre teto e esquadrias. Nos dois casos, o Studio confirmou visibilidade pública e alterações salvas, e o registro local foi reconciliado como `uploaded_public`. O terceiro piloto `08UvW-_bB7w` passou na revisão visual e sonora, teve SD e HD concluídos pelo YouTube e permanece privado aguardando a confirmação final de publicação. O upload original continua privado e preservado. Os outros dez pilotos oficiais permanecem validados em 1920×1080.
+Progresso verificado em 06/09/2026: **cinco pilotos publicados, todos processados em HD a partir de arquivos 1920×1080, H.264, 30 fps, `yuv420p` limitado BT.709 e áudio AAC**. O player público confirmou 1080p e 30:00 nos novos envios. Os títulos foram alinhados às cenas realmente codificadas, e a thumbnail usa a mesma fonte visual vista após o play. Publicações: `VijwOMULOiE`, `rv-Vl0wlns4`, `08UvW-_bB7w`, `4F-wDCrSxYk` e `kF_khVghtrc`. O envio original em 720p `3qfjb0BCuPU` e os vídeos históricos continuam privados e preservados. O Hub registra os cinco como `uploaded_public` e impede que um pré-teste posterior apague esse estado.
 
-Critério de conclusão: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube.
+Critério de publicação concluído: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube. Falta para encerrar integralmente a fase: importar métricas reais após haver volume de impressões e retenção suficiente.
 
 Automação: preparação, upload privado e coleta de métricas. Manual: login inicial e confirmação de publicação.
 
@@ -155,4 +156,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Piloto criativo, Fase 2, OAuth oficial do YouTube e publicação dos dois primeiros pilotos em 1080p concluídos. O terceiro piloto `08UvW-_bB7w` está privado, com HD concluído e pronto para a confirmação final de publicação. O vídeo original permanece privado. Depois dessa confirmação, a próxima ação automática é preparar o quarto piloto da validação.
+Piloto criativo, Fase 2, OAuth oficial do YouTube e publicação dos cinco pilotos em 1080p concluídos. A próxima ação útil é deixar o canal acumular métricas reais e então ligar a coleta de impressões, CTR, retenção e tempo de exibição. Em paralelo, a fábrica pode iniciar a Fase 5 localmente, produzindo cortes candidatos sem publicar. TikTok, Instagram, Shopee, Pinterest e Bilibili continuam aguardando contas e autenticação; hospedagem permanente continua pausada para manter custo zero.

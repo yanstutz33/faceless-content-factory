@@ -3,22 +3,31 @@ let pilotCertification=null;
 let phase2Certification=null;
 let guidedReviewIds=[];
 let guidedReviewCurrent=null;
+let publishingDeliveries=[];
+
+function youtubeDelivery(item){
+  return publishingDeliveries.find(delivery=>delivery.job_id===item.job_id&&delivery.platform==='youtube');
+}
 
 function publishStatus(item){
+  const delivery=youtubeDelivery(item);
+  if(delivery?.status==='uploaded_public')return {label:'PUBLICADO NO YOUTUBE',tone:'ready'};
+  if(delivery?.status==='uploaded_private')return {label:'ENVIADO · PRIVADO',tone:'eligible'};
+  if(delivery?.status==='uploaded_unlisted')return {label:'ENVIADO · NÃO LISTADO',tone:'eligible'};
+  if(delivery?.status==='uploaded_verification_pending')return {label:'ENVIO EM CONFERÊNCIA',tone:'eligible'};
   if(item.release_ready)return {label:'PACOTE COMPLETO',tone:'ready'};
   if(item.eligible)return {label:'PRONTO PARA PREPARAR',tone:'eligible'};
   return {label:'AÇÃO NECESSÁRIA',tone:'blocked'};
 }
 
 async function loadPublishing(){
+  document.querySelector('#publish-list').setAttribute('aria-busy','true');
+  document.querySelector('#start-pilot-review').disabled=true;
   try{
-    [publishingState,pilotCertification,phase2Certification]=await Promise.all([
-      api('/api/publishing'),api('/api/publishing/pilot-certification'),api('/api/operations/phase2-certification')
+    [publishingState,pilotCertification,phase2Certification,publishingDeliveries]=await Promise.all([
+      api('/api/publishing'),api('/api/publishing/pilot-certification').then(result=>{renderPilotCertificate(result);return result}),
+      api('/api/operations/phase2-certification'),api('/api/integrations/deliveries')
     ]);
-    const certificate=document.querySelector('#pilot-certification');
-    const certificateChecks=(pilotCertification.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
-    certificate.className=`pilot-certification ${esc(pilotCertification.status||'blocked')}`;
-    certificate.innerHTML=`<div class="pilot-certificate-head"><div><span class="tag">CERTIFICAÇÃO DO LOTE PILOTO</span><h3>${esc(pilotCertification.label)}</h3><p>${esc(pilotCertification.next_action)}</p></div><strong>${Number(pilotCertification.approved_count||0)}<small>/${Number(pilotCertification.target||10)} aprovados</small></strong></div><ul>${certificateChecks}</ul>`;
     const phase2=document.querySelector('#phase2-certification');
     const showPhase2=pilotCertification.status==='certified'||(phase2Certification.batches||[]).length>0;
     phase2.hidden=!showPhase2;
@@ -44,15 +53,24 @@ async function loadPublishing(){
       const status=publishStatus(item);
       const checks=(item.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
       const passedChecks=(item.checks||[]).filter(check=>check.passed).length;
-      const packages=`<span class="package-pill ${item.packages.youtube_private?'done':''}">YouTube privado</span><span class="package-pill ${item.packages.vertical_manual?'done':''}">Shorts · Reels · TikTok</span><span class="package-pill ${item.packages.bilibili_manual?'done':''}">Bilibili 中文 · EN</span>`;
+      const published=youtubeDelivery(item)?.status==='uploaded_public';
+      const packages=`<span class="package-pill ${item.packages.youtube_private?'done':''}">${published?'YouTube público':'Pacote YouTube'}</span><span class="package-pill ${item.packages.vertical_manual?'done':''}">Pacote vertical local</span><span class="package-pill ${item.packages.bilibili_manual?'done':''}">Pacote Bilibili local</span>`;
       const action=item.release_ready
-        ?`<a class="secondary" target="_blank" rel="noopener" href="/api/jobs/${encodeURIComponent(item.job_id)}/artifacts/release-manifest.json">Abrir manifesto</a>`
+        ?`<button class="secondary" data-artifact="release-manifest.json" data-artifact-job="${esc(item.job_id)}">Conferir pacote</button>`
         :item.eligible
           ?`<button class="primary" data-release-job="${esc(item.job_id)}">Preparar pacote completo</button>`
           :`<button class="secondary" data-review-job="${esc(item.job_id)}">Abrir para revisar</button>`;
-      return `<article class="publish-item ${status.tone}"><img src="${artifactUrl(item.job_id,'thumbnail.jpg',item.updated_at)}" alt="Capa de ${esc(item.topic)}" loading="lazy"><div class="publish-main"><div class="publish-title"><span class="tag">${status.label}</span><h3>${esc(item.title)}</h3><p>${esc(item.topic)} · ${formatDuration(item.duration)}</p></div><div class="package-row">${packages}</div><details class="publish-audit"><summary>Verificação técnica · ${passedChecks}/${(item.checks||[]).length} itens</summary><ul class="publish-checks">${checks}</ul></details></div><div class="publish-action">${action}<small>Envio sempre manual</small></div></article>`;
+      return `<article class="publish-item ${status.tone}"><img src="${artifactUrl(item.job_id,'thumbnail.jpg',item.updated_at)}" alt="Capa de ${esc(item.title)}" loading="lazy"><div class="publish-main"><div class="publish-title"><span class="tag">${status.label}</span><h3>${esc(item.title)}</h3><p>${formatDuration(item.duration)}</p></div><div class="package-row">${packages}</div><details class="publish-audit"><summary>Verificação técnica · ${passedChecks}/${(item.checks||[]).length} itens</summary><ul class="publish-checks">${checks}</ul></details></div><div class="publish-action">${action}<small>${published?'Publicação confirmada':'Publicação exige autorização'}</small></div></article>`;
     }).join(''):'<div class="publish-empty"><b>Nenhum vídeo longo está pronto para publicação.</b><p>Prévias e testes abaixo de 30 minutos ficam fora desta central automaticamente.</p></div>';
   }catch(error){toast(error.message)}
+  finally{document.querySelector('#publish-list').setAttribute('aria-busy','false')}
+}
+
+function renderPilotCertificate(result){
+  const certificate=document.querySelector('#pilot-certification');
+  const checks=(result.checks||[]).map(check=>`<li class="${check.passed?'pass':'fail'}"><span>${check.passed?'✓':'!'}</span><div><b>${esc(check.label)}</b><small>${esc(check.detail)}</small></div></li>`).join('');
+  certificate.className=`pilot-certification ${esc(result.status||'blocked')}`;
+  certificate.innerHTML=`<div class="pilot-certificate-head"><div><span class="tag">CERTIFICAÇÃO DO LOTE PILOTO</span><h3>${esc(result.label)}</h3><p>${esc(result.next_action)}</p></div><strong>${Number(result.approved_count||0)}<small>/${Number(result.target||10)} aprovados</small></strong></div><ul>${checks}</ul>`;
 }
 
 document.querySelector('#refresh-publishing').onclick=loadPublishing;

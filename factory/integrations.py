@@ -18,6 +18,9 @@ from .vault import SecureVault
 
 
 SENSITIVE_WORDS = {"token", "secret", "code", "verifier", "authorization", "partner_key"}
+UPLOADED_DELIVERY_STATUSES = frozenset({
+    "uploaded_verification_pending", "uploaded_private", "uploaded_public", "uploaded_unlisted",
+})
 
 
 def _scrub(value: Any) -> Any:
@@ -88,6 +91,10 @@ class DeliveryLedger:
         with self.lock:
             rows = self._read()
             existing = next((row for row in rows if row["job_id"] == job_id and row["platform"] == platform), None)
+            # Preflight can refresh readiness, but cannot undo an upload that already happened.
+            if (existing and existing.get("status") in UPLOADED_DELIVERY_STATUSES
+                    and status not in UPLOADED_DELIVERY_STATUSES):
+                return dict(existing)
             now = datetime.now(UTC).isoformat()
             if existing:
                 existing.update({"status": status, "blockers": blockers, "updated_at": now})
@@ -337,7 +344,7 @@ class IntegrationManager:
             raise ValueError("Confirmação explícita do envio privado é obrigatória")
         previous = next((row for row in self.deliveries.list()
                          if row.get("job_id") == job_id and row.get("platform") == "youtube"), None)
-        if previous and previous.get("status") in {"uploaded_private", "uploaded_verification_pending"}:
+        if previous and previous.get("status") in UPLOADED_DELIVERY_STATUSES:
             raise ValueError("Este vídeo já foi enviado; a proteção contra upload duplicado bloqueou a operação")
         preflight = self.preflight("youtube", job_id)
         if not preflight["ready_after_manual_approval"]:
@@ -357,6 +364,9 @@ class IntegrationManager:
         status = package.get("status") or {}
         if status.get("privacyStatus") != "private":
             raise ValueError("O primeiro envio aceita somente privacidade privada")
+        release_audit = self.publishing.audit(job, refresh_integrity=True)
+        if not release_audit["release_ready"]:
+            raise ValueError("Pacote do YouTube bloqueado: " + "; ".join(release_audit["blockers"]))
         access_token = self._youtube_access_token()
         metadata = {"snippet": package.get("snippet") or {}, "status": {
             "privacyStatus": "private", "selfDeclaredMadeForKids": bool(status.get("selfDeclaredMadeForKids", False))}}

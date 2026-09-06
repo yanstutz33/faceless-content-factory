@@ -273,11 +273,20 @@ function artifactRows(data,type){
   ];
   if(type==='quality-gate.json')return (data.checks||[]).map(check=>[check.passed?'✓ '+check.label:'! '+check.label,check.passed?'Aprovado':String(check.value||'Revisar')]);
   if(type==='artifact-manifest.json')return (data.files||[]).map(file=>[file.name,`${(Number(file.size_bytes||0)/1048576).toFixed(1)} MB · íntegro`]);
+  if(type==='release-manifest.json')return [
+    ['Vídeo',data.audit?.title||'—'],
+    ['Pacote local',data.audit?.release_ready?'Preparado e validado na emissão':'Requer nova preparação'],
+    ['Duração',formatDuration(Number(data.audit?.duration||0))],
+    ['Arquivos de entrega',String((data.files||[]).length)],
+    ['Fontes rastreáveis',String(Object.keys(data.source_artifacts||{}).length)],
+    ['Outros destinos','Verticais e Bilibili: pacotes locais, sem envio'],
+    ['Visibilidade online','Consulte o status de entrega na Central de Publicação']
+  ];
   return [];
 }
 
 async function openArtifact(jobId,type){
-  const labels={'metadata.json':'Resumo do vídeo','render-report.json':'Relatório técnico','artifact-manifest.json':'Integridade dos arquivos','quality-gate.json':'Controle de qualidade'};
+  const labels={'metadata.json':'Resumo do vídeo','render-report.json':'Relatório técnico','artifact-manifest.json':'Integridade dos arquivos','quality-gate.json':'Controle de qualidade','release-manifest.json':'Pacote de publicação'};
   try{
     const data=await api(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(type)}`);const rows=artifactRows(data,type);
     $('#artifact-detail').innerHTML=`<div class="dialog-head"><div><p class="kicker">LEITURA SIMPLIFICADA</p><h2>${esc(labels[type]||'Detalhes')}</h2></div><button class="icon-button" type="button" data-dialog-close aria-label="Fechar">×</button></div><div class="artifact-summary">${rows.map(([label,value])=>`<article><small>${esc(label)}</small><b>${esc(value)}</b></article>`).join('')}</div><div class="dialog-actions"><button class="primary" type="button" data-dialog-close>Entendi</button></div>`;
