@@ -99,16 +99,50 @@ class MetricsAndSmartCutsTests(unittest.TestCase):
             return core
 
         with patch.object(manager, "_youtube_access_token", return_value="token"), \
-                patch.object(manager, "_authorized_json", side_effect=response):
+                patch.object(manager, "_authorized_json", side_effect=response), \
+                patch.object(manager, "sync_youtube_reach", return_value={"status": "waiting_for_first_report"}):
             result = manager.sync_youtube_metrics()
         self.assertEqual(result["count"], 1)
         self.assertFalse(result["upload_performed"])
         self.assertEqual(result["warnings"], [])
-        self.assertEqual(result["reach"]["status"], "bulk_reporting_required")
+        self.assertEqual(result["reach"]["status"], "waiting_for_first_report")
         row = self.store.get_job(job_id)["metrics"][0]
         self.assertEqual((row["views"], row["impressions"], row["clicks"]), (18, 0, 0))
         self.assertEqual(row["average_view_percentage"], 10)
         self.assertEqual(row["source"], "youtube_api")
+
+    def test_reach_setup_reuses_existing_job(self):
+        manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))
+        existing = {"id": "reach-job", "name": "FFactory Daily Reach",
+                    "reportTypeId": "channel_reach_basic_a1", "createTime": "2026-09-06T00:00:00Z"}
+        with patch.object(manager, "_youtube_access_token", return_value="token"), \
+                patch.object(manager, "_authorized_json", return_value={"jobs": [existing]}) as request:
+            result = manager.ensure_youtube_reach_reporting(True)
+        self.assertFalse(result["created"])
+        self.assertEqual(result["id"], "reach-job")
+        self.assertEqual(request.call_count, 1)
+
+    def test_reach_report_merges_without_erasing_watch_metrics(self):
+        job_id, _ = self.approved_job()
+        manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))
+        manager.deliveries.stage(job_id, "youtube", "uploaded_public", [])
+        manager.audit.record("visibility_confirmed_public", "youtube", {"job_id": job_id, "video_id": "video-1"})
+        manager.vault.set("youtube:reach_job", {"id": "reach-job"})
+        self.store.upsert_metrics_snapshot(
+            job_id, "youtube", views=30, watch_minutes=60, source="youtube_api",
+            external_id="video-1", snapshot_date="2026-09-05",
+        )
+        reports = {"reports": [{"id": "report-1", "createTime": "2026-09-06T12:00:00Z",
+                                "downloadUrl": "https://youtubereporting.googleapis.com/v1/media/report-1"}]}
+        csv_body = ("date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr\n"
+                    "2026-09-05,channel,video-1,200,4.5\n").encode()
+        with patch.object(manager, "_authorized_json", return_value=reports), \
+                patch.object(manager, "_authorized_bytes", return_value=csv_body):
+            result = manager.sync_youtube_reach("token")
+        self.assertEqual(result["rows"], 1)
+        row = self.store.get_job(job_id)["metrics"][0]
+        self.assertEqual((row["views"], row["watch_minutes"], row["impressions"], row["clicks"]),
+                         (30, 60, 200, 9))
 
     def test_smart_cuts_keep_source_immutable_and_create_traceable_candidates(self):
         job_id, out = self.approved_job()

@@ -73,6 +73,8 @@ def main() -> None:
     smart_cuts.add_argument("job_id")
     smart_cuts.add_argument("--durations", default="15,30,60")
     sub.add_parser("youtube-sync-metrics", help="Import read-only YouTube Analytics snapshots")
+    reach_setup = sub.add_parser("youtube-setup-reach", help="Create one daily YouTube thumbnail reach report")
+    reach_setup.add_argument("--confirm", action="store_true")
     bilibili = sub.add_parser("bilibili-package", help="Prepare a localized Bilibili package without uploading")
     bilibili.add_argument("job_id")
     sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
@@ -153,6 +155,8 @@ def main() -> None:
         print(json.dumps(pipeline.prepare_smart_cuts(args.job_id, durations), ensure_ascii=False, indent=2))
     elif args.command == "youtube-sync-metrics":
         print(json.dumps(integrations.sync_youtube_metrics(), ensure_ascii=False, indent=2))
+    elif args.command == "youtube-setup-reach":
+        print(json.dumps(integrations.ensure_youtube_reach_reporting(args.confirm), ensure_ascii=False, indent=2))
     elif args.command == "bilibili-package":
         print(json.dumps(publishing.bilibili.prepare(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "doctor":

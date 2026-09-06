@@ -62,7 +62,8 @@ async function loadYouTubeMetricsStatus(){
   try{
     const status=await api('/api/integrations/youtube/metrics-status');
     const last=status.last_sync?new Date(status.last_sync).toLocaleString('pt-BR'):'ainda não sincronizado';
-    root.innerHTML=`<span class="tag">YOUTUBE · SOMENTE LEITURA</span><h3>${status.reconnect_required?'Reconecte o YouTube para liberar métricas':`${Number(status.jobs||0)} de ${Number(status.published_videos||0)} vídeos sincronizados`}</h3><p>Última coleta: ${esc(last)} · ${Number(status.snapshots||0)} snapshot(s). A sincronização não altera nem publica vídeos.</p>`;
+    const reach=status.reach_reporting?.configured?'Alcance diário configurado; aguardando o primeiro relatório do YouTube.':'Alcance detalhado ainda não configurado.';
+    root.innerHTML=`<span class="tag">YOUTUBE · SOMENTE LEITURA</span><h3>${status.reconnect_required?'Reconecte o YouTube para liberar métricas':`${Number(status.jobs||0)} de ${Number(status.published_videos||0)} vídeos sincronizados`}</h3><p>Última coleta: ${esc(last)} · ${Number(status.snapshots||0)} snapshot(s). ${esc(reach)} A sincronização não altera nem publica vídeos.</p>`;
   }catch(error){root.innerHTML=`<span class="tag">YOUTUBE · SOMENTE LEITURA</span><h3>Métricas indisponíveis</h3><p>${esc(error.message)}</p>`}
 }
 

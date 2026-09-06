@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import base64
+import csv
 import hashlib
+import io
 import json
 import secrets
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from .config import Settings
@@ -355,12 +358,27 @@ class IntegrationManager:
         return access_token
 
     @staticmethod
-    def _authorized_json(url: str, access_token: str) -> dict[str, Any]:
-        request = Request(url, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
-        try:
-            with urlopen(request, timeout=45) as response:
-                value = json.loads(response.read())
-        except HTTPError as exc:
+    def _authorized_json(url: str, access_token: str, *, method: str = "GET",
+                         payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        data = json.dumps(payload).encode() if payload is not None else None
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        if data is not None:
+            headers["Content-Type"] = "application/json"
+        request = Request(url, data=data, method=method, headers=headers)
+        exc: HTTPError | None = None
+        for attempt in range(3):
+            try:
+                with urlopen(request, timeout=45) as response:
+                    value = json.loads(response.read())
+                break
+            except HTTPError as caught:
+                exc = caught
+                if caught.code in {429, 500, 502, 503, 504} and attempt < 2:
+                    caught.close()
+                    time.sleep(1.5 * (2 ** attempt))
+                    continue
+                break
+        if exc is not None and 'value' not in locals():
             reason = ""
             try:
                 payload = json.loads(exc.read())
@@ -389,6 +407,79 @@ class IntegrationManager:
             raise RuntimeError("O YouTube devolveu métricas em formato inválido")
         return value
 
+    @staticmethod
+    def _authorized_bytes(url: str, access_token: str) -> bytes:
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or parsed.hostname != "youtubereporting.googleapis.com":
+            raise ValueError("O Google devolveu um endereço de relatório não confiável")
+        request = Request(url, headers={"Authorization": f"Bearer {access_token}"})
+        with urlopen(request, timeout=90) as response:
+            return response.read()
+
+    def ensure_youtube_reach_reporting(self, confirmed: bool = False) -> dict[str, Any]:
+        """Create exactly one official daily reach job after explicit user confirmation."""
+        if not confirmed:
+            raise ValueError("Confirmação explícita para criar o relatório diário é obrigatória")
+        access_token = self._youtube_access_token()
+        jobs = self._authorized_json(
+            "https://youtubereporting.googleapis.com/v1/jobs?includeSystemManaged=true", access_token,
+        ).get("jobs") or []
+        job = next((item for item in jobs if item.get("reportTypeId") == "channel_reach_basic_a1"), None)
+        created = False
+        if not job:
+            job = self._authorized_json(
+                "https://youtubereporting.googleapis.com/v1/jobs", access_token, method="POST",
+                payload={"reportTypeId": "channel_reach_basic_a1", "name": "FFactory Daily Reach"},
+            )
+            created = True
+        safe = {key: job.get(key) for key in ("id", "name", "reportTypeId", "createTime")}
+        self.vault.set("youtube:reach_job", safe)
+        self.audit.record("reach_reporting_ready", "youtube", {**safe, "created": created})
+        return {**safe, "created": created, "status": "waiting_for_first_report"}
+
+    def sync_youtube_reach(self, access_token: str | None = None) -> dict[str, Any]:
+        """Merge the newest asynchronous thumbnail reach report into daily snapshots."""
+        token = access_token or self._youtube_access_token()
+        stored = self.vault.get("youtube:reach_job") or {}
+        job_id = str(stored.get("id") or "")
+        if not job_id:
+            jobs = self._authorized_json(
+                "https://youtubereporting.googleapis.com/v1/jobs?includeSystemManaged=true", token,
+            ).get("jobs") or []
+            job = next((item for item in jobs if item.get("reportTypeId") == "channel_reach_basic_a1"), None)
+            if not job:
+                return {"status": "not_configured", "reports": 0, "rows": 0}
+            job_id = str(job.get("id") or "")
+            self.vault.set("youtube:reach_job", {key: job.get(key) for key in
+                                                ("id", "name", "reportTypeId", "createTime")})
+        payload = self._authorized_json(
+            f"https://youtubereporting.googleapis.com/v1/jobs/{job_id}/reports?pageSize=50", token,
+        )
+        reports = payload.get("reports") or []
+        if not reports:
+            return {"status": "waiting_for_first_report", "job_id": job_id, "reports": 0, "rows": 0}
+        report = max(reports, key=lambda item: str(item.get("createTime") or ""))
+        raw = self._authorized_bytes(str(report.get("downloadUrl") or ""), token)
+        publications = {item["video_id"]: item["job_id"] for item in self._youtube_publications()}
+        imported = 0
+        for row in csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))):
+            video_id = str(row.get("video_id") or "")
+            snapshot_date = str(row.get("date") or "")
+            if video_id not in publications or not snapshot_date:
+                continue
+            impressions = int(float(row.get("video_thumbnail_impressions") or 0))
+            ctr = float(row.get("video_thumbnail_impressions_ctr") or 0)
+            self.store.merge_metrics_reach(
+                publications[video_id], source="youtube_api", external_id=video_id,
+                snapshot_date=snapshot_date, impressions=impressions,
+                clicks=round(impressions * ctr / 100),
+            )
+            imported += 1
+        result = {"status": "synchronized", "job_id": job_id, "reports": len(reports),
+                  "rows": imported, "report_id": report.get("id")}
+        self.audit.record("reach_synchronized", "youtube", result)
+        return result
+
     def _youtube_publications(self) -> list[dict[str, str]]:
         video_by_job: dict[str, str] = {}
         for row in self.audit.recent(200):
@@ -414,6 +505,7 @@ class IntegrationManager:
         granted = set(str((token or {}).get("scope", "")).split())
         required = set(YOUTUBE_SCOPES[1:])
         snapshots = self.store.metrics_sync_status()
+        reach_job = self.vault.get("youtube:reach_job") if self.vault.available else None
         return {
             "provider": "youtube",
             "mode": "read_only",
@@ -421,6 +513,8 @@ class IntegrationManager:
             "metrics_scope_ready": required.issubset(granted),
             "reconnect_required": bool(token) and not required.issubset(granted),
             "authenticated": bool(token),
+            "reach_reporting": {"configured": bool(reach_job),
+                                "status": "waiting_for_first_report" if reach_job else "not_configured"},
             **snapshots,
         }
 
@@ -479,10 +573,9 @@ class IntegrationManager:
             )
             synced.append({"job_id": publication["job_id"], "video_id": video_id, "operation": operation,
                            "views": views, "impressions": impressions, "ctr": ctr})
+        reach = self.sync_youtube_reach(access_token)
         result = {"provider": "youtube", "mode": "read_only", "snapshot_date": end_date,
-                  "synced": synced, "count": len(synced), "warnings": [],
-                  "reach": {"status": "bulk_reporting_required",
-                            "detail": "Impressões e CTR exigem relatórios assíncronos da YouTube Reporting API."},
+                  "synced": synced, "count": len(synced), "warnings": [], "reach": reach,
                   "upload_performed": False, "publication_changed": False}
         self.audit.record("metrics_synchronized", "youtube", result)
         return result

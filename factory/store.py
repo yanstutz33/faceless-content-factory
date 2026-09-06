@@ -351,6 +351,30 @@ class Store:
                               FROM metrics WHERE source=?""", (source,)).fetchone()
         return dict(row)
 
+    def merge_metrics_reach(self, job_id: str, *, source: str, external_id: str,
+                            snapshot_date: str, impressions: int, clicks: int) -> str:
+        """Merge asynchronous reach fields without erasing targeted Analytics metrics."""
+        if not self.get_job(job_id):
+            raise ValueError("Produção não encontrada")
+        with self.connect() as db:
+            existing = db.execute(
+                "SELECT id FROM metrics WHERE job_id=? AND platform='youtube' AND source=? AND snapshot_date=?",
+                (job_id, source, snapshot_date),
+            ).fetchone()
+            if existing:
+                db.execute("UPDATE metrics SET impressions=?,clicks=?,external_id=?,recorded_at=? WHERE id=?",
+                           (max(0, impressions), max(0, clicks), external_id, now(), existing["id"]))
+                operation = "updated"
+            else:
+                db.execute("""INSERT INTO metrics(job_id,platform,views,likes,watch_minutes,impressions,clicks,
+                           average_view_seconds,average_view_percentage,thumbnail_variant,comments,shares,
+                           source,external_id,snapshot_date,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                           (job_id, "youtube", 0, 0, 0, max(0, impressions), max(0, clicks), 0, 0,
+                            "a", 0, 0, source, external_id, snapshot_date, now()))
+                operation = "inserted"
+        self.event(job_id, "metrics_reach", f"Alcance {source} {snapshot_date} sincronizado")
+        return operation
+
     def summary(self) -> dict[str, Any]:
         jobs = self.list_jobs(500)
         status_counts: dict[str, int] = {}
