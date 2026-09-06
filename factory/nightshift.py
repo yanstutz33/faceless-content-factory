@@ -104,7 +104,7 @@ class NightShift:
         pilot_blockers = self._pilot_blockers()
         if consecutive >= target:
             status = "certified"
-            next_action = "Fase 2 certificada; o piloto privado do YouTube pode ser preparado."
+            next_action = "Fase 2 certificada; a automação local está pronta para operação controlada."
         elif pilot_blockers:
             status = "blocked_by_pilot"
             next_action = pilot_blockers[0]

@@ -160,6 +160,17 @@ class ReleaseValidationTests(unittest.TestCase):
                 self.assertFalse(audit["release_ready"])
                 self.assertTrue(audit["blockers"])
 
+    def test_publishing_queue_excludes_internal_phase2_cohorts(self):
+        pilot = dict(self.store.get_job(self.job_id), cohort_id="pilot-official", created_at="2026-01-01")
+        phase2 = dict(pilot, id="internal", cohort_id="phase2-internal", created_at="2026-01-02")
+        self.store.list_jobs = lambda _limit: [pilot, phase2]
+        with patch.object(self.center, "audit", side_effect=lambda job: {
+            "job_id": job["id"], "topic": job["topic"], "eligible": True,
+            "release_ready": False, "blockers": [],
+        }):
+            queue = self.center.queue()
+        self.assertEqual([item["job_id"] for item in queue["items"]], [self.job_id])
+
 
 if __name__ == "__main__":
     unittest.main()

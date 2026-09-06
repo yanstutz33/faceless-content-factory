@@ -204,9 +204,14 @@ class PublishingCenter:
         }
 
     def queue(self) -> dict[str, Any]:
-        rows = [self.audit(job) for job in self.store.list_jobs(500)
+        jobs = [job for job in self.store.list_jobs(500)
                 if job.get("status") in {"approved", "awaiting_approval"}
                 and job.get("profile") == "youtube_long" and int(job.get("duration", 0)) >= 1800]
+        pilots = [job for job in jobs if str(job.get("cohort_id") or "").startswith("pilot-")]
+        if pilots:
+            cohort_id = max(pilots, key=lambda item: str(item.get("created_at") or "")).get("cohort_id")
+            jobs = [job for job in pilots if job.get("cohort_id") == cohort_id]
+        rows = [self.audit(job) for job in jobs]
         rows.sort(key=lambda row: (not row["eligible"], not row["release_ready"], row["topic"].lower()))
         return {
             "mode": "manual-safe",
@@ -294,7 +299,7 @@ class PublishingCenter:
         elif human_target_met:
             status = "certified"
             label = "Piloto certificado"
-            next_action = "Piloto concluído; a Fase 2 pode avançar."
+            next_action = "Piloto criativo concluído e pronto para operação controlada."
         else:
             status = "human_review_pending"
             label = "Pronto tecnicamente · revisão humana pendente"
