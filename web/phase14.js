@@ -20,7 +20,9 @@ function renderConnections(readiness){
     const authAction=planned||packageOnly
       ?`<button class="secondary" disabled>${packageOnly?'Login oficial pendente':'Disponível em fase futura'}</button>`
       :connected
-      ?`<button class="secondary" data-disconnect="${esc(platform.id)}">Desconectar conta</button>`
+      ?platform.id==='youtube'&&!platform.metrics_read
+        ?`<button class="secondary" data-oauth="${esc(platform.id)}">Reautorizar métricas</button>`
+        :`<button class="secondary" data-disconnect="${esc(platform.id)}">Desconectar conta</button>`
       :platform.oauth_supported
         ?`<button class="secondary" data-oauth="${esc(platform.id)}" ${configured?'':'disabled'}>${configured?'Abrir login oficial':'Configuração necessária'}</button>`
         :'<button class="secondary" disabled>Vinculação manual da conta</button>';
