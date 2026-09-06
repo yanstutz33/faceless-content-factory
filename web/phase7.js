@@ -8,6 +8,14 @@ registerJobDetailExtension(async({id,job,dialog,actions})=>{
       catch(error){toast(error.message,'error')}finally{prepare.disabled=false}
     };
     actions?.append(prepare);
+    const cuts=document.createElement('button');
+    cuts.className='secondary';cuts.textContent='Gerar cortes inteligentes';
+    cuts.onclick=async()=>{
+      cuts.disabled=true;cuts.textContent='Gerando cortes…';
+      try{const result=await api(`/api/jobs/${encodeURIComponent(id)}/smart-cuts`,{method:'POST',body:JSON.stringify({durations:[15,30,60]}),timeoutMs:600000});toast(`${result.candidates.length} cortes 9:16 validados. Nenhum upload foi feito.`,'success')}
+      catch(error){toast(error.message,'error')}finally{cuts.disabled=false;cuts.textContent='Gerar cortes inteligentes'}
+    };
+    actions?.append(cuts);
   }
   const form=dialog.querySelector('#metric-form');
   if(!form)return;
@@ -47,3 +55,20 @@ async function loadThumbnailInsights(){
   }catch(error){console.warn('Falha ao carregar insights de thumbnail',error)}
 }
 loadThumbnailInsights();
+
+async function loadYouTubeMetricsStatus(){
+  const root=document.querySelector('#youtube-metrics-status');
+  if(!root)return;
+  try{
+    const status=await api('/api/integrations/youtube/metrics-status');
+    const last=status.last_sync?new Date(status.last_sync).toLocaleString('pt-BR'):'ainda não sincronizado';
+    root.innerHTML=`<span class="tag">YOUTUBE · SOMENTE LEITURA</span><h3>${status.reconnect_required?'Reconecte o YouTube para liberar métricas':`${Number(status.jobs||0)} de ${Number(status.published_videos||0)} vídeos sincronizados`}</h3><p>Última coleta: ${esc(last)} · ${Number(status.snapshots||0)} snapshot(s). A sincronização não altera nem publica vídeos.</p>`;
+  }catch(error){root.innerHTML=`<span class="tag">YOUTUBE · SOMENTE LEITURA</span><h3>Métricas indisponíveis</h3><p>${esc(error.message)}</p>`}
+}
+
+document.querySelector('#sync-youtube-metrics')?.addEventListener('click',async event=>{
+  const button=event.currentTarget;button.disabled=true;button.textContent='Sincronizando…';
+  try{const result=await api('/api/integrations/youtube/sync-metrics',{method:'POST',body:'{}',timeoutMs:180000});toast(`${result.count} vídeos sincronizados sem alterar publicações.`,'success');await load();await loadThumbnailInsights()}
+  catch(error){toast(error.message,'error')}finally{button.disabled=false;button.textContent='↻ Sincronizar YouTube';await loadYouTubeMetricsStatus()}
+});
+loadYouTubeMetricsStatus();

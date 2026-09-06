@@ -176,6 +176,13 @@ test('public production only offers 30 or 60 minutes and opens the music library
   await expect(page.locator('#music-form [name=path]')).toBeEditable();
 });
 
+test('insights exposes read-only YouTube metrics sync and finished smart cuts', async ({ page }) => {
+  await page.goto('/#insights');
+  await expect(page.getByRole('button', { name: /sincronizar youtube/i })).toBeVisible();
+  await expect(page.locator('#youtube-metrics-status')).toContainText(/somente leitura/i);
+  await expect(page.locator('#creative-lab')).toContainText(/cortes inteligentes · disponíveis/i);
+});
+
 test('technical artifacts open as a readable summary instead of raw JSON', async ({ page }) => {
   const job = {
     id: 'artifact-fixture', topic: 'Biblioteca noturna', profile: 'youtube_long', duration: 1800,

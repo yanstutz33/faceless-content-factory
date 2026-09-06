@@ -1885,6 +1885,109 @@ class Pipeline:
         self.store.event(job_id, "repurpose", f"Recorte vertical de {duration}s validado; nenhum upload foi realizado")
         return package
 
+    @staticmethod
+    def _chapter_seconds(value: str) -> int:
+        parts = [int(part) for part in str(value).split(":")]
+        if len(parts) != 3:
+            return 0
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+    def prepare_smart_cuts(self, job_id: str, durations: list[int] | None = None) -> dict[str, Any]:
+        """Create ranked, traceable 9:16 candidates without touching the approved source."""
+        job = self.store.get_job(job_id)
+        if not job or job["status"] != "approved":
+            raise ValueError("A produção precisa estar aprovada antes de criar cortes inteligentes")
+        metadata = job.get("metadata") or {}
+        if not metadata.get("quality_gate", {}).get("passed"):
+            raise ValueError("O vídeo de origem ainda não passou pelo controle de qualidade")
+        out = Path(job["output_dir"])
+        self.verify_artifact_manifest(out)
+        source = out / "video.mp4"
+        if not source.is_file():
+            raise ValueError("Vídeo principal não encontrado")
+        requested = durations or [15, 30, 60]
+        cut_durations = list(dict.fromkeys(max(10, min(int(value), 60)) for value in requested))[:3]
+        if not cut_durations:
+            raise ValueError("Informe ao menos uma duração de corte")
+        source_duration = int(job.get("duration") or 1800)
+        chapters = metadata.get("chapters") or []
+        starts = [self._chapter_seconds(item.get("time", "")) for item in chapters if isinstance(item, dict)]
+        starts = [value for value in starts if 0 <= value < source_duration - 10] or [0]
+        smart_dir = out / "smart-cuts"
+        smart_dir.mkdir(parents=True, exist_ok=True)
+        source_hash = hashlib.sha256()
+        with source.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                source_hash.update(chunk)
+        source_digest = source_hash.hexdigest()
+        title = str(metadata.get("title") or job["topic"])
+        candidates: list[dict[str, Any]] = []
+        files: list[str] = []
+        filter_graph = (
+            "[0:v]split=2[base][front];"
+            "[base]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=34[bg];"
+            "[front]scale=1080:1920:force_original_aspect_ratio=decrease[fg];"
+            "[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]"
+        )
+        for index, duration in enumerate(cut_durations, start=1):
+            start = min(starts[(index - 1) % len(starts)], max(0, source_duration - duration))
+            video_name = f"candidate-{index:02d}-{duration}s.mp4"
+            thumb_name = f"candidate-{index:02d}.jpg"
+            video_path, thumb_path = smart_dir / video_name, smart_dir / thumb_name
+            self.command([
+                self.settings.ffmpeg, "-y", "-ss", str(start), "-i", str(source),
+                "-filter_complex", filter_graph, "-map", "[v]", "-map", "0:a:0", "-t", str(duration),
+                "-r", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+                "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(video_path),
+            ])
+            self.command([self.settings.ffmpeg, "-y", "-ss", "1", "-i", str(video_path),
+                          "-frames:v", "1", "-q:v", "2", str(thumb_path)])
+            report = self.inspect_video(video_path, duration)
+            video_info = report.get("video") or {}
+            if video_info.get("width") != 1080 or video_info.get("height") != 1920:
+                raise RuntimeError("O corte inteligente não foi renderizado em 1080x1920")
+            reason = "abertura clara" if start == 0 else "mudança de capítulo do vídeo aprovado"
+            candidates.append({
+                "id": f"cut-{index:02d}", "video_file": video_name, "thumbnail_file": thumb_name,
+                "source_start_seconds": start, "source_end_seconds": start + duration,
+                "duration_seconds": duration, "rank": index, "selection_reason": reason,
+                "safe_framing": "contain_full_source_over_blurred_background",
+                "subject_preserved": True, "text_or_face_crop_allowed": False,
+                "validation": report,
+                "platforms": {
+                    "youtube_shorts": {"title": f"{title[:82]} #Shorts", "upload": "manual"},
+                    "instagram_reels": {"caption": f"{title}\n\n#lofi #night #reels", "upload": "manual"},
+                    "tiktok": {"caption": f"{title}\n\n#lofi #night #rest", "upload": "manual"},
+                },
+            })
+            files.extend([video_name, thumb_name])
+        source_hash_after = hashlib.sha256()
+        with source.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                source_hash_after.update(chunk)
+        source_digest_after = source_hash_after.hexdigest()
+        if source_digest_after != source_digest:
+            raise RuntimeError("O vídeo de origem foi alterado durante a criação dos cortes")
+        package = {
+            "version": "smart_cuts_v1", "mode": "prepared_not_uploaded", "source_job_id": job_id,
+            "source_video": "../video.mp4", "source_sha256": source_digest,
+            "source_sha256_after": source_digest_after,
+            "source_rights": "inherits_approved_source_manifest", "format": "9:16",
+            "resolution": "1080x1920", "candidates": candidates,
+            "quality_gate": {"passed": all(item["validation"].get("passed") for item in candidates),
+                             "source_immutable": source_digest_after == source_digest, "traceable_timestamps": True,
+                             "safe_framing": True, "manual_approval_required": True},
+            "automatic_upload_allowed": False,
+        }
+        package_name = "smart-cuts-package.json"
+        (smart_dir / package_name).write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        files.append(package_name)
+        manifest = self.artifact_manifest(smart_dir, files)
+        (smart_dir / "artifact-manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.store.event(job_id, "smart_cuts", f"{len(candidates)} cortes 9:16 validados; nenhum upload foi realizado")
+        return package
+
     def reject(self, job_id: str, reason: str) -> None:
         job = self.store.get_job(job_id)
         if not job or job["status"] not in {"awaiting_approval", "approved"}:

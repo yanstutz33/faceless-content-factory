@@ -69,6 +69,10 @@ def main() -> None:
     vertical = sub.add_parser("vertical-package", help="Create a manual-safe 9:16 derivative from an approved job")
     vertical.add_argument("job_id")
     vertical.add_argument("--duration", type=int, default=30)
+    smart_cuts = sub.add_parser("smart-cuts", help="Create ranked, traceable 9:16 candidates")
+    smart_cuts.add_argument("job_id")
+    smart_cuts.add_argument("--durations", default="15,30,60")
+    sub.add_parser("youtube-sync-metrics", help="Import read-only YouTube Analytics snapshots")
     bilibili = sub.add_parser("bilibili-package", help="Prepare a localized Bilibili package without uploading")
     bilibili.add_argument("job_id")
     sub.add_parser("doctor", help="Check FFmpeg, FFprobe, storage and safe operation mode")
@@ -144,6 +148,11 @@ def main() -> None:
         print(json.dumps(pipeline.prepare_youtube_package(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "vertical-package":
         print(json.dumps(pipeline.prepare_vertical_package(args.job_id, args.duration), ensure_ascii=False, indent=2))
+    elif args.command == "smart-cuts":
+        durations = [int(value.strip()) for value in args.durations.split(",") if value.strip()]
+        print(json.dumps(pipeline.prepare_smart_cuts(args.job_id, durations), ensure_ascii=False, indent=2))
+    elif args.command == "youtube-sync-metrics":
+        print(json.dumps(integrations.sync_youtube_metrics(), ensure_ascii=False, indent=2))
     elif args.command == "bilibili-package":
         print(json.dumps(publishing.bilibili.prepare(args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "doctor":

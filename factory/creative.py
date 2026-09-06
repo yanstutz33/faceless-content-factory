@@ -86,6 +86,10 @@ class CreativeDirector:
         }
         evidence = 0
         for item in insights:
+            views = int(item.get("views") or 0)
+            impressions = int(item.get("impressions") or 0)
+            if views < 25 or (float(item.get("ctr") or 0) > 0 and impressions < 100):
+                continue
             signal = (
                 min(100.0, float(item.get("retention_rate") or 0)) * .50
                 + min(20.0, float(item.get("ctr") or 0)) * 2.0
@@ -105,8 +109,8 @@ class CreativeDirector:
         return {
             "evidence_count": evidence, "preferred": preferred,
             "mode": "measured" if evidence else "exploration",
-            "reason": "Métricas reais influenciaram 20% da seleção; novidade continua prioritária."
-            if evidence else "Sem métricas suficientes: exploração equilibrada ativada.",
+            "reason": "Métricas com amostra mínima influenciaram 20% da seleção; novidade continua prioritária."
+            if evidence else "Sem amostra mínima de métricas: exploração equilibrada ativada.",
         }
 
     @classmethod
@@ -202,5 +206,5 @@ class CreativeDirector:
             "average_novelty": round(sum(scores) / len(scores), 1) if scores else None,
             "high_risk_repetitions": sum(item.get("novelty", {}).get("risk") == "high" for item in fingerprints),
             "learning": self._learning(insights),
-            "future_modules": {"smart_cuts": {"status": "planned", "uses": "creative DNA, chapters and retention signals"}},
+            "future_modules": {"smart_cuts": {"status": "available", "uses": "creative DNA, chapters and retention signals"}},
         }

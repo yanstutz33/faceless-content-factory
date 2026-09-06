@@ -14,7 +14,8 @@ O Studio 1.8 já prepara OAuth, cofre criptografado, callbacks, auditoria, pré-
 1. Crie um projeto no Google Cloud, habilite YouTube Data API v3 e configure a tela de consentimento.
 2. Crie um cliente OAuth para aplicativo web e registre exatamente `http://127.0.0.1:8787/api/oauth/callback/youtube`.
 3. Baixe o JSON do cliente para fora do repositório e defina `YOUTUBE_CLIENT_SECRETS_FILE` no `.env`.
-4. Reinicie o Studio e clique em **Conectar**. O escopo pedido é apenas `youtube.upload`.
+4. Reinicie o Studio e clique em **Conectar**. O Google pedirá `youtube.upload`, `youtube.readonly` e `yt-analytics.readonly`: escrita apenas para o envio privado controlado e leitura para estado e métricas.
+5. Depois da autorização, use **Direcionamento → Sincronizar YouTube**. A coleta cria snapshots diários idempotentes e nunca muda título, privacidade ou publicação.
 5. Prepare e aprove o pacote completo. O primeiro envio deve permanecer privado e requer confirmação humana explícita; o Studio envia vídeo e thumbnail e registra o identificador devolvido pelo YouTube.
 
 Documentação oficial: https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps

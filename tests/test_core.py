@@ -325,6 +325,7 @@ class CoreTests(unittest.TestCase):
     def test_creative_learning_uses_metrics_without_overriding_novelty(self):
         director = CreativeDirector()
         insights = [{
+            "views": 100, "impressions": 1000,
             "retention_rate": 78, "ctr": 8.5, "engagement_rate": 6.0,
             "music_arrangement": "night_rhodes", "treatment": "teal_noir",
             "motion_effect": "dust_motes",
@@ -335,12 +336,20 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(dna["learning"]["preferred"]["music_arrangement"], "night_rhodes")
         self.assertGreaterEqual(dna["novelty"]["score"], 99)
 
+    def test_creative_learning_ignores_tiny_samples(self):
+        status = CreativeDirector().status([], [{
+            "views": 3, "impressions": 20, "retention_rate": 100, "ctr": 20,
+            "music_arrangement": "night_rhodes",
+        }])
+        self.assertEqual(status["learning"]["mode"], "exploration")
+        self.assertEqual(status["learning"]["evidence_count"], 0)
+
     def test_creative_status_exposes_scale_and_future_cuts_boundary(self):
         status = CreativeDirector().status([], [])
         self.assertEqual(status["engine"], "creative_dna_v2")
         self.assertEqual(status["catalog"]["music_arrangements"], len(MUSIC_ARRANGEMENTS))
         self.assertGreaterEqual(status["catalog"]["candidate_space"], 25_000)
-        self.assertEqual(status["future_modules"]["smart_cuts"]["status"], "planned")
+        self.assertEqual(status["future_modules"]["smart_cuts"]["status"], "available")
 
     def test_pipeline_persists_selected_team_and_blocks_commerce_entrypoint(self):
         with tempfile.TemporaryDirectory() as tmp:

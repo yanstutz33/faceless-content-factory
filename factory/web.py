@@ -545,6 +545,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.integrations.audit.recent(limit))
         if path == "/api/integrations/deliveries":
             return self.send_json(self.integrations.deliveries.list())
+        if path == "/api/integrations/youtube/metrics-status":
+            return self.send_json(self.integrations.youtube_metrics_status())
         if path == "/api/system/backups":
             return self.send_json(self.backups.list())
         if path == "/api/commerce-center":
@@ -617,6 +619,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if action == "upload-private" and platform == "youtube":
                     return self.send_json(self.integrations.youtube_upload_private(
                         str(data.get("job_id", "")), data.get("confirmed") is True))
+                if action == "sync-metrics" and platform == "youtube":
+                    return self.send_json(self.integrations.sync_youtube_metrics())
             if path == "/api/jobs":
                 asset_ids = [int(value) for value in data.get("asset_ids", [])]
                 selected_assets = self.store.get_assets(asset_ids)
@@ -779,6 +783,11 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json(self.pipeline.prepare_youtube_package(job_id))
                 elif action == "vertical-package":
                     return self.send_json(self.pipeline.prepare_vertical_package(job_id, int(data.get("duration", 30))))
+                elif action == "smart-cuts":
+                    durations = data.get("durations") or [15, 30, 60]
+                    if not isinstance(durations, list):
+                        raise ValueError("As durações dos cortes devem ser uma lista")
+                    return self.send_json(self.pipeline.prepare_smart_cuts(job_id, durations))
                 elif action == "bilibili-package":
                     return self.send_json(self.publishing.bilibili.prepare(job_id))
                 elif action == "quality-audit":

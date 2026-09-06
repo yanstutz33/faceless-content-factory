@@ -108,9 +108,15 @@ class Store:
                 "impressions": "INTEGER NOT NULL DEFAULT 0",
                 "clicks": "INTEGER NOT NULL DEFAULT 0",
                 "average_view_seconds": "REAL NOT NULL DEFAULT 0",
+                "average_view_percentage": "REAL NOT NULL DEFAULT 0",
                 "thumbnail_variant": "TEXT NOT NULL DEFAULT 'a'",
                 "conversions": "INTEGER NOT NULL DEFAULT 0",
                 "revenue": "REAL NOT NULL DEFAULT 0",
+                "comments": "INTEGER NOT NULL DEFAULT 0",
+                "shares": "INTEGER NOT NULL DEFAULT 0",
+                "source": "TEXT NOT NULL DEFAULT 'manual'",
+                "external_id": "TEXT",
+                "snapshot_date": "TEXT",
             }.items():
                 if column not in metrics_existing:
                     db.execute(f"ALTER TABLE metrics ADD COLUMN {column} {definition}")
@@ -284,7 +290,10 @@ class Store:
 
     def add_metrics(self, job_id: str, platform: str, views: int, likes: int, watch_minutes: float,
                     impressions: int = 0, clicks: int = 0, average_view_seconds: float = 0,
-                    thumbnail_variant: str = "a", conversions: int = 0, revenue: float = 0) -> None:
+                    thumbnail_variant: str = "a", conversions: int = 0, revenue: float = 0,
+                    average_view_percentage: float = 0, comments: int = 0, shares: int = 0,
+                    source: str = "manual", external_id: str | None = None,
+                    snapshot_date: str | None = None) -> None:
         if not self.get_job(job_id):
             raise ValueError("Produção não encontrada")
         platform = platform.strip().lower()
@@ -295,12 +304,52 @@ class Store:
             raise ValueError("Variante de thumbnail inválida")
         with self.connect() as db:
             db.execute("""INSERT INTO metrics(job_id,platform,views,likes,watch_minutes,impressions,clicks,
-                       average_view_seconds,thumbnail_variant,conversions,revenue,recorded_at)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       average_view_seconds,average_view_percentage,thumbnail_variant,conversions,revenue,
+                       comments,shares,source,external_id,snapshot_date,recorded_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                        (job_id, platform, max(0, views), max(0, likes), max(0, watch_minutes),
-                        max(0, impressions), max(0, clicks), max(0, average_view_seconds), thumbnail_variant,
-                        max(0, conversions), max(0, revenue), now()))
+                        max(0, impressions), max(0, clicks), max(0, average_view_seconds),
+                        max(0, average_view_percentage), thumbnail_variant, max(0, conversions),
+                        max(0, revenue), max(0, comments), max(0, shares), source.strip() or "manual",
+                        external_id, snapshot_date, now()))
         self.event(job_id, "metrics", f"Métricas de {platform} registradas")
+
+    def upsert_metrics_snapshot(self, job_id: str, platform: str, *, views: int = 0, likes: int = 0,
+                                watch_minutes: float = 0, impressions: int = 0, clicks: int = 0,
+                                average_view_seconds: float = 0, average_view_percentage: float = 0,
+                                thumbnail_variant: str = "a", comments: int = 0, shares: int = 0,
+                                source: str, external_id: str, snapshot_date: str) -> str:
+        """Store one idempotent provider snapshot without replacing manual history."""
+        if not self.get_job(job_id):
+            raise ValueError("Produção não encontrada")
+        with self.connect() as db:
+            existing = db.execute(
+                "SELECT id FROM metrics WHERE job_id=? AND platform=? AND source=? AND snapshot_date=?",
+                (job_id, platform, source, snapshot_date),
+            ).fetchone()
+            values = (max(0, views), max(0, likes), max(0, watch_minutes), max(0, impressions),
+                      max(0, clicks), max(0, average_view_seconds), max(0, average_view_percentage),
+                      thumbnail_variant, max(0, comments), max(0, shares), external_id, now())
+            if existing:
+                db.execute("""UPDATE metrics SET views=?,likes=?,watch_minutes=?,impressions=?,clicks=?,
+                           average_view_seconds=?,average_view_percentage=?,thumbnail_variant=?,comments=?,
+                           shares=?,external_id=?,recorded_at=? WHERE id=?""", (*values, existing["id"]))
+                operation = "updated"
+            else:
+                db.execute("""INSERT INTO metrics(job_id,platform,views,likes,watch_minutes,impressions,clicks,
+                           average_view_seconds,average_view_percentage,thumbnail_variant,comments,shares,
+                           source,external_id,snapshot_date,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                           (job_id, platform, *values[:10], source, external_id, snapshot_date, values[11]))
+                operation = "inserted"
+        self.event(job_id, "metrics_sync", f"Snapshot {source} {snapshot_date} sincronizado")
+        return operation
+
+    def metrics_sync_status(self, source: str = "youtube_api") -> dict[str, Any]:
+        with self.connect() as db:
+            row = db.execute("""SELECT COUNT(*) AS snapshots,COUNT(DISTINCT job_id) AS jobs,
+                              MAX(recorded_at) AS last_sync,MAX(snapshot_date) AS latest_snapshot
+                              FROM metrics WHERE source=?""", (source,)).fetchone()
+        return dict(row)
 
     def summary(self) -> dict[str, Any]:
         jobs = self.list_jobs(500)

@@ -23,7 +23,7 @@
 - a fábrica não deve prometer diversidade visual antes de ampliar e validar o catálogo de cenas;
 - TikTok, Instagram, Pinterest, Shopee e Bilibili ainda exigem login/configuração manual;
 - o conector envia ao YouTube somente como privado; a mudança para público é feita no Studio depois da confirmação de HD;
-- coleta automática de métricas do YouTube ainda não foi ligada e precisa ser validada com dados reais do canal.
+- coleta automática de métricas do YouTube está implementada; a autorização antiga precisa ser renovada uma vez com os escopos somente leitura antes da primeira coleta real.
 
 ## Próximas fases, em ordem
 
@@ -67,7 +67,7 @@ Automação: completa, sem publicar externamente.
 
 Resultado verificado em 02/09/2026: três coortes autônomas consecutivas produziram seis vídeos de 30 minutos, todos com nota automática 92/100, manifestos íntegros e pacotes locais. Não houve falha, recuperação manual, artefato inválido ou publicação externa. A certificação da Fase 2 permanece auditável no Hub.
 
-### Fase 3 — YouTube publicado; métricas em maturação
+### Fase 3 — YouTube publicado; coletor concluído, aguardando reautorização
 
 Objetivo: validar o canal principal com risco mínimo.
 
@@ -79,7 +79,7 @@ Objetivo: validar o canal principal com risco mínimo.
 
 Progresso verificado em 06/09/2026: **cinco pilotos publicados, todos processados em HD a partir de arquivos 1920×1080, H.264, 30 fps, `yuv420p` limitado BT.709 e áudio AAC**. O player público confirmou 1080p e 30:00 nos novos envios. Os títulos foram alinhados às cenas realmente codificadas, e a thumbnail usa a mesma fonte visual vista após o play. Publicações: `VijwOMULOiE`, `rv-Vl0wlns4`, `08UvW-_bB7w`, `4F-wDCrSxYk` e `kF_khVghtrc`. O envio original em 720p `3qfjb0BCuPU` e os vídeos históricos continuam privados e preservados. O Hub registra os cinco como `uploaded_public` e impede que um pré-teste posterior apague esse estado.
 
-Critério de publicação concluído: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube. Falta para encerrar integralmente a fase: importar métricas reais após haver volume de impressões e retenção suficiente.
+Critério de publicação concluído: cinco uploads privados corretos e cinco publicações aprovadas sem divergência entre o pacote local e o YouTube. O coletor oficial agora consulta Data API e Analytics API em modo somente leitura, vincula cada `video_id` ao trabalho local, registra snapshots diários idempotentes e preserva entradas manuais. A tentativa real confirmou que o token antigo tem apenas o escopo de upload; falta somente reconectar a conta uma vez e deixar o canal acumular volume suficiente.
 
 Automação: preparação, upload privado e coleta de métricas. Manual: login inicial e confirmação de publicação.
 
@@ -95,6 +95,8 @@ Objetivo: aprender com desempenho sem transformar todos os vídeos em cópias do
 
 Critério de conclusão: recomendações reproduzíveis, auditáveis e baseadas em volume mínimo de dados.
 
+Estado técnico em 06/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; snapshots possuem fonte, data e identificador externo. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática quando não há amostra suficiente. A conclusão estatística depende de dados reais futuros, não de números inventados.
+
 ### Fase 5 — Cortes inteligentes verticais
 
 Objetivo: reutilizar apenas vídeos longos já aprovados em Shorts, TikTok e Reels.
@@ -106,6 +108,8 @@ Objetivo: reutilizar apenas vídeos longos já aprovados em Shorts, TikTok e Ree
 
 Critério de conclusão: cada corte preserva o assunto principal, não corta texto/rosto e possui origem rastreável. Contrato: [smart-cuts-architecture.md](smart-cuts-architecture.md).
 
+Implementação concluída localmente em 06/09/2026: `smart_cuts_v1` gera candidatos de 15, 30 e 60 segundos em 1080×1920 a partir de capítulos do vídeo aprovado. O quadro original inteiro é preservado sobre fundo desfocado, cada corte recebe timestamps, SHA-256 da fonte, motivo de seleção, relatório técnico e textos próprios para Shorts, TikTok e Reels. Os cinco vídeos públicos certificados receberam 15 candidatos reais; todos passaram em duração, H.264, `yuv420p`, áudio AAC e resolução. Nenhum corte foi enviado às plataformas.
+
 ### Fase 6 — TikTok e Instagram
 
 Objetivo: conectar os fluxos verticais somente depois do piloto de cortes.
@@ -116,6 +120,8 @@ Objetivo: conectar os fluxos verticais somente depois do piloto de cortes.
 - criar estratégias separadas por plataforma, sem replicação cega.
 
 Automação: pacote, validação e métricas. Manual: login e publicação onde não houver API oficial adequada.
+
+Estado técnico: estratégia separada por equipe, pacote vertical e textos por plataforma concluídos. Restam conta profissional, aprovação dos aplicativos, OAuth e o primeiro piloto de publicação — etapas externas e manuais.
 
 ### Fase 7 — Shopee + Pinterest comercial
 
@@ -130,6 +136,8 @@ Objetivo: operar afiliados sem misturar o catálogo editorial com campanhas.
 
 Critério de conclusão: produto, criativo e origem de mídia rastreáveis; nenhuma campanha é publicada sem revisão.
 
+Estado técnico: validação do produto exato, direitos, divulgação publicitária, campanha, métricas, ROI e pacote Pinterest Video Pin concluídos. Restam catálogo real, conta de afiliado Shopee e Pinterest Business autenticados.
+
 ### Fase 8 — Bilibili localizado
 
 Objetivo: testar distribuição sem tradução literal ou automação frágil.
@@ -139,6 +147,8 @@ Objetivo: testar distribuição sem tradução literal ou automação frágil.
 - usar primeiro o pacote manual `bilibili-upload.json`;
 - automatizar upload somente com acesso oficial estável, autorizado e testado;
 - registrar métricas separadamente das plataformas ocidentais.
+
+Estado técnico: capa, títulos, descrições, legendas em inglês e chinês simplificado, manifesto e pacote manual `bilibili-upload.json` concluídos. Restam conta creator, revisão humana da localização e primeiro envio manual.
 
 ## Portas de qualidade para publicação
 
@@ -156,4 +166,4 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 
 ## Próxima ação recomendada
 
-Piloto criativo, Fase 2, OAuth oficial do YouTube e publicação dos cinco pilotos em 1080p concluídos. A próxima ação útil é deixar o canal acumular métricas reais e então ligar a coleta de impressões, CTR, retenção e tempo de exibição. Em paralelo, a fábrica pode iniciar a Fase 5 localmente, produzindo cortes candidatos sem publicar. TikTok, Instagram, Shopee, Pinterest e Bilibili continuam aguardando contas e autenticação; hospedagem permanente continua pausada para manter custo zero.
+Todo o trabalho local e automatizável deste roadmap está implementado. A próxima ação é manual: reconectar o YouTube uma vez para liberar os escopos de leitura e sincronizar as primeiras métricas reais. Depois, revisar os cortes 9:16 gerados. TikTok, Instagram, Shopee, Pinterest e Bilibili continuam aguardando contas e autenticação; hospedagem permanente continua pausada para manter custo zero. Nenhuma dessas pendências deve ser simulada com dados ou integrações não oficiais.

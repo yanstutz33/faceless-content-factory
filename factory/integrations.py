@@ -8,6 +8,7 @@ import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -21,6 +22,11 @@ SENSITIVE_WORDS = {"token", "secret", "code", "verifier", "authorization", "part
 UPLOADED_DELIVERY_STATUSES = frozenset({
     "uploaded_verification_pending", "uploaded_private", "uploaded_public", "uploaded_unlisted",
 })
+YOUTUBE_SCOPES = (
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+)
 
 
 def _scrub(value: Any) -> Any:
@@ -153,9 +159,9 @@ class IntegrationManager:
     def _definitions(self) -> list[dict[str, Any]]:
         return [
             {"id": "youtube", "label": "YouTube", "oauth_supported": True, "package_ready": True,
-             "scope": "https://www.googleapis.com/auth/youtube.upload",
+             "scope": " ".join(YOUTUBE_SCOPES),
              "output": "Vídeo longo, capa, metadados e pacote privado",
-             "manual_step": "Entrar com Google, escolher o canal e autorizar uploads"},
+             "manual_step": "Entrar com Google, escolher o canal e autorizar uploads e métricas somente leitura"},
             {"id": "tiktok", "label": "TikTok", "oauth_supported": True, "package_ready": True,
              "scope": "user.info.basic,video.upload", "output": "Vídeo 9:16 e textos de publicação",
              "manual_step": "Entrar no TikTok e autorizar o envio para a caixa de entrada"},
@@ -191,9 +197,16 @@ class IntegrationManager:
                 authenticated = False
                 vault_error = "O cofre precisa ser reparado antes de conectar contas"
             state = "planned" if definition.get("planned") else "package_ready" if definition.get("package_only") else "connected" if authenticated else "login_required" if configured else "config_required"
+            granted_scopes: set[str] = set()
+            if authenticated and definition["id"] == "youtube":
+                try:
+                    granted_scopes = set(str((self.vault.get("token:youtube") or {}).get("scope", "")).split())
+                except RuntimeError:
+                    granted_scopes = set()
             platforms.append({**definition, "connector_configured": configured, "authenticated": authenticated,
                               "state": state, "code_ready": definition.get("code_ready", not definition.get("planned", False)),
-                              "upload_enabled": False})
+                              "upload_enabled": False,
+                              "metrics_read": definition["id"] == "youtube" and set(YOUTUBE_SCOPES[1:]).issubset(granted_scopes)})
         return {"mode": "manual-safe", "automatic_upload_allowed": False,
                 "configured": sum(item["connector_configured"] for item in platforms),
                 "connected": sum(item["authenticated"] for item in platforms), "total": len(platforms),
@@ -219,7 +232,7 @@ class IntegrationManager:
             endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
             params = {"client_id": config["client_id"], "redirect_uri": config["redirect_uri"],
                       "response_type": "code", "scope": definition["scope"], "access_type": "offline",
-                      "include_granted_scopes": "true", "state": state, "code_challenge": challenge,
+                      "include_granted_scopes": "true", "prompt": "consent", "state": state, "code_challenge": challenge,
                       "code_challenge_method": "S256"}
         elif platform == "tiktok":
             endpoint = "https://www.tiktok.com/v2/auth/authorize/"
@@ -272,6 +285,9 @@ class IntegrationManager:
         if not token.get("access_token"):
             self.audit.record("oauth_failed", platform, {"response_keys": sorted(token)})
             raise RuntimeError("O provedor não devolveu um token de acesso")
+        previous_token = self.vault.get(f"token:{platform}") or {}
+        if previous_token.get("refresh_token") and not token.get("refresh_token"):
+            token["refresh_token"] = previous_token["refresh_token"]
         self.vault.set(f"token:{platform}", {**token, "stored_at": datetime.now(UTC).isoformat()})
         self.audit.record("oauth_connected", platform, {"response_keys": sorted(token)})
         return {"connected": True, "platform": platform, "upload_enabled": False}
@@ -337,6 +353,130 @@ class IntegrationManager:
         })
         self.audit.record("oauth_refreshed", "youtube", {"response_keys": sorted(refreshed)})
         return access_token
+
+    @staticmethod
+    def _authorized_json(url: str, access_token: str) -> dict[str, Any]:
+        request = Request(url, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
+        try:
+            with urlopen(request, timeout=45) as response:
+                value = json.loads(response.read())
+        except HTTPError as exc:
+            try:
+                payload = json.loads(exc.read())
+                detail = str((payload.get("error") or {}).get("message") or "")
+            except (ValueError, AttributeError):
+                detail = ""
+            if exc.code in {401, 403}:
+                raise ValueError(
+                    "A autorização do YouTube ainda não inclui métricas. Reconecte a conta uma vez no Hub."
+                ) from exc
+            raise RuntimeError(f"O YouTube recusou a consulta ({exc.code})" + (f": {detail}" if detail else "")) from exc
+        if not isinstance(value, dict):
+            raise RuntimeError("O YouTube devolveu métricas em formato inválido")
+        return value
+
+    def _youtube_publications(self) -> list[dict[str, str]]:
+        video_by_job: dict[str, str] = {}
+        for row in self.audit.recent(200):
+            if row.get("platform") != "youtube":
+                continue
+            detail = row.get("detail") or {}
+            job_id, video_id = str(detail.get("job_id") or ""), str(detail.get("video_id") or "")
+            if job_id and video_id and job_id not in video_by_job:
+                video_by_job[job_id] = video_id
+        uploaded = {
+            str(row.get("job_id")) for row in self.deliveries.list()
+            if row.get("platform") == "youtube" and row.get("status") in UPLOADED_DELIVERY_STATUSES
+        }
+        return [{"job_id": job_id, "video_id": video_id} for job_id, video_id in video_by_job.items()
+                if job_id in uploaded and self.store.get_job(job_id)]
+
+    def youtube_metrics_status(self) -> dict[str, Any]:
+        publications = self._youtube_publications()
+        try:
+            token = self.vault.get("token:youtube") if self.vault.available else None
+        except RuntimeError:
+            token = None
+        granted = set(str((token or {}).get("scope", "")).split())
+        required = set(YOUTUBE_SCOPES[1:])
+        snapshots = self.store.metrics_sync_status()
+        return {
+            "provider": "youtube",
+            "mode": "read_only",
+            "published_videos": len(publications),
+            "metrics_scope_ready": required.issubset(granted),
+            "reconnect_required": bool(token) and not required.issubset(granted),
+            "authenticated": bool(token),
+            **snapshots,
+        }
+
+    @staticmethod
+    def _analytics_row(payload: dict[str, Any]) -> dict[str, float]:
+        headers = [str(item.get("name", "")) for item in payload.get("columnHeaders", [])]
+        rows = payload.get("rows") or []
+        if not rows:
+            return {}
+        return {name: float(value or 0) for name, value in zip(headers, rows[0]) if name}
+
+    def sync_youtube_metrics(self) -> dict[str, Any]:
+        """Import read-only YouTube statistics and Analytics into idempotent daily snapshots."""
+        publications = self._youtube_publications()
+        if not publications:
+            raise ValueError("Nenhuma publicação do YouTube está vinculada a uma produção local")
+        access_token = self._youtube_access_token()
+        video_ids = [item["video_id"] for item in publications]
+        stats_payload = self._authorized_json(
+            "https://www.googleapis.com/youtube/v3/videos?" + urlencode({
+                "part": "statistics,status", "id": ",".join(video_ids),
+            }), access_token,
+        )
+        statistics = {str(item.get("id")): item.get("statistics") or {} for item in stats_payload.get("items", [])}
+        end_date = (datetime.now(UTC) - timedelta(days=1)).date().isoformat()
+        synced: list[dict[str, Any]] = []
+        warnings: list[str] = []
+        for publication in publications:
+            video_id = publication["video_id"]
+            base_params = {
+                "ids": "channel==MINE", "startDate": "2005-02-14", "endDate": end_date,
+                "filters": f"video=={video_id}",
+            }
+            core = self._analytics_row(self._authorized_json(
+                "https://youtubeanalytics.googleapis.com/v2/reports?" + urlencode({
+                    **base_params,
+                    "metrics": "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares",
+                }), access_token,
+            ))
+            reach: dict[str, float] = {}
+            try:
+                reach = self._analytics_row(self._authorized_json(
+                    "https://youtubeanalytics.googleapis.com/v2/reports?" + urlencode({
+                        **base_params, "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
+                    }), access_token,
+                ))
+            except RuntimeError:
+                warnings.append(f"Alcance detalhado ainda indisponível para {video_id}")
+            public_stats = statistics.get(video_id, {})
+            views = int(core.get("views", public_stats.get("viewCount", 0)) or 0)
+            likes = int(core.get("likes", public_stats.get("likeCount", 0)) or 0)
+            impressions = int(reach.get("videoThumbnailImpressions", 0) or 0)
+            ctr = float(reach.get("videoThumbnailImpressionsClickRate", 0) or 0)
+            operation = self.store.upsert_metrics_snapshot(
+                publication["job_id"], "youtube", views=views, likes=likes,
+                watch_minutes=float(core.get("estimatedMinutesWatched", 0) or 0),
+                impressions=impressions, clicks=round(impressions * ctr / 100),
+                average_view_seconds=float(core.get("averageViewDuration", 0) or 0),
+                average_view_percentage=float(core.get("averageViewPercentage", 0) or 0),
+                comments=int(core.get("comments", public_stats.get("commentCount", 0)) or 0),
+                shares=int(core.get("shares", 0) or 0), source="youtube_api",
+                external_id=video_id, snapshot_date=end_date,
+            )
+            synced.append({"job_id": publication["job_id"], "video_id": video_id, "operation": operation,
+                           "views": views, "impressions": impressions, "ctr": ctr})
+        result = {"provider": "youtube", "mode": "read_only", "snapshot_date": end_date,
+                  "synced": synced, "count": len(synced), "warnings": warnings,
+                  "upload_performed": False, "publication_changed": False}
+        self.audit.record("metrics_synchronized", "youtube", result)
+        return result
 
     def youtube_upload_private(self, job_id: str, confirmed: bool = False) -> dict[str, Any]:
         """Upload one approved release package; public/unlisted uploads are intentionally unsupported."""
