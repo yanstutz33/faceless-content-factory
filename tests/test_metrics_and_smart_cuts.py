@@ -67,6 +67,20 @@ class MetricsAndSmartCutsTests(unittest.TestCase):
         finally:
             error.close()
 
+    def test_disabled_youtube_reporting_api_has_an_actionable_error(self):
+        body = json.dumps({"error": {"message": "disabled", "errors": [
+            {"reason": "accessNotConfigured"}], "details": [{"metadata": {
+                "service": "youtubereporting.googleapis.com"}}]}}).encode()
+        error = HTTPError("https://youtubereporting.googleapis.com/v1/reportTypes", 403,
+                          "Forbidden", {}, BytesIO(body))
+        manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))
+        try:
+            with patch("factory.integrations.urlopen", side_effect=error):
+                with self.assertRaisesRegex(ValueError, "Reporting API está desativada"):
+                    manager._authorized_json("https://youtubereporting.googleapis.com/v1/reportTypes", "token")
+        finally:
+            error.close()
+
     def test_youtube_sync_imports_read_only_metrics_for_audited_delivery(self):
         job_id, _ = self.approved_job()
         manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))

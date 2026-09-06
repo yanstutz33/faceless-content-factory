@@ -372,6 +372,10 @@ class IntegrationManager:
                 reason = " ".join(reasons)
             except (ValueError, AttributeError):
                 detail = ""
+            if "accessNotConfigured" in reason and "youtubereporting.googleapis.com" in reason:
+                raise ValueError(
+                    "A YouTube Reporting API está desativada no projeto Google Cloud. Ative o serviço e tente novamente."
+                ) from exc
             if "accessNotConfigured" in reason or "youtubeanalytics.googleapis.com" in reason:
                 raise ValueError(
                     "A YouTube Analytics API está desativada no projeto Google Cloud. Ative o serviço e tente novamente."
