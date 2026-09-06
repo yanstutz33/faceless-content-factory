@@ -15,14 +15,22 @@ class BilibiliPackager:
     """Create a localized, manual-safe Bilibili upload package."""
 
     SCENES = (
-        (("chuva", "chuv", "rain"), "雨夜咖啡馆", "Rainy Night Cafe"),
-        (("cafe", "coffee"), "深夜咖啡馆", "Late-Night Cafe"),
-        (("cabana", "neve", "snow", "cabin"), "雪夜小屋", "Snowy Night Cabin"),
+        (("anime", "personagem", "apartment", "apartamento"), "原创雨夜公寓", "Original Rainy-Night Apartment"),
+        (("cafeteria", "cafe", "coffee"), "深夜咖啡馆", "Late-Night Cafe"),
+        (("jupiter", "orbital", "estacao orbital"), "木星轨道空间站", "Jupiter Orbital Station"),
+        (("observatorio", "observatory", "lunar", "aurora"), "月夜天文台", "Moonlit Observatory"),
         (("trem", "train", "metro"), "深夜列车", "Late-Night Train"),
         (("cosmic", "cosmico", "cosmica", "espaco", "space"), "宇宙休息室", "Cosmic Lounge"),
         (("biblioteca", "estudo", "study", "focus", "foco"), "深夜学习室", "Late-Night Study Room"),
-        (("anime", "personagem", "apartment", "apartamento"), "原创雨夜公寓", "Original Rainy-Night Apartment"),
-        (("lago", "lake", "natureza", "forest", "floresta"), "湖畔静夜", "Quiet Night by the Lake"),
+        (("estufa", "greenhouse", "rooftop", "telhado"), "雨夜屋顶温室", "Rainy Rooftop Greenhouse"),
+        (("lavanderia", "laundromat", "costeira", "coastal", "oceano", "ocean", "mar"),
+         "海边深夜洗衣店", "Late-Night Coastal Laundromat"),
+        (("loja de discos", "record store", "vinil", "vinyl"), "深夜唱片店", "Late-Night Record Store"),
+        (("vidro", "glass", "cedro", "cedar", "forest", "floresta"), "森林玻璃小屋", "Glass Cabin in the Forest"),
+        (("neve", "snow", "nordica", "winter"), "雪夜小屋", "Snowy Night Cabin"),
+        (("lago", "lake"), "湖畔静夜", "Quiet Night by the Lake"),
+        (("cabana", "cabin"), "静谧小屋", "Quiet Night Cabin"),
+        (("chuva", "chuv", "rain"), "静谧雨夜", "Quiet Rainy Night"),
     )
 
     PURPOSES = (
@@ -42,11 +50,16 @@ class BilibiliPackager:
 
     @classmethod
     def _localized_identity(cls, topic: str, metadata: dict[str, Any]) -> dict[str, str]:
-        source = cls._fold(" ".join((topic, str(metadata.get("title", "")), str(metadata.get("description", "")))))
+        topic_source = cls._fold(topic)
+        metadata_source = cls._fold(" ".join((str(metadata.get("title", "")),
+                                               str(metadata.get("description", "")))))
+        source = f"{topic_source} {metadata_source}"
         scene_zh, scene_en = "静谧夜晚", "Quiet Night"
-        for keywords, zh, en in cls.SCENES:
-            if any(word in source for word in keywords):
-                scene_zh, scene_en = zh, en
+        for candidate_source in (topic_source, metadata_source):
+            matched = next(((zh, en) for keywords, zh, en in cls.SCENES
+                            if any(word in candidate_source for word in keywords)), None)
+            if matched:
+                scene_zh, scene_en = matched
                 break
         purpose_zh, purpose_en = "放松与专注", "relaxation and focus"
         for keywords, zh, en in cls.PURPOSES:
@@ -107,7 +120,7 @@ class BilibiliPackager:
             "source_job_id": job_id,
             "source_rights": "inherits_approved_source_manifest",
             "localization": {
-                "strategy": "curated_scene_and_intent_v1",
+            "strategy": "curated_scene_and_intent_v2",
                 "human_review_required": True,
                 "titles": {"zh_hans": zh_title, "en": en_title,
                            "pt_br_source": self._clean_title(str(metadata.get("title") or job["topic"]), 100)},

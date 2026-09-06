@@ -148,7 +148,7 @@ Objetivo: testar distribuição sem tradução literal ou automação frágil.
 - automatizar upload somente com acesso oficial estável, autorizado e testado;
 - registrar métricas separadamente das plataformas ocidentais.
 
-Estado técnico: capa, títulos, descrições, legendas em inglês e chinês simplificado, manifesto e pacote manual `bilibili-upload.json` concluídos. Restam conta creator, revisão humana da localização e primeiro envio manual.
+Estado técnico: capa, títulos, descrições, legendas em inglês e chinês simplificado, manifesto e pacote manual `bilibili-upload.json` concluídos. A localização `curated_scene_and_intent_v2` diferencia cenas como apartamento, cafeteria, trem, observatório, estação orbital, biblioteca, cabana, estufa, lavanderia e loja de discos, inclusive quando o título também contém palavras genéricas como “rain”. Restam conta creator, uma última leitura por falante nativo e o primeiro envio manual.
 
 ## Portas de qualidade para publicação
 

@@ -1194,6 +1194,21 @@ class CoreTests(unittest.TestCase):
             store.add_metrics(job_id, "bilibili", 25, 4, 9)
             self.assertEqual(store.get_job(job_id)["metrics"][0]["platform"], "bilibili")
 
+    def test_bilibili_scene_identity_is_not_masked_by_generic_rain_words(self):
+        cases = (
+            ("Apartamento anime original diante da cidade", "Rainy night lo-fi", "Original Rainy-Night Apartment"),
+            ("Estação orbital sobre Júpiter ao amanhecer", "Rainy night lo-fi", "Jupiter Orbital Station"),
+            ("Observatório lunar silencioso", "Rainy night lo-fi", "Moonlit Observatory"),
+            ("Último trem noturno", "Rainy night lo-fi", "Late-Night Train"),
+            ("Loja de discos vazia", "Rainy night lo-fi", "Late-Night Record Store"),
+            ("Cabana acolhedora junto ao lago", "Late-night study room", "Quiet Night by the Lake"),
+            ("Estufa no telhado", "Late-night study room", "Rainy Rooftop Greenhouse"),
+        )
+        for topic, title, expected in cases:
+            with self.subTest(topic=topic):
+                identity = BilibiliPackager._localized_identity(topic, {"title": title})
+                self.assertEqual(identity["scene_en"], expected)
+
     def test_vertical_package_requires_approval(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
