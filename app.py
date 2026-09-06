@@ -72,6 +72,10 @@ def main() -> None:
     smart_cuts = sub.add_parser("smart-cuts", help="Create ranked, traceable 9:16 candidates")
     smart_cuts.add_argument("job_id")
     smart_cuts.add_argument("--durations", default="15,30,60")
+    smart_review = sub.add_parser("smart-cuts-review", help="Record an assisted editorial review without uploading")
+    smart_review.add_argument("job_id")
+    smart_review.add_argument("--reviewer", default="Codex assisted editorial review")
+    smart_review.add_argument("--notes", default="")
     sub.add_parser("youtube-sync-metrics", help="Import read-only YouTube Analytics snapshots")
     reach_setup = sub.add_parser("youtube-setup-reach", help="Create one daily YouTube thumbnail reach report")
     reach_setup.add_argument("--confirm", action="store_true")
@@ -153,6 +157,9 @@ def main() -> None:
     elif args.command == "smart-cuts":
         durations = [int(value.strip()) for value in args.durations.split(",") if value.strip()]
         print(json.dumps(pipeline.prepare_smart_cuts(args.job_id, durations), ensure_ascii=False, indent=2))
+    elif args.command == "smart-cuts-review":
+        print(json.dumps(pipeline.review_smart_cuts(args.job_id, args.reviewer, args.notes),
+                         ensure_ascii=False, indent=2))
     elif args.command == "youtube-sync-metrics":
         print(json.dumps(integrations.sync_youtube_metrics(), ensure_ascii=False, indent=2))
     elif args.command == "youtube-setup-reach":

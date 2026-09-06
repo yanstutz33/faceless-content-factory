@@ -1988,6 +1988,51 @@ class Pipeline:
         self.store.event(job_id, "smart_cuts", f"{len(candidates)} cortes 9:16 validados; nenhum upload foi realizado")
         return package
 
+    def review_smart_cuts(self, job_id: str, reviewer: str, notes: str = "") -> dict[str, Any]:
+        """Record an assisted editorial review while keeping every external upload disabled."""
+        job = self.store.get_job(job_id)
+        if not job or job["status"] != "approved":
+            raise ValueError("A produção precisa estar aprovada antes da revisão dos cortes")
+        smart_dir = Path(job["output_dir"]) / "smart-cuts"
+        package_path = smart_dir / "smart-cuts-package.json"
+        if not package_path.is_file():
+            raise ValueError("Pacote de cortes inteligentes não encontrado")
+        package = json.loads(package_path.read_text(encoding="utf-8"))
+        candidates = package.get("candidates") or []
+        if not candidates:
+            raise ValueError("O pacote não contém cortes para revisar")
+        invalid = [item.get("id", "desconhecido") for item in candidates
+                   if not item.get("validation", {}).get("passed")
+                   or not (smart_dir / str(item.get("video_file", ""))).is_file()
+                   or not (smart_dir / str(item.get("thumbnail_file", ""))).is_file()
+                   or item.get("safe_framing") != "contain_full_source_over_blurred_background"
+                   or item.get("subject_preserved") is not True
+                   or item.get("text_or_face_crop_allowed") is not False]
+        if invalid:
+            raise ValueError(f"Cortes reprovados pelo controle editorial: {', '.join(map(str, invalid))}")
+        package["mode"] = "editorially_approved_not_uploaded"
+        package["editorial_review"] = {
+            "status": "approved",
+            "reviewer": reviewer.strip() or "assisted_editorial_review",
+            "reviewed_at": datetime.now(UTC).isoformat(),
+            "scope": "midpoint_visual_samples_and_complete_technical_gates",
+            "candidate_count": len(candidates),
+            "notes": notes.strip(),
+        }
+        package.setdefault("quality_gate", {})["manual_approval_required"] = False
+        package["quality_gate"]["editorial_review_passed"] = True
+        package["automatic_upload_allowed"] = False
+        package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        files = [str(item["video_file"]) for item in candidates]
+        files.extend(str(item["thumbnail_file"]) for item in candidates)
+        files.append(package_path.name)
+        manifest = self.artifact_manifest(smart_dir, files)
+        (smart_dir / "artifact-manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.store.event(job_id, "smart_cuts_review",
+                         f"{len(candidates)} cortes aprovados na revisão assistida; nenhum upload foi realizado")
+        return package
+
     def reject(self, job_id: str, reason: str) -> None:
         job = self.store.get_job(job_id)
         if not job or job["status"] not in {"awaiting_approval", "approved"}:

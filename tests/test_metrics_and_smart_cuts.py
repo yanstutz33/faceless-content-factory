@@ -169,6 +169,16 @@ class MetricsAndSmartCutsTests(unittest.TestCase):
         self.assertEqual(len(manifest["files"]), 7)
         self.assertFalse(package["automatic_upload_allowed"])
 
+        reviewed = self.pipeline.review_smart_cuts(job_id, "Automated reviewer", "Frames inspected")
+        self.assertEqual(reviewed["mode"], "editorially_approved_not_uploaded")
+        self.assertEqual(reviewed["editorial_review"]["candidate_count"], 3)
+        self.assertTrue(reviewed["quality_gate"]["editorial_review_passed"])
+        self.assertFalse(reviewed["quality_gate"]["manual_approval_required"])
+        self.assertFalse(reviewed["automatic_upload_allowed"])
+        updated_manifest = json.loads(
+            (out / "smart-cuts" / "artifact-manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(updated_manifest["files"]), 7)
+
 
 if __name__ == "__main__":
     unittest.main()
