@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 
 ROOT = Path(__file__).parents[1]
 OUTPUT = ROOT / "assets" / "channel"
 SOURCE = ROOT / "assets" / "covers" / "nocturnal-rain-v1" / "rainy-window-memories.png"
+AVATAR_SOURCE = OUTPUT / "3am-shelter-avatar-source.png"
 
 INK = "#071116"
 PAPER = "#f4efe4"
@@ -28,19 +29,10 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
 
 
 def avatar() -> Path:
-    image = Image.new("RGB", (800, 800), INK)
-    for radius, alpha in ((330, 25), (270, 50), (215, 90)):
-        layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        ImageDraw.Draw(layer).ellipse((400-radius, 400-radius, 400+radius, 400+radius),
-                                      fill=(91, 224, 207, alpha))
-        image = Image.alpha_composite(image.convert("RGBA"), layer.filter(ImageFilter.GaussianBlur(24)))
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((72, 72, 728, 728), outline=TEAL, width=7)
-    draw.text((400, 340), "3AM", font=font(190, True), fill=PAPER, anchor="mm")
-    draw.rectangle((228, 462, 572, 468), fill=TEAL)
-    draw.text((400, 528), "SHELTER", font=font(58, True), fill=SOFT, anchor="mm")
+    image = Image.open(AVATAR_SOURCE).convert("RGB")
+    image = ImageOps.fit(image, (800, 800), method=Image.Resampling.LANCZOS)
     path = OUTPUT / "3am-shelter-avatar-800.png"
-    image.convert("RGB").save(path, optimize=True)
+    image.save(path, optimize=True)
     return path
 
 
@@ -88,8 +80,9 @@ def main() -> None:
             {"file": paths[2].name, "use": "YouTube video watermark", "size": "300x300 transparent"},
         ],
         "source_identity": {
-            "visual": str(SOURCE.relative_to(ROOT)).replace("\\", "/"),
-            "rights": "approved user-supplied nocturnal_rain_v1 collection",
+            "banner_visual": str(SOURCE.relative_to(ROOT)).replace("\\", "/"),
+            "avatar_visual": str(AVATAR_SOURCE.relative_to(ROOT)).replace("\\", "/"),
+            "rights": "approved user-supplied collection and generated original avatar artwork",
             "excluded_brands": ["Pausa Pra Anime", "YAMI"],
         },
         "palette": {"ink": INK, "paper": PAPER, "teal": TEAL, "soft": SOFT},

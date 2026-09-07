@@ -21,8 +21,9 @@
     }
   ],
   "source_identity": {
-    "visual": "assets/covers/nocturnal-rain-v1/rainy-window-memories.png",
-    "rights": "approved user-supplied nocturnal_rain_v1 collection",
+    "banner_visual": "assets/covers/nocturnal-rain-v1/rainy-window-memories.png",
+    "avatar_visual": "assets/channel/3am-shelter-avatar-source.png",
+    "rights": "approved user-supplied collection and generated original avatar artwork",
     "excluded_brands": [
       "Pausa Pra Anime",
       "YAMI"
