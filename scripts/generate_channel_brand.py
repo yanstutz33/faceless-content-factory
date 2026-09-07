@@ -8,7 +8,6 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 ROOT = Path(__file__).parents[1]
 OUTPUT = ROOT / "assets" / "channel"
-SOURCE = ROOT / "assets" / "covers" / "nocturnal-rain-v1" / "rainy-window-memories.png"
 AVATAR_SOURCE = OUTPUT / "3am-shelter-avatar-source.png"
 
 INK = "#071116"
@@ -37,7 +36,7 @@ def avatar() -> Path:
 
 
 def banner() -> Path:
-    art = Image.open(SOURCE).convert("RGB")
+    art = Image.open(AVATAR_SOURCE).convert("RGB")
     base = ImageOps.fit(art, (2560, 1440), method=Image.Resampling.LANCZOS)
     base = ImageEnhance.Brightness(base).enhance(.62).convert("RGBA")
     shade = Image.new("RGBA", base.size, (0, 0, 0, 0))
@@ -80,7 +79,7 @@ def main() -> None:
             {"file": paths[2].name, "use": "YouTube video watermark", "size": "300x300 transparent"},
         ],
         "source_identity": {
-            "banner_visual": str(SOURCE.relative_to(ROOT)).replace("\\", "/"),
+            "banner_visual": str(AVATAR_SOURCE.relative_to(ROOT)).replace("\\", "/"),
             "avatar_visual": str(AVATAR_SOURCE.relative_to(ROOT)).replace("\\", "/"),
             "rights": "approved user-supplied collection and generated original avatar artwork",
             "excluded_brands": ["Pausa Pra Anime", "YAMI"],
