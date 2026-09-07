@@ -142,7 +142,7 @@ test('direct library link stays anchored after asynchronous sections expand', as
   await expect(page.getByRole('link', { name: /abrir flow/i })).toHaveAttribute('href', 'https://www.flowmusic.app/');
   const channelIdentity = page.getByRole('article', { name: '3AM Shelter' });
   await expect(channelIdentity.getByRole('heading', { name: '3AM Shelter', exact: true })).toBeVisible();
-  await expect(channelIdentity).toContainText('Identificador atual no YouTube: @Pausapraanime.');
+  await expect(channelIdentity).toContainText('Identidade independente para música ambiente.');
   await expect(channelIdentity.getByRole('link', { name: 'Abrir canal no YouTube' })).toHaveAttribute('href', 'https://www.youtube.com/channel/UCaxI2elEbTGftx6QIXNhvsw');
   await expect(channelIdentity).not.toContainText(/yami/i);
   await expect(channelIdentity.locator('img, a[download], a[href^="/api/channel-assets/"]')).toHaveCount(0);

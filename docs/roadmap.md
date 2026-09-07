@@ -136,7 +136,7 @@ Objetivo: operar afiliados sem misturar o catálogo editorial com campanhas.
 
 Critério de conclusão: produto, criativo e origem de mídia rastreáveis; nenhuma campanha é publicada sem revisão.
 
-Estado técnico: validação do produto exato, direitos, divulgação publicitária, campanha, métricas, ROI e pacote Pinterest Video Pin concluídos. Restam catálogo real, conta de afiliado Shopee e Pinterest Business autenticados.
+Estado técnico: validação do produto exato, direitos, divulgação publicitária, campanha, métricas, ROI e pacote Pinterest Video Pin concluídos. O aplicativo Pinterest já foi criado e o fluxo OAuth oficial está implementado, mas o acesso trial permanece pendente e o token temporário disponível não possui os escopos de escrita necessários. Restam o segredo liberado pelo Pinterest, o OAuth da conta Business, o catálogo real e a conta de afiliado Shopee.
 
 ### Fase 8 — Bilibili localizado
 

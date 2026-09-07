@@ -32,9 +32,19 @@ Documentação oficial: https://developers.tiktok.com/docs/en/content-posting-ap
 
 ## Instagram Reels
 
+Pausa Pra Anime possui Hub e operação próprios. Não reutilize sua identidade, aplicativo ou conta no FFactory; conecte apenas uma conta profissional destinada ao projeto correspondente.
+
 1. Registre um app Meta compatível com Instagram profissional e configure a URL de retorno `http://127.0.0.1:8787/api/oauth/callback/reels`.
 2. Preencha `META_APP_ID` e `META_APP_SECRET` no `.env`.
 3. Reinicie e escolha a conta profissional durante o login.
+
+## Pinterest
+
+1. O aplicativo já foi criado, mas permanece com acesso trial pendente. Tokens de produção limitada expiram em 24 horas e não substituem o OAuth do produto.
+2. Cadastre exatamente `http://127.0.0.1:8787/api/oauth/callback/pinterest` nas URLs de redirecionamento.
+3. Após a liberação do segredo, preencha `PINTEREST_APP_ID`, `PINTEREST_APP_SECRET` e `PINTEREST_REDIRECT_URI` no `.env`.
+4. Autorize somente os escopos necessários: `boards:read`, `boards:write`, `pins:read`, `pins:write` e `user_accounts:read`.
+5. Qualquer token exibido em captura de tela deve ser revogado e recriado; não o cole no repositório nem no Hub.
 
 ## Shopee
 

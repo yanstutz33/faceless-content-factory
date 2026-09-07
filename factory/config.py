@@ -44,6 +44,9 @@ class Settings:
     meta_app_id: str = ""
     meta_app_secret: str = ""
     meta_redirect_uri: str = ""
+    pinterest_app_id: str = ""
+    pinterest_app_secret: str = ""
+    pinterest_redirect_uri: str = ""
     shopee_partner_id: str = ""
     shopee_partner_key: str = ""
     backup_keep: int = 10
@@ -94,6 +97,9 @@ class Settings:
             meta_app_id=os.getenv("META_APP_ID", ""),
             meta_app_secret=os.getenv("META_APP_SECRET", ""),
             meta_redirect_uri=os.getenv("META_REDIRECT_URI", f"http://{os.getenv('FACTORY_HOST', '127.0.0.1')}:{os.getenv('FACTORY_PORT', '8787')}/api/oauth/callback/reels"),
+            pinterest_app_id=os.getenv("PINTEREST_APP_ID", ""),
+            pinterest_app_secret=os.getenv("PINTEREST_APP_SECRET", ""),
+            pinterest_redirect_uri=os.getenv("PINTEREST_REDIRECT_URI", f"http://{os.getenv('FACTORY_HOST', '127.0.0.1')}:{os.getenv('FACTORY_PORT', '8787')}/api/oauth/callback/pinterest"),
             shopee_partner_id=os.getenv("SHOPEE_PARTNER_ID", ""),
             shopee_partner_key=os.getenv("SHOPEE_PARTNER_KEY", ""),
             backup_keep=max(2, min(50, int(os.getenv("FACTORY_BACKUP_KEEP", "10")))),

@@ -620,6 +620,27 @@ class CoreTests(unittest.TestCase):
                     manager.oauth_callback("youtube", "expired", "code")
                 post.assert_not_called()
 
+    def test_pinterest_oauth_requests_minimal_write_scopes_and_uses_basic_exchange(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            settings = replace(
+                self.settings(root), pinterest_app_id="1606140", pinterest_app_secret="secret",
+                pinterest_redirect_uri="http://127.0.0.1:8787/api/oauth/callback/pinterest",
+            )
+            store = Store(root / "data" / "factory.db")
+            manager = IntegrationManager(settings, store, PublishingCenter(Pipeline(settings, store), store))
+            start = manager.oauth_start("pinterest")
+            parsed = urlparse(start["authorization_url"])
+            query = parse_qs(parsed.query)
+            self.assertEqual(parsed.netloc, "www.pinterest.com")
+            self.assertIn("pins:write", query["scope"][0])
+            self.assertIn("boards:write", query["scope"][0])
+            with patch.object(manager, "_post_form", return_value={"access_token": "hidden"}) as post:
+                result = manager.oauth_callback("pinterest", query["state"][0], "authorization-code")
+            self.assertTrue(result["connected"])
+            self.assertIn("Basic ", post.call_args.args[2]["Authorization"])
+            self.assertNotIn("hidden", json.dumps(result))
+
     def test_editorial_calendar(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp) / "factory.db")
@@ -1043,6 +1064,8 @@ class CoreTests(unittest.TestCase):
         self.assertIn('/api/music-assets/${Number(button.dataset.trackId)}/review', app)
         self.assertIn('Aprovar faixa', app)
         self.assertIn('3AM Shelter', index)
+        self.assertNotIn('@Pausapraanime', index)
+        self.assertNotIn('YAMI', index)
         self.assertIn('https://www.youtube.com/channel/UCaxI2elEbTGftx6QIXNhvsw', index)
         self.assertNotIn('/api/channel-assets/pausa-pra-anime-youtube-banner-2560x1440.png', index)
         self.assertNotIn('target="_blank" rel="noopener">Metadados', app)
@@ -1584,7 +1607,7 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(dashboard["summary"]["total"], 0)
                 self.assertTrue(dashboard["operation"]["ok"])
                 self.assertEqual(dashboard["creative"]["engine"], "creative_dna_v2")
-                with urllib.request.urlopen(base + "/api/channel-assets/pausa-pra-anime-avatar-800.png") as response:
+                with urllib.request.urlopen(base + "/api/channel-assets/3am-shelter-avatar-800.png") as response:
                     self.assertEqual(response.headers.get_content_type(), "image/png")
                     self.assertGreater(int(response.headers["Content-Length"]), 1_000)
                 creative = json.load(urllib.request.urlopen(base + "/api/creative-system"))
@@ -1664,7 +1687,8 @@ class CoreTests(unittest.TestCase):
                 self.assertTrue(bilibili["package_ready"])
                 self.assertFalse(bilibili["upload_enabled"])
                 pinterest = next(item for item in platforms["platforms"] if item["id"] == "pinterest")
-                self.assertEqual(pinterest["state"], "package_ready")
+                self.assertEqual(pinterest["state"], "config_required")
+                self.assertTrue(pinterest["oauth_supported"])
                 self.assertTrue(pinterest["package_ready"])
                 self.assertFalse(pinterest["upload_enabled"])
                 serialized_platforms = json.dumps(platforms)

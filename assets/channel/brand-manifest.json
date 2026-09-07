@@ -1,37 +1,37 @@
 {
-  "brand": "PAUSA PRA ANIME",
-  "handle": "@pausapraanime",
-  "signature": "YAMI",
+  "brand": "3AM Shelter",
+  "identity_scope": "independent_ambient_music_channel",
   "generated_by": "scripts/generate_channel_brand.py",
   "assets": [
     {
-      "file": "pausa-pra-anime-avatar-800.png",
+      "file": "3am-shelter-avatar-800.png",
       "use": "YouTube profile image",
       "size": "800x800"
     },
     {
-      "file": "pausa-pra-anime-youtube-banner-2560x1440.png",
+      "file": "3am-shelter-youtube-banner-2560x1440.png",
       "use": "YouTube channel banner",
       "size": "2560x1440",
       "safe_area": "central 1546x423"
     },
     {
-      "file": "pausa-pra-anime-watermark-300.png",
+      "file": "3am-shelter-watermark-300.png",
       "use": "YouTube video watermark",
       "size": "300x300 transparent"
     }
   ],
   "source_identity": {
-    "instagram": "https://www.instagram.com/pausapraanime/",
-    "profile_source": "pausa-pra-anime-profile-source.jpg",
-    "art_source": "pausa-pra-anime-banner-art.png",
-    "fashion_brand_source": "yami-mark-source.png"
+    "visual": "assets/covers/nocturnal-rain-v1/rainy-window-memories.png",
+    "rights": "approved user-supplied nocturnal_rain_v1 collection",
+    "excluded_brands": [
+      "Pausa Pra Anime",
+      "YAMI"
+    ]
   },
   "palette": {
-    "ink": "#08080d",
-    "panel": "#141018",
+    "ink": "#071116",
     "paper": "#f4efe4",
-    "purple": "#8a66ff",
-    "soft": "#b8afc4"
+    "teal": "#5be0cf",
+    "soft": "#aebdc2"
   }
 }

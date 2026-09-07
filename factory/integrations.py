@@ -153,9 +153,13 @@ class IntegrationManager:
         if platform == "reels":
             return {"client_id": self.settings.meta_app_id, "client_secret": self.settings.meta_app_secret,
                     "redirect_uri": self.settings.meta_redirect_uri}
+        if platform == "pinterest":
+            return {"client_id": self.settings.pinterest_app_id,
+                    "client_secret": self.settings.pinterest_app_secret,
+                    "redirect_uri": self.settings.pinterest_redirect_uri}
         if platform == "shopee":
             return {"client_id": self.settings.shopee_partner_id, "client_secret": self.settings.shopee_partner_key}
-        if platform in {"pinterest", "bilibili"}:
+        if platform == "bilibili":
             return {"client_id": "", "client_secret": ""}
         raise ValueError("Plataforma não suportada")
 
@@ -175,10 +179,10 @@ class IntegrationManager:
             {"id": "shopee", "label": "Shopee", "oauth_supported": False, "package_ready": True,
              "scope": "partner-account-link", "output": "Brief, direitos, produto e pacote vertical validados",
              "manual_step": "Vincular a conta de parceiro e confirmar o catálogo oficial"},
-            {"id": "pinterest", "label": "Pinterest", "oauth_supported": False, "package_ready": True,
-             "scope": "boards:read,boards:write,pins:read,pins:write",
+            {"id": "pinterest", "label": "Pinterest", "oauth_supported": True, "package_ready": True,
+             "scope": "boards:read,boards:write,pins:read,pins:write,user_accounts:read",
              "output": "Video Pin original com produto Shopee, capa, link e payload local",
-             "manual_step": "Registrar app e autorizar uma conta Pinterest Business",
+             "manual_step": "Aguardar o acesso trial, cadastrar a URL de retorno e autorizar a conta Business",
              "package_only": True, "code_ready": True},
             {"id": "bilibili", "label": "Bilibili", "oauth_supported": False, "package_ready": True,
              "scope": "manual-creator-upload",
@@ -199,7 +203,10 @@ class IntegrationManager:
             except RuntimeError:
                 authenticated = False
                 vault_error = "O cofre precisa ser reparado antes de conectar contas"
-            state = "planned" if definition.get("planned") else "package_ready" if definition.get("package_only") else "connected" if authenticated else "login_required" if configured else "config_required"
+            state = ("planned" if definition.get("planned") else "connected" if authenticated else
+                     "login_required" if definition["oauth_supported"] and configured else
+                     "config_required" if definition["oauth_supported"] else
+                     "package_ready" if definition.get("package_only") else "config_required")
             granted_scopes: set[str] = set()
             if authenticated and definition["id"] == "youtube":
                 try:
@@ -242,6 +249,10 @@ class IntegrationManager:
             params = {"client_key": config["client_id"], "redirect_uri": config["redirect_uri"],
                       "response_type": "code", "scope": definition["scope"], "state": state,
                       "code_challenge": challenge, "code_challenge_method": "S256"}
+        elif platform == "pinterest":
+            endpoint = "https://www.pinterest.com/oauth/"
+            params = {"client_id": config["client_id"], "redirect_uri": config["redirect_uri"],
+                      "response_type": "code", "scope": definition["scope"], "state": state}
         else:
             endpoint = "https://www.facebook.com/dialog/oauth"
             params = {"client_id": config["client_id"], "redirect_uri": config["redirect_uri"],
@@ -251,8 +262,9 @@ class IntegrationManager:
                 "manual_action_required": True, "upload_performed": False}
 
     @staticmethod
-    def _post_form(url: str, form: dict[str, Any]) -> dict[str, Any]:
-        request = Request(url, data=urlencode(form).encode(), headers={"Content-Type": "application/x-www-form-urlencoded"})
+    def _post_form(url: str, form: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:
+        request_headers = {"Content-Type": "application/x-www-form-urlencoded", **(headers or {})}
+        request = Request(url, data=urlencode(form).encode(), headers=request_headers)
         with urlopen(request, timeout=30) as response:
             value = json.loads(response.read())
         if not isinstance(value, dict):
@@ -283,6 +295,12 @@ class IntegrationManager:
         elif platform == "reels":
             token = self._post_form("https://graph.facebook.com/oauth/access_token", {**common,
                                     "client_id": config["client_id"], "client_secret": config["client_secret"]})
+        elif platform == "pinterest":
+            basic = base64.b64encode(
+                f"{config['client_id']}:{config['client_secret']}".encode()
+            ).decode()
+            token = self._post_form("https://api.pinterest.com/v5/oauth/token", common,
+                                    {"Authorization": f"Basic {basic}"})
         else:
             raise ValueError("Callback não suportado")
         if not token.get("access_token"):
