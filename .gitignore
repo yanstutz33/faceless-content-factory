@@ -19,6 +19,7 @@ data/*.log
 data/*.jpg
 data/review/
 data/logs/
+data/reports/
 node_modules/
 playwright-report/
 test-results/

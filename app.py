@@ -12,8 +12,10 @@ from factory.commercial_center import CommercialCenter
 from factory.integrations import IntegrationManager
 from factory.autopilot import Autopilot
 from factory.nightshift import NightShift
+from factory.music_audit import MusicDiversityAuditor
 from factory.pipeline import Pipeline
 from factory.publishing import PublishingCenter
+from factory.security import SecurityAuditor
 from factory.store import Store
 from factory.web import serve
 
@@ -57,6 +59,10 @@ def main() -> None:
     english_metadata = sub.add_parser("migrate-english-metadata", help="Apply English titles to one pilot cohort")
     english_metadata.add_argument("--cohort-id", default="pilot-flow-2026-08-30")
     sub.add_parser("phase2-status", help="Show the audited progress of the three autonomous local batches")
+    editorial = sub.add_parser("editorial-baseline", help="Preview or apply a safe one-video-per-week plan")
+    editorial.add_argument("--apply", action="store_true", help="Archive stale plans and create the next weekly plan")
+    sub.add_parser("music-diversity-audit", help="Compare approved tracks without changing their review state")
+    sub.add_parser("security-audit", help="Check tracked secrets, vault, remote access and backup recovery")
     pilot = sub.add_parser("establish-pilot-cohort", help="Tag current pilots and archive historical review jobs")
     pilot.add_argument("--cohort-id", default="pilot-flow-2026-08-30")
     lyria = sub.add_parser("lyria-generate", help="Generate and register one instrumental track with Google Lyria 3")
@@ -147,6 +153,13 @@ def main() -> None:
 
         nightshift = NightShift(pipeline, store, _IdleRunner(), Autopilot(settings, store))
         print(json.dumps(nightshift.phase2_certification(), ensure_ascii=False, indent=2))
+    elif args.command == "editorial-baseline":
+        print(json.dumps(Autopilot(settings, store).apply_weekly_baseline(args.apply), ensure_ascii=False, indent=2))
+    elif args.command == "music-diversity-audit":
+        auditor = MusicDiversityAuditor(settings.ffmpeg, settings.data_dir / "reports")
+        print(json.dumps(auditor.audit(store.list_music_assets(approved_only=True)), ensure_ascii=False, indent=2))
+    elif args.command == "security-audit":
+        print(json.dumps(SecurityAuditor(settings).audit(), ensure_ascii=False, indent=2))
     elif args.command == "establish-pilot-cohort":
         print(json.dumps(pipeline.establish_current_pilot_cohort(args.cohort_id), ensure_ascii=False, indent=2))
     elif args.command == "lyria-generate":

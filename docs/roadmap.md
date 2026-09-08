@@ -178,7 +178,7 @@ Todo o trabalho local e automatizável das fases 1 a 8 está implementado. O cic
 
 Critério de conclusão: nenhum segredo exposto permanece válido e uma restauração completa funciona sem afetar os dados principais.
 
-Progresso em 07/09/2026: o comando `backup-restore-test` foi implementado e executado no backup real mais recente. A restauração isolada passou na integridade, abriu 12 tabelas e conferiu 1.602 registros sem tocar no banco principal; a cópia temporária foi removida. A troca do token exposto do Pinterest continua obrigatória. O mesmo aplicativo Pinterest pode ser mantido — somente a credencial deve ser revogada e renovada.
+Progresso em 07/09/2026: os comandos `backup-restore-test` e `security-audit` foram implementados e executados nos dados reais. A restauração isolada passou na integridade, abriu 12 tabelas e conferiu os registros sem tocar no banco principal; a cópia temporária foi removida. A auditoria confirmou zero segredo ou arquivo sensível versionado, cofre Windows DPAPI ativo, publicação automática bloqueada e proteção do acesso remoto. A troca do token exposto do Pinterest continua obrigatória. O mesmo aplicativo Pinterest pode ser mantido — somente a credencial deve ser revogada e renovada.
 
 ### Prioridade 1 — operação editorial do 3AM Shelter
 
@@ -193,6 +193,8 @@ Progresso em 07/09/2026: o comando `backup-restore-test` foi implementado e exec
 
 Critério de conclusão: quatro semanas de publicações consistentes, sem mídia incorreta, repetição evidente, falha de qualidade ou problema de direitos.
 
+Progresso em 07/09/2026: o piloto automático foi corrigido para representar frequência semanal real, três pautas automáticas vencidas e sem produção foram arquivadas, e a cadência foi reduzida de três para um vídeo por semana. Uma combinação contraditória de noite com amanhecer foi identificada, arquivada e bloqueada no gerador. A próxima pauta ficou planejada para 11/09/2026 às 19:00, sem renderização ou publicação. O comando `music-diversity-audit` comparou as 13 faixas aprovadas em 78 pares e não encontrou duplicatas exatas ou quase duplicatas; o relatório é somente leitura e não substitui audição humana.
+
 ### Prioridade 2 — aprendizado com dados reais
 
 1. Sincronizar métricas do YouTube semanalmente, sem alterar automaticamente a estratégia por oscilações de poucas visualizações.
@@ -203,6 +205,8 @@ Critério de conclusão: quatro semanas de publicações consistentes, sem mídi
 6. Nunca comprar visualizações, usar engajamento artificial ou fabricar métricas.
 
 Critério de conclusão: recomendações reproduzíveis baseadas em volume real, com histórico da hipótese, amostra, resultado e decisão.
+
+Progresso em 07/09/2026: a sincronização oficial permanece somente leitura e os cinco vídeos continuam vinculados aos identificadores corretos. O relatório diário de alcance possui cinco linhas; impressões e CTR continuam zerados na fonte, portanto o sistema permanece em exploração e não promove uma falsa conclusão estatística.
 
 ### Prioridade 3 — piloto de Shorts, TikTok e Instagram Reels
 
@@ -264,6 +268,8 @@ Critério de conclusão: Hub acessível por HTTPS sem depender do computador pes
 10. Executar um piloto fechado com poucos usuários, recolher feedback e corrigir bloqueadores antes de qualquer venda pública.
 
 Critério de conclusão: isolamento entre clientes comprovado, segurança e recuperação testadas, documentação legal disponível e piloto fechado operando sem acesso indevido ou publicação duplicada.
+
+Progresso em 07/09/2026: a fronteira entre o Hub pessoal e um futuro produto foi documentada em `commercial-readiness.md`, com sequência para isolamento de espaços, papéis, conectores modulares, cotas, exportação, suporte, revisão profissional e piloto fechado. O checklist reutilizável `release-checklist.md` também foi criado. A arquitetura multiusuário ainda não foi implementada e o FFactory continua corretamente classificado como sistema pessoal em validação.
 
 ### Prioridade 8 — lançamento e melhoria contínua
 

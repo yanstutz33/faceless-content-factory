@@ -32,10 +32,12 @@ from factory.integrations import DeliveryLedger, IntegrationAudit, IntegrationMa
 from factory.llm import OpenAIPlanEnhancer
 from factory.lyria import LYRIA_MODELS
 from factory.music_sources import FLOW_MUSIC_PROMPTS, flow_music_guide
+from factory.music_audit import _signature, _similarity
 from factory.nightshift import NightShift
 from factory.pipeline import COVER_MOTION, Pipeline, STARTER_SCENES, safe_slug, srt_timestamp
 from factory.publishing import PublishingCenter
 from factory.store import Store
+from factory.security import SECRET_PATTERNS
 from factory.teams import SHARED_SKILLS, skill_catalog, team_catalog
 from factory.templates import series_catalog
 from factory.web import CalendarScheduler, create_server
@@ -579,6 +581,19 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(result["records"], 1)
             self.assertTrue(result["isolated_copy_removed"])
 
+    def test_music_similarity_detects_same_signal_without_rejecting_different_signal(self):
+        same = array("h", [int(12000 * math.sin(index / 8)) for index in range(8000)])
+        different = array("h", [int(9000 * math.sin(index / 2.5)) if index % 17 else 0 for index in range(8000)])
+        same_score = _similarity(_signature(same, 4000), _signature(same, 4000))
+        different_score = _similarity(_signature(same, 4000), _signature(different, 4000))
+        self.assertGreaterEqual(same_score["waveform"], .99)
+        self.assertLess(different_score["waveform"], .95)
+
+    def test_security_patterns_detect_tokens_without_needing_to_expose_them(self):
+        self.assertIsNotNone(SECRET_PATTERNS["Pinterest access token"].search("pina_" + "A" * 30))
+        self.assertIsNotNone(SECRET_PATTERNS["Google API key"].search("AIza" + "B" * 32))
+        self.assertIsNone(SECRET_PATTERNS["Pinterest access token"].search("pina_short_example"))
+
     def test_integration_audit_scrubs_sensitive_values(self):
         with tempfile.TemporaryDirectory() as tmp:
             audit = IntegrationAudit(Path(tmp) / "audit.jsonl")
@@ -735,6 +750,37 @@ class CoreTests(unittest.TestCase):
             self.assertEqual({item["series_id"] for item in calendar}, {"japan_after_rain", "rainy_refuges"})
             self.assertEqual(len({item["topic"] for item in calendar}), 3)
             self.assertTrue(all(item["duration"] == 1800 for item in calendar))
+
+    def test_editorial_baseline_archives_stale_plans_and_creates_one_future_item(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "data").mkdir()
+            store = Store(root / "data" / "factory.db")
+            autopilot = Autopilot(self.settings(root), store)
+            store.add_calendar_item("Old automatic idea", "japan_after_rain", "youtube_long", 1800,
+                                    "2026-09-01T19:00", "autopilot")
+
+            result = autopilot.apply_weekly_baseline(True, datetime(2026, 9, 7, 10, 0))
+
+            self.assertTrue(result["applied"])
+            self.assertEqual(result["archived_stale_plans"], 1)
+            self.assertEqual(len(result["created"]), 1)
+            self.assertGreaterEqual(result["created"][0]["scheduled_for"], "2026-09-08T19:00")
+            self.assertEqual(result["status"]["cadence"], 1)
+            self.assertFalse(result["network_contacted"])
+            self.assertFalse(result["production_started"])
+            calendar = store.list_calendar()
+            self.assertEqual([item["status"] for item in calendar].count("archived"), 1)
+            self.assertEqual([item["status"] for item in calendar].count("planned"), 1)
+
+    def test_autopilot_rejects_contradictory_time_variations(self):
+        self.assertIsNone(Autopilot._compose_topic("Apartamento à noite", "ao amanhecer"))
+        self.assertIsNone(Autopilot._compose_topic("Cidade às 3 da manhã", "à meia-noite"))
+        self.assertEqual(
+            Autopilot._compose_topic("Quarto diante da chuva", "à meia-noite"),
+            "Quarto diante da chuva à meia-noite",
+        )
+        self.assertTrue(Autopilot._has_timing_conflict("Apartamento à noite ao amanhecer"))
 
     def test_night_shift_runs_bounded_batch_and_never_publishes(self):
         class FakeRunner:

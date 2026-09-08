@@ -111,6 +111,10 @@ python app.py doctor
 python app.py integrations
 python app.py backup
 python app.py backup-restore-test
+python app.py editorial-baseline
+python app.py editorial-baseline --apply
+python app.py music-diversity-audit
+python app.py security-audit
 python app.py establish-pilot-cohort --cohort-id pilot-flow-2026-08-30
 python app.py repair-manifests
 python app.py phase2-status
@@ -265,4 +269,4 @@ As telas, callbacks e validações anteriores ao login já estão preparados. Us
 
 ## Frente futura de afiliados
 
-O planejamento consolidado está em `docs/roadmap.md`, e a especificação comercial em `docs/commerce-video-roadmap.md`. Pinterest é destino dos nossos próprios Video Pins e fonte de pesquisa de tendências, nunca biblioteca automática de vídeos de terceiros. O módulo comercial só aceita mídia própria, licenciada ou fornecida oficialmente para afiliados.
+O planejamento consolidado está em `docs/roadmap.md`, a preparação do produto em `docs/commercial-readiness.md`, o controle de versões em `docs/release-checklist.md` e a especificação de vídeos comerciais em `docs/commerce-video-roadmap.md`. Pinterest é destino dos nossos próprios Video Pins e fonte de pesquisa de tendências, nunca biblioteca automática de vídeos de terceiros. O módulo comercial só aceita mídia própria, licenciada ou fornecida oficialmente para afiliados.

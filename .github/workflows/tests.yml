@@ -49,7 +49,7 @@ jobs:
             --publish 8787:8787 \
             --env FACTORY_REMOTE_ACCESS=true \
             --env FACTORY_REMOTE_USERNAME=ci-owner \
-            --env FACTORY_REMOTE_PASSWORD=ci-only-strong-password \
+            --env FACTORY_REMOTE_PASSWORD=ci-only-strong-password-2026 \
             --env ALLOW_PLATFORM_PUBLISH=false \
             ffactory-cloud:test
       - name: Verify cloud health and access protection

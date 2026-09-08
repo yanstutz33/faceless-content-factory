@@ -453,6 +453,26 @@ class Store:
         with self.connect() as db:
             return [dict(row) for row in db.execute("SELECT * FROM calendar ORDER BY scheduled_for, id")]
 
+    def archive_stale_autopilot_plans(self, before: str) -> int:
+        """Archive only overdue automatic plans that never started a production."""
+        with self.connect() as db:
+            cursor = db.execute(
+                """UPDATE calendar SET status='archived',error=NULL,updated_at=?
+                   WHERE origin='autopilot' AND status='planned' AND job_id IS NULL AND scheduled_for<?""",
+                (now(), before),
+            )
+            return int(cursor.rowcount)
+
+    def archive_unstarted_autopilot_plan(self, item_id: int, reason: str) -> bool:
+        """Reversibly remove one unstarted automatic idea from the active agenda."""
+        with self.connect() as db:
+            cursor = db.execute(
+                """UPDATE calendar SET status='archived',error=?,updated_at=?
+                   WHERE id=? AND origin='autopilot' AND status='planned' AND job_id IS NULL""",
+                (reason[:500], now(), item_id),
+            )
+            return bool(cursor.rowcount)
+
     def claim_due_calendar(self, at: datetime | None = None, allow_autopilot: bool = True) -> dict[str, Any] | None:
         local_now = (at or datetime.now().astimezone()).replace(tzinfo=None).isoformat(timespec="minutes")
         with self.connect() as db:
