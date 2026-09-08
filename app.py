@@ -93,6 +93,8 @@ def main() -> None:
     preflight.add_argument("platform", choices=["youtube", "tiktok", "reels", "shopee"])
     preflight.add_argument("--job-id")
     sub.add_parser("backup", help="Create and verify a local database backup")
+    restore_test = sub.add_parser("backup-restore-test", help="Test the latest backup in an isolated copy")
+    restore_test.add_argument("--file", help="Optional backup filename; defaults to the latest")
     sub.add_parser("commerce-overview", help="Show affiliate products, campaigns and results")
     commerce_product = sub.add_parser("commerce-save-product", help="Validate and save a Shopee product brief")
     commerce_product.add_argument("product_json", type=Path)
@@ -186,6 +188,9 @@ def main() -> None:
         print(json.dumps(integrations.preflight(args.platform, args.job_id), ensure_ascii=False, indent=2))
     elif args.command == "backup":
         result = BackupManager(store.db_path, settings.data_dir / "backups", settings.backup_keep).create()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "backup-restore-test":
+        result = BackupManager(store.db_path, settings.data_dir / "backups", settings.backup_keep).test_restore(args.file)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == "commerce-overview":
         print(json.dumps(commercial.overview(), ensure_ascii=False, indent=2))

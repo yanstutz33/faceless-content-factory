@@ -559,6 +559,26 @@ class CoreTests(unittest.TestCase):
             with closing(sqlite3.connect(root / "backups" / second["file"])) as database:
                 self.assertEqual(database.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
+    def test_backup_manager_restores_latest_backup_in_isolation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            database_path = root / "factory.db"
+            with closing(sqlite3.connect(database_path)) as database:
+                database.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+                database.execute("INSERT INTO projects (name) VALUES ('3AM Shelter')")
+                database.commit()
+            manager = BackupManager(database_path, root / "backups", keep=2)
+            backup = manager.create()
+
+            result = manager.test_restore()
+
+            self.assertTrue(result["restored"])
+            self.assertEqual(result["source"], backup["file"])
+            self.assertEqual(result["integrity"], "ok")
+            self.assertEqual(result["tables"], 1)
+            self.assertEqual(result["records"], 1)
+            self.assertTrue(result["isolated_copy_removed"])
+
     def test_integration_audit_scrubs_sensitive_values(self):
         with tempfile.TemporaryDirectory() as tmp:
             audit = IntegrationAudit(Path(tmp) / "audit.jsonl")

@@ -110,6 +110,7 @@ python app.py generate --topic "Café ao amanhecer" --duration 3600 --profile yo
 python app.py doctor
 python app.py integrations
 python app.py backup
+python app.py backup-restore-test
 python app.py establish-pilot-cohort --cohort-id pilot-flow-2026-08-30
 python app.py repair-manifests
 python app.py phase2-status

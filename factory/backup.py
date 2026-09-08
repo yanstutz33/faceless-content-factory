@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
+import tempfile
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
+from shutil import copy2
 
 
 class BackupManager:
@@ -42,3 +44,47 @@ class BackupManager:
         if latest and datetime.fromisoformat(latest[0]["modified_at"]).date() == today:
             return {"created": False, "reason": "daily_backup_exists", "latest": latest[0]}
         return self.create()
+
+    def test_restore(self, backup_name: str | None = None) -> dict:
+        """Restore one backup into an isolated temporary copy and verify it is readable."""
+        backups = sorted(self.backup_dir.glob("factory-*.sqlite3"),
+                         key=lambda item: item.stat().st_mtime, reverse=True)
+        if backup_name:
+            if Path(backup_name).name != backup_name:
+                raise ValueError("Informe somente o nome de um arquivo de backup")
+            source = self.backup_dir / backup_name
+            if not source.is_file() or source not in backups:
+                raise FileNotFoundError("Backup não encontrado")
+        elif backups:
+            source = backups[0]
+        else:
+            raise FileNotFoundError("Nenhum backup disponível para o teste de restauração")
+
+        with tempfile.TemporaryDirectory(prefix="faceless-factory-restore-") as temporary_dir:
+            restored = Path(temporary_dir) / "factory-restored.sqlite3"
+            copy2(source, restored)
+            with closing(sqlite3.connect(f"file:{restored.as_posix()}?mode=ro", uri=True)) as database:
+                integrity = database.execute("PRAGMA integrity_check").fetchone()[0]
+                tables = [row[0] for row in database.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                ).fetchall()]
+                row_counts = {}
+                for table in tables:
+                    safe_name = table.replace('"', '""')
+                    row_counts[table] = database.execute(f'SELECT COUNT(*) FROM "{safe_name}"').fetchone()[0]
+                user_version = database.execute("PRAGMA user_version").fetchone()[0]
+
+            if integrity != "ok":
+                raise RuntimeError("O backup restaurado não passou na verificação de integridade")
+            if not tables:
+                raise RuntimeError("O backup restaurado não contém a estrutura esperada")
+
+        return {
+            "restored": True,
+            "source": source.name,
+            "integrity": integrity,
+            "tables": len(tables),
+            "records": sum(row_counts.values()),
+            "user_version": user_version,
+            "isolated_copy_removed": True,
+        }

@@ -178,6 +178,8 @@ Todo o trabalho local e automatizável das fases 1 a 8 está implementado. O cic
 
 Critério de conclusão: nenhum segredo exposto permanece válido e uma restauração completa funciona sem afetar os dados principais.
 
+Progresso em 07/09/2026: o comando `backup-restore-test` foi implementado e executado no backup real mais recente. A restauração isolada passou na integridade, abriu 12 tabelas e conferiu 1.602 registros sem tocar no banco principal; a cópia temporária foi removida. A troca do token exposto do Pinterest continua obrigatória. O mesmo aplicativo Pinterest pode ser mantido — somente a credencial deve ser revogada e renovada.
+
 ### Prioridade 1 — operação editorial do 3AM Shelter
 
 1. Manter um calendário inicial sustentável de um vídeo longo por semana; aumentar somente após quatro semanas sem falha operacional.
