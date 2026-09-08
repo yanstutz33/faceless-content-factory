@@ -164,6 +164,124 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 8. testes automatizados e CI estão verdes;
 9. publicação permanece manual até o piloto específico da plataforma ser aprovado.
 
-## Próxima ação recomendada
+## Próximos passos completos
 
-Todo o trabalho local e automatizável deste roadmap está implementado e o ciclo real do YouTube foi fechado: identidade pública limpa em `@3AMShelterMusic`, cinco vídeos públicos em 1080p, cinco snapshots reais importados e 15 cortes verticais validados e aprovados em revisão assistida. O que resta depende de terceiros ou de contas: criar e autenticar TikTok, Instagram, Shopee, Pinterest e Bilibili; obter uma revisão humana fluente para a localização chinesa antes do primeiro envio; e escolher hospedagem permanente quando houver orçamento. A otimização estatística continuará automaticamente em modo de exploração até os vídeos acumularem audiência mínima. Nenhuma dessas pendências deve ser simulada com dados, integrações não oficiais ou publicação sem revisão.
+Todo o trabalho local e automatizável das fases 1 a 8 está implementado. O ciclo real do YouTube foi fechado com identidade pública limpa em `@3AMShelterMusic`, cinco vídeos públicos em 1080p, cinco snapshots reais importados, 15 cortes verticais aprovados e 13 pacotes oficiais íntegros. Os passos abaixo começam nas dependências externas e estendem o produto até uma operação comercializável.
+
+### Prioridade 0 — segurança e continuidade
+
+1. Revogar e gerar novamente qualquer token que tenha aparecido em captura de tela, especialmente o token temporário do Pinterest; nunca reutilizar o valor exposto.
+2. Manter segredos apenas no cofre criptografado do Hub ou nas variáveis privadas do ambiente; nunca gravá-los no repositório, nos relatórios ou na interface.
+3. Confirmar que o projeto Google OAuth continua em modo adequado aos usuários autorizados e que somente os escopos realmente usados estão habilitados.
+4. Testar restauração do backup mais recente em uma cópia isolada, além de apenas testar sua integridade.
+5. Criar uma rotina mensal de rotação de credenciais, revisão de permissões, backup e teste de recuperação.
+
+Critério de conclusão: nenhum segredo exposto permanece válido e uma restauração completa funciona sem afetar os dados principais.
+
+### Prioridade 1 — operação editorial do 3AM Shelter
+
+1. Manter um calendário inicial sustentável de um vídeo longo por semana; aumentar somente após quatro semanas sem falha operacional.
+2. Usar exclusivamente títulos em inglês natural, curtos e coerentes com a cena, como `Go to Sleep, It's 3 A.M.` e `It's Okay. Get Some Rest.`.
+3. Revisar antes de cada publicação: imagem exibida antes e depois do play, faixa correta, duração, 1080p, thumbnail, título, descrição, direitos e visibilidade pública.
+4. Preservar a linha visual aprovada: noite chuvosa, cidade japonesa ou interior acolhedor, contraste azul/verde com luz âmbar, atmosfera cinematográfica e sem aparência cartunesca genérica.
+5. Impedir repetição musical por impressão digital, estrutura, timbre, andamento e clima; não considerar apenas o nome do arquivo.
+6. Criar grupos musicais distintos — sono, leitura, exaustão, memória, chuva urbana e retorno para casa — com instrumentos e dinâmica próprios.
+7. Manter o Google Flow como produção manual/importada enquanto não houver integração oficial estável; usar a integração Lyria disponível no Hub somente com limite de custo e revisão humana.
+8. Registrar para cada faixa: origem, prompt, data, ferramenta, licença, arquivo mestre e produções em que foi utilizada.
+
+Critério de conclusão: quatro semanas de publicações consistentes, sem mídia incorreta, repetição evidente, falha de qualidade ou problema de direitos.
+
+### Prioridade 2 — aprendizado com dados reais
+
+1. Sincronizar métricas do YouTube semanalmente, sem alterar automaticamente a estratégia por oscilações de poucas visualizações.
+2. Aguardar amostra mínima antes de comparar títulos, capas e temas; manter o modo de exploração enquanto impressões e CTR forem insuficientes.
+3. Registrar CTR, impressões, retenção nos primeiros 30 segundos, duração média, tempo assistido, origem do tráfego, inscritos, comentários e compartilhamentos.
+4. Comparar apenas uma variável principal por teste: título, thumbnail, cena, duração ou família musical.
+5. Criar uma revisão mensal com três decisões: manter, ajustar ou retirar um formato.
+6. Nunca comprar visualizações, usar engajamento artificial ou fabricar métricas.
+
+Critério de conclusão: recomendações reproduzíveis baseadas em volume real, com histórico da hipótese, amostra, resultado e decisão.
+
+### Prioridade 3 — piloto de Shorts, TikTok e Instagram Reels
+
+1. Criar ou confirmar contas profissionais com a identidade 3AM Shelter, e-mail de recuperação e autenticação em dois fatores.
+2. Criar os aplicativos oficiais do TikTok e Meta, solicitar somente as permissões necessárias e concluir o OAuth de cada conta.
+3. Fazer o primeiro envio como rascunho ou privado quando a plataforma permitir.
+4. Conferir manualmente enquadramento 1080×1920, áudio, texto, loop, título, descrição e ausência de elementos cortados.
+5. Publicar primeiro três cortes diferentes, um por vídeo de origem, sem despejar os 15 candidatos de uma vez.
+6. Medir retenção, conclusão, repetição, compartilhamentos, salvamentos, visitas ao perfil e cliques separadamente por plataforma.
+7. Aprovar publicação automática somente depois de três pilotos consecutivos sem erro por plataforma.
+8. Manter limites diários, botão de pausa e registro auditável de cada tentativa de publicação.
+
+Critério de conclusão: TikTok e Instagram possuem OAuth válido, três pilotos aprovados cada e métricas reais importadas sem duplicação.
+
+### Prioridade 4 — Pinterest e Shopee comercial
+
+1. Revogar o token temporário exposto e aguardar/liberar o acesso trial do aplicativo Pinterest.
+2. Obter o segredo do aplicativo, concluir OAuth da conta Business e validar os escopos de criação e leitura necessários.
+3. Criar a conta de parceiro/afiliado Shopee e confirmar por escrito quais APIs e recursos estão disponíveis para a região da conta.
+4. Importar somente catálogo real com preço, disponibilidade, link rastreável, comissão e mídia cujo uso esteja autorizado.
+5. Separar totalmente campanhas comerciais do catálogo editorial do 3AM Shelter.
+6. Revisar alegações, direitos, transparência publicitária e destino do link antes de cada campanha.
+7. Fazer um piloto com um único produto e um criativo original; reutilizar esse criativo como Video Pin somente após validação.
+8. Medir cliques, conversões, cancelamentos, comissão líquida, custo e ROI; pausar automaticamente campanhas com produto indisponível ou link inválido.
+
+Critério de conclusão: um produto rastreável percorre catálogo, revisão, publicação e métricas sem uso indevido de mídia ou promessa enganosa.
+
+### Prioridade 5 — Bilibili localizado
+
+1. Criar e verificar uma conta creator com autenticação em dois fatores.
+2. Contratar ou obter revisão de um falante nativo para título, descrição, capa, legenda e adequação cultural.
+3. Fazer o primeiro upload manual usando `bilibili-upload.json` e confirmar categoria, direitos, qualidade e processamento.
+4. Manter métricas do Bilibili separadas do YouTube e das plataformas verticais.
+5. Considerar automação somente se houver acesso oficial estável e depois de três envios manuais corretos.
+
+Critério de conclusão: primeiro vídeo revisado por falante nativo, publicado corretamente e acompanhado por métricas próprias.
+
+### Prioridade 6 — disponibilidade do Hub sem custo inicial
+
+1. Manter o Hub local e protegido enquanto a exigência for custo zero; o endereço temporário depende de o computador permanecer ligado.
+2. Não prometer acesso permanente antes de existir hospedagem contínua e armazenamento adequado aos vídeos.
+3. Preparar configuração reproduzível, inventário de arquivos, backup e instruções de implantação para reduzir a migração futura.
+4. Avaliar planos gratuitos apenas se suportarem aplicação, banco, armazenamento e limites de execução sem comprometer segurança ou confiabilidade.
+5. Quando houver orçamento ou infraestrutura gratuita realmente suficiente, implantar primeiro um ambiente de teste, validar login, upload, reprodução, backup e restauração, e só então migrar a operação.
+
+Critério de conclusão: Hub acessível por HTTPS sem depender do computador pessoal, com autenticação, persistência, backup e restauração verificados.
+
+### Prioridade 7 — produto comercializável
+
+1. Separar dados, canais, arquivos e credenciais por cliente ou espaço de trabalho.
+2. Implementar contas de usuário, recuperação de acesso, papéis de administrador/editor/revisor e trilha de auditoria.
+3. Criar onboarding guiado, dados de demonstração descartáveis e estados vazios claros; nenhum cliente deve ver dados do projeto 3AM Shelter.
+4. Transformar integrações em módulos opcionais, com tela de permissões, teste de conexão, revogação e mensagem de erro compreensível.
+5. Adicionar limites de uso, filas, tentativas seguras, prevenção de publicação duplicada e isolamento de falhas.
+6. Criar painel operacional de saúde, armazenamento, custos, falhas, publicações e credenciais próximas do vencimento.
+7. Definir política de privacidade, termos de uso, retenção/exclusão de dados, tratamento de direitos autorais e conformidade com a LGPD.
+8. Fazer análise de segurança, acessibilidade e desempenho antes de aceitar usuários externos.
+9. Definir oferta comercial somente depois de medir custo por vídeo, tempo economizado, taxa de falha e suporte necessário.
+10. Executar um piloto fechado com poucos usuários, recolher feedback e corrigir bloqueadores antes de qualquer venda pública.
+
+Critério de conclusão: isolamento entre clientes comprovado, segurança e recuperação testadas, documentação legal disponível e piloto fechado operando sem acesso indevido ou publicação duplicada.
+
+### Prioridade 8 — lançamento e melhoria contínua
+
+1. Criar checklist de lançamento com responsável, evidência e possibilidade de reversão para cada etapa.
+2. Definir indicadores principais: vídeos aprovados, falhas por lote, tempo de produção, custo por vídeo, alcance, retenção e receita líquida.
+3. Fazer revisão semanal da operação e revisão mensal de produto; arquivar funcionalidades duplicadas ou sem uso comprovado.
+4. Manter testes internos, interface em computador/celular, acessibilidade, integridade dos pacotes e backup como bloqueadores obrigatórios de versão.
+5. Publicar um registro de mudanças compreensível e manter versões recuperáveis do banco, configurações e aplicação.
+6. Só liberar automações destrutivas ou publicação sem revisão após histórico suficiente, limites de segurança e mecanismo de cancelamento.
+
+Critério de conclusão: operação previsível, mensurável e recuperável, com evolução orientada por uso real e não por acúmulo de funcionalidades.
+
+## Ordem executiva recomendada
+
+1. Segurança: revogar credenciais expostas e testar restauração.
+2. YouTube: cumprir quatro semanas de calendário e acumular métricas reais.
+3. Verticais: autenticar TikTok e Instagram e executar três pilotos controlados em cada plataforma.
+4. Comercial: ativar Pinterest e Shopee com um único produto rastreável.
+5. Internacional: revisar e publicar o primeiro piloto manual no Bilibili.
+6. Infraestrutura: migrar o Hub somente quando existir opção contínua, segura e financeiramente aceitável.
+7. Produto: implementar isolamento multiusuário, segurança, aspectos legais e piloto fechado antes de comercializar.
+
+Nenhuma dependência externa deve ser simulada com dados falsos, integrações não oficiais, reutilização de credenciais expostas ou publicação sem revisão.
