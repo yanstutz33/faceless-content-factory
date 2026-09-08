@@ -60,7 +60,7 @@ class NightShift:
                 grouped.setdefault(cohort_id, []).append(job)
 
         batches = []
-        terminal = {"awaiting_approval", "approved"}
+        terminal = {"awaiting_approval", "approved", "archived"}
         for cohort_id, cohort in grouped.items():
             invalid = []
             active = any(job.get("status") not in terminal | {"failed", "rejected"} for job in cohort)

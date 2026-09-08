@@ -473,6 +473,34 @@ class Store:
             )
             return bool(cursor.rowcount)
 
+    def archive_review_jobs(self, job_ids: list[str], reason: str) -> list[str]:
+        """Remove superseded packages from active review without deleting files or events."""
+        archived = []
+        with self.connect() as db:
+            for job_id in dict.fromkeys(job_ids):
+                row = db.execute("SELECT metadata FROM jobs WHERE id=? AND status='awaiting_approval'", (job_id,)).fetchone()
+                if not row:
+                    continue
+                try:
+                    metadata = json.loads(row["metadata"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    metadata = {}
+                metadata["archive_reason"] = "superseded_review_package"
+                db.execute(
+                    "UPDATE jobs SET status='archived',metadata=?,error=?,updated_at=? WHERE id=?",
+                    (json.dumps(metadata, ensure_ascii=False), reason[:500], now(), job_id),
+                )
+                db.execute(
+                    "UPDATE calendar SET status='archived',error=?,updated_at=? WHERE job_id=?",
+                    (reason[:500], now(), job_id),
+                )
+                db.execute(
+                    "INSERT INTO events(job_id,stage,message,created_at) VALUES(?,?,?,?)",
+                    (job_id, "review_archive", reason[:500], now()),
+                )
+                archived.append(job_id)
+        return archived
+
     def claim_due_calendar(self, at: datetime | None = None, allow_autopilot: bool = True) -> dict[str, Any] | None:
         local_now = (at or datetime.now().astimezone()).replace(tzinfo=None).isoformat(timespec="minutes")
         with self.connect() as db:

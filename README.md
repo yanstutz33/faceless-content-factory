@@ -113,6 +113,8 @@ python app.py backup
 python app.py backup-restore-test
 python app.py editorial-baseline
 python app.py editorial-baseline --apply
+python app.py archive-superseded-reviews
+python app.py archive-superseded-reviews --apply
 python app.py music-diversity-audit
 python app.py security-audit
 python app.py establish-pilot-cohort --cohort-id pilot-flow-2026-08-30

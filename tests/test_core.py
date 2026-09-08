@@ -782,6 +782,28 @@ class CoreTests(unittest.TestCase):
         )
         self.assertTrue(Autopilot._has_timing_conflict("Apartamento à noite ao amanhecer"))
 
+    def test_superseded_reviews_are_archived_without_deleting_jobs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            autopilot = Autopilot(self.settings(root), store)
+            job_id = store.create_job({
+                "id": "phase2-old", "topic": "Old validation", "duration": 1800,
+                "narration": False, "subtitles": True, "output_dir": str(root / "job"),
+                "metadata": {}, "profile": "youtube_long", "priority": 2,
+                "source_asset": None, "source_assets": [], "team_id": "youtube_ambient",
+                "music_asset_id": None, "cohort_id": "phase2-2026-09-01-test",
+            })
+            self.assertIsNone(job_id)
+            store.update("phase2-old", "awaiting_approval", {}, progress=100)
+
+            result = autopilot.archive_superseded_reviews(True, datetime(2026, 9, 7, 10, 0))
+
+            self.assertEqual(result["archived"], ["phase2-old"])
+            self.assertEqual(store.get_job("phase2-old")["status"], "archived")
+            self.assertFalse(result["files_deleted"])
+            self.assertFalse(result["publication_changed"])
+
     def test_night_shift_runs_bounded_batch_and_never_publishes(self):
         class FakeRunner:
             def __init__(self):

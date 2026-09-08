@@ -140,6 +140,27 @@ class Autopilot:
                 "archived_conflicting_plans": archived_conflicts, "created": created,
                 "status": self.status(), "network_contacted": False, "production_started": False}
 
+    def archive_superseded_reviews(self, apply: bool = False, now_at: datetime | None = None) -> dict[str, Any]:
+        """Archive old certification and overdue ungrouped packages while preserving their files."""
+        now_at = now_at or datetime.now().astimezone().replace(tzinfo=None)
+        calendar_by_job = {item.get("job_id"): item for item in self.store.list_calendar() if item.get("job_id")}
+        candidates = []
+        for job in self.store.list_jobs(1000):
+            if job.get("status") != "awaiting_approval":
+                continue
+            cohort = str(job.get("cohort_id") or "")
+            calendar = calendar_by_job.get(job.get("id")) or {}
+            overdue_ungrouped = not cohort and str(calendar.get("scheduled_for") or "") < now_at.isoformat(timespec="minutes")
+            if cohort.startswith("phase2-") or overdue_ungrouped:
+                candidates.append(str(job["id"]))
+        if not apply:
+            return {"applied": False, "candidates": candidates, "count": len(candidates),
+                    "files_deleted": False, "publication_changed": False}
+        reason = "Pacote de validação anterior preservado fora da fila editorial ativa"
+        archived = self.store.archive_review_jobs(candidates, reason)
+        return {"applied": True, "archived": archived, "count": len(archived),
+                "files_deleted": False, "publication_changed": False, "status": self.status()}
+
     def ensure_plan(self, now_at: datetime | None = None, force: bool = False) -> list[dict[str, Any]]:
         config = self.store.get_autopilot()
         config["series_ids"] = self._current_series_ids(config.get("series_ids"))
