@@ -95,7 +95,7 @@ Objetivo: aprender com desempenho sem transformar todos os vídeos em cópias do
 
 Critério de conclusão: recomendações reproduzíveis, auditáveis e baseadas em volume mínimo de dados.
 
-Estado técnico em 06/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; cinco snapshots reais possuem fonte, data e identificador externo. A coleta direcionada oficial já traz visualizações, retenção, tempo assistido e engajamento. A YouTube Reporting API foi ativada e o relatório diário oficial `channel_reach_basic_a1` foi criado; ele alimentará impressões e CTR automaticamente quando o primeiro CSV for disponibilizado pelo Google, normalmente em até 24 horas. Até lá esses campos permanecem zerados em vez de serem inventados. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática quando não há amostra suficiente.
+Estado técnico em 07/09/2026: armazenamento de CTR, retenção média, tempo assistido, impressões, comentários e compartilhamentos concluído; os cinco vídeos possuem snapshots reais com fonte, data e identificador externo. A coleta direcionada oficial já traz visualizações, retenção, tempo assistido e engajamento. A YouTube Reporting API entregou o primeiro relatório diário `channel_reach_basic_a1`, com cinco linhas vinculadas corretamente; impressões e CTR ainda estão zerados na origem. A influência das métricas continua limitada a 20%, com novidade dominante e exploração automática enquanto não houver volume estatístico suficiente. O mecanismo está concluído, mas o critério de aprendizado depende de audiência real e não pode ser fabricado localmente.
 
 ### Fase 5 — Cortes inteligentes verticais
 
@@ -108,9 +108,9 @@ Objetivo: reutilizar apenas vídeos longos já aprovados em Shorts, TikTok e Ree
 
 Critério de conclusão: cada corte preserva o assunto principal, não corta texto/rosto e possui origem rastreável. Contrato: [smart-cuts-architecture.md](smart-cuts-architecture.md).
 
-Implementação concluída localmente em 06/09/2026: `smart_cuts_v1` gera candidatos de 15, 30 e 60 segundos em 1080×1920 a partir de capítulos do vídeo aprovado. O quadro original inteiro é preservado sobre fundo desfocado, cada corte recebe timestamps, SHA-256 da fonte, motivo de seleção, relatório técnico e textos próprios para Shorts, TikTok e Reels. Os cinco vídeos públicos certificados receberam 15 candidatos reais; todos passaram em duração, H.264, `yuv420p`, áudio AAC e resolução. Os 15 também passaram por revisão editorial assistida com amostras visuais do ponto médio, preservação do enquadramento e conferência dos gates completos; a decisão ficou gravada nos pacotes e nenhum corte foi enviado às plataformas.
+Implementação concluída localmente em 07/09/2026: `smart_cuts_v1` gera candidatos de 15, 30 e 60 segundos em 1080×1920 a partir de capítulos do vídeo aprovado. O quadro original inteiro é preservado sobre fundo desfocado, cada corte recebe timestamps, SHA-256 da fonte, motivo de seleção, relatório técnico e textos próprios para Shorts, TikTok e Reels. Os cinco vídeos públicos certificados receberam 15 candidatos reais; todos passaram em duração, H.264, `yuv420p`, áudio AAC e resolução. Os 15 também passaram por revisão editorial assistida com amostras visuais do ponto médio, preservação do enquadramento e conferência dos gates completos. Os 13 pacotes da coorte oficial foram reconstruídos e recertificados: 13 elegíveis, 13 íntegros e nenhum bloqueado. Nenhum corte foi enviado às plataformas.
 
-### Fase 6 — TikTok e Instagram
+### Fase 6 — TikTok e Instagram — implementação local concluída
 
 Objetivo: conectar os fluxos verticais somente depois do piloto de cortes.
 
@@ -121,9 +121,9 @@ Objetivo: conectar os fluxos verticais somente depois do piloto de cortes.
 
 Automação: pacote, validação e métricas. Manual: login e publicação onde não houver API oficial adequada.
 
-Estado técnico: estratégia separada por equipe, pacote vertical e textos por plataforma concluídos. Restam conta profissional, aprovação dos aplicativos, OAuth e o primeiro piloto de publicação — etapas externas e manuais.
+Estado verificado em 07/09/2026: estratégia separada por plataforma, pacote vertical, textos, validação e pré-teste de publicação concluídos. O pré-teste oficial não contatou a rede nem publicou conteúdo e confirmou que os arquivos estão aptos. A ativação real depende de credenciais de aplicativo, autenticação OAuth e aprovação manual do primeiro piloto nas contas profissionais do TikTok e Instagram — dependências externas que não podem ser concluídas sem essas contas.
 
-### Fase 7 — Shopee + Pinterest comercial
+### Fase 7 — Shopee + Pinterest comercial — implementação local concluída
 
 Objetivo: operar afiliados sem misturar o catálogo editorial com campanhas.
 
@@ -136,9 +136,9 @@ Objetivo: operar afiliados sem misturar o catálogo editorial com campanhas.
 
 Critério de conclusão: produto, criativo e origem de mídia rastreáveis; nenhuma campanha é publicada sem revisão.
 
-Estado técnico: validação do produto exato, direitos, divulgação publicitária, campanha, métricas, ROI e pacote Pinterest Video Pin concluídos. O aplicativo Pinterest já foi criado e o fluxo OAuth oficial está implementado, mas o acesso trial permanece pendente e o token temporário disponível não possui os escopos de escrita necessários. Restam o segredo liberado pelo Pinterest, o OAuth da conta Business, o catálogo real e a conta de afiliado Shopee.
+Estado verificado em 07/09/2026: validação do produto exato, direitos, divulgação publicitária, campanha, métricas, ROI, pacote Pinterest Video Pin e pré-teste da Shopee concluídos. Os pacotes passam na validação local sem contato com a rede. O aplicativo Pinterest já foi criado e o fluxo OAuth oficial está implementado, mas o acesso trial permanece pendente e o token temporário não possui os escopos de escrita. A ativação real depende do segredo liberado pelo Pinterest, OAuth da conta Business, catálogo autorizado e conta de parceiro/afiliado Shopee.
 
-### Fase 8 — Bilibili localizado
+### Fase 8 — Bilibili localizado — pacote concluído
 
 Objetivo: testar distribuição sem tradução literal ou automação frágil.
 
@@ -148,7 +148,7 @@ Objetivo: testar distribuição sem tradução literal ou automação frágil.
 - automatizar upload somente com acesso oficial estável, autorizado e testado;
 - registrar métricas separadamente das plataformas ocidentais.
 
-Estado técnico: capa, títulos, descrições, legendas em inglês e chinês simplificado, manifesto e pacote manual `bilibili-upload.json` concluídos. A localização `curated_scene_and_intent_v2` diferencia cenas como apartamento, cafeteria, trem, observatório, estação orbital, biblioteca, cabana, estufa, lavanderia e loja de discos, inclusive quando o título também contém palavras genéricas como “rain”. Restam conta creator, uma última leitura por falante nativo e o primeiro envio manual.
+Estado verificado em 07/09/2026: capa, títulos, descrições, legendas em inglês e chinês simplificado, manifesto e pacote manual `bilibili-upload.json` concluídos. A localização `curated_scene_and_intent_v2` diferencia cenas como apartamento, cafeteria, trem, observatório, estação orbital, biblioteca, cabana, estufa, lavanderia e loja de discos, inclusive quando o título também contém palavras genéricas como “rain”. A ativação real depende de uma conta creator, revisão final por falante nativo e aprovação do primeiro envio manual.
 
 ## Portas de qualidade para publicação
 
