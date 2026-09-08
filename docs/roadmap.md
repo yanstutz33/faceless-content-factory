@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 07/09/2026. O roadmap separa o que foi validado localmente, o que foi confirmado no YouTube e o que ainda depende de contas ou dados externos. Publicação pública automática continua desativada por padrão: o envio começa privado, passa por integridade e processamento HD e somente então recebe a liberação já autorizada no Studio. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
+Última revisão: 08/09/2026. O roadmap separa o que foi validado localmente, o que foi confirmado no YouTube e o que ainda depende de contas ou dados externos. Publicação pública automática continua desativada por padrão: o envio começa privado, passa por integridade e processamento HD e somente então recebe a liberação já autorizada no Studio. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -167,6 +167,8 @@ Um lote só avança quando todas as condições abaixo forem verdadeiras:
 ## Próximos passos completos
 
 Todo o trabalho local e automatizável das fases 1 a 8 está implementado. O ciclo real do YouTube foi fechado com identidade pública limpa em `@3AMShelterMusic`, cinco vídeos públicos em 1080p, cinco snapshots reais importados, 15 cortes verticais aprovados e 13 pacotes oficiais íntegros. Os passos abaixo começam nas dependências externas e estendem o produto até uma operação comercializável.
+
+Fechamento técnico em 08/09/2026: a validação local passou com 123 testes unitários e 24 cenários de navegador, celular e acessibilidade. A execução remota `34185447840` também passou integralmente, incluindo construção da imagem de nuvem, proteção de acesso, diagnósticos e testes de interface. A auditoria final confirmou 13 faixas distintas em 78 comparações, quatro lotes autônomos certificados, nenhuma revisão antiga ativa, backup restaurável com 12 tabelas e 1.614 registros e zero segredo ou arquivo sensível versionado. O repositório está sincronizado na branch `release/hardening-2026-08-28`.
 
 ### Prioridade 0 — segurança e continuidade
 
