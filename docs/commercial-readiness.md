@@ -20,6 +20,12 @@ Este documento define a passagem do Hub pessoal para um produto com usuários ex
 
 Saída obrigatória: teste automatizado prova que dois espaços não conseguem ler, alterar ou publicar dados um do outro.
 
+### Fundação local implementada
+
+O primeiro recorte seguro usa isolamento físico por processo: `3am-shelter` preserva os caminhos históricos, enquanto cada espaço provisionado recebe banco, mídias, backups, auditoria, fila de entregas e cofre próprios em `data/workspaces/<id>/`. A seleção é explícita por `--workspace`, identificadores não podem conter caminhos e a leitura de um espaço desconhecido nunca o cria. Testes negativos usam o mesmo ID de produção em dois espaços e comprovam que leitura e alteração permanecem separadas. Detalhes: [workspace-isolation.md](workspace-isolation.md).
+
+Isso ainda não conclui a Etapa A: falta selecionar o espaço a partir de uma sessão autenticada, registrar o `workspace_id` também nos eventos de auditoria exportados e criar testes de publicação simulada entre espaços. Até lá, cada espaço deve rodar em um processo separado e o Hub continua sem usuários externos.
+
 ## Etapa B — usuários e responsabilidades
 
 1. Implementar contas individuais; proibir compartilhamento da conta proprietária.

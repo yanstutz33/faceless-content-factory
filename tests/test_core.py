@@ -115,6 +115,8 @@ class CoreTests(unittest.TestCase):
             assert pair is not None
             canonical = cover_reference(root, pair[0]["id"])
             assert canonical is not None
+            treated = out / "background.jpg"
+            treated.write_bytes(b"treated-crop-and-color")
 
             def copy_thumbnail(source: Path, output: Path, width: int, height: int) -> None:
                 del width, height
@@ -123,14 +125,54 @@ class CoreTests(unittest.TestCase):
             with patch.object(pipeline, "create_thumbnail", side_effect=copy_thumbnail):
                 design = pipeline.create_thumbnail_variants(
                     out, "Observatório sob a aurora", 1280, 720,
-                    Path(canonical["path"]), canonical_cover=canonical,
+                    treated, canonical_cover=canonical,
                 )
 
             self.assertEqual(design["variants"][0]["reference_id"], canonical["id"])
             self.assertEqual(design["variants"][1]["reference_id"], canonical["id"])
-            self.assertEqual((out / "thumbnail-a.jpg").read_bytes(), Path(canonical["path"]).read_bytes())
-            self.assertEqual((out / "thumbnail-b.jpg").read_bytes(), Path(canonical["path"]).read_bytes())
-            self.assertEqual((out / "thumbnail.jpg").read_bytes(), Path(canonical["path"]).read_bytes())
+            self.assertEqual(design["derivation"]["source_file"], "background.jpg")
+            self.assertEqual((out / "thumbnail-a.jpg").read_bytes(), treated.read_bytes())
+            self.assertEqual((out / "thumbnail-b.jpg").read_bytes(), treated.read_bytes())
+            self.assertEqual((out / "thumbnail.jpg").read_bytes(), treated.read_bytes())
+
+    @unittest.skipUnless(FFMPEG.exists(), "FFmpeg portátil não encontrado")
+    def test_poster_consistency_rejects_raw_cover_and_accepts_treated_video_base(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / "data" / "factory.db")
+            pipeline = Pipeline(self.settings(root), store)
+            raw = root / "raw.jpg"
+            treated = root / "treated.jpg"
+            raw_thumbnail = root / "raw-thumbnail.jpg"
+            treated_thumbnail = root / "treated-thumbnail.jpg"
+            video = root / "video.mp4"
+            pipeline.command([
+                str(FFMPEG), "-y", "-f", "lavfi", "-i", "testsrc2=s=400x180:r=1",
+                "-frames:v", "1", raw,
+            ])
+            pipeline.command([
+                str(FFMPEG), "-y", "-i", raw, "-vf",
+                pipeline.treated_scene_filter(320, 180, {
+                    "crop_x": .82, "crop_y": .5,
+                    "visual_filter": "eq=contrast=1.12:brightness=-0.18:saturation=0.72",
+                }),
+                "-frames:v", "1", treated,
+            ])
+            pipeline.create_thumbnail(raw, raw_thumbnail, 320, 180)
+            pipeline.create_thumbnail(treated, treated_thumbnail, 320, 180)
+            pipeline.command([
+                str(FFMPEG), "-y", "-loop", "1", "-framerate", "24", "-i", treated,
+                "-vf", "drawbox=x=22:y=18:w=12:h=16:color=white@0.65:t=fill",
+                "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", video,
+            ])
+
+            good = pipeline.poster_video_consistency(treated_thumbnail, video, [.2, .5, .8])
+            bad = pipeline.poster_video_consistency(raw_thumbnail, video, [.2, .5, .8])
+
+            self.assertTrue(good["passed"])
+            self.assertLess(good["changed_pixel_ratio"], .25)
+            self.assertFalse(bad["passed"])
+            self.assertGreater(bad["mean_absolute_error"], good["mean_absolute_error"])
 
     def test_thumbnail_batch_uses_nine_collection_covers_then_unique_scene(self):
         with tempfile.TemporaryDirectory() as tmp:

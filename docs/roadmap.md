@@ -1,6 +1,6 @@
 # Roadmap executivo — Faceless Content Factory
 
-Última revisão: 08/09/2026. O roadmap separa o que foi validado localmente, o que foi confirmado no YouTube e o que ainda depende de contas ou dados externos. Publicação pública automática continua desativada por padrão: o envio começa privado, passa por integridade e processamento HD e somente então recebe a liberação já autorizada no Studio. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
+Última revisão: 09/09/2026. O roadmap separa o que foi validado localmente, o que foi confirmado no YouTube e o que ainda depende de contas ou dados externos. Publicação pública automática continua desativada por padrão: o envio começa privado, passa por integridade e processamento HD e somente então recebe a liberação já autorizada no Studio. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável
 
@@ -170,6 +170,8 @@ Todo o trabalho local e automatizável das fases 1 a 8 está implementado. O cic
 
 Fechamento técnico em 08/09/2026: a validação local passou com 123 testes unitários e 24 cenários de navegador, celular e acessibilidade. A execução remota `34185447840` também passou integralmente, incluindo construção da imagem de nuvem, proteção de acesso, diagnósticos e testes de interface. A auditoria final confirmou 13 faixas distintas em 78 comparações, quatro lotes autônomos certificados, nenhuma revisão antiga ativa, backup restaurável com 12 tabelas e 1.614 registros e zero segredo ou arquivo sensível versionado. O repositório está sincronizado na branch `release/hardening-2026-08-28`.
 
+Fechamento incremental em 09/09/2026: 131 testes unitários e 24 cenários de navegador, celular e acessibilidade passaram localmente. O backup mais recente restaurou 12 tabelas e 1.683 registros em isolamento; a auditoria de segurança permaneceu aprovada. A produção de 11/09 foi finalizada sem upload e o novo gate comprovou correspondência perceptual entre thumbnail e vídeo. A fundação opt-in de isolamento por workspace também foi adicionada, sem classificar o Hub como SaaS pronto.
+
 ### Prioridade 0 — segurança e continuidade
 
 1. Revogar e gerar novamente qualquer token que tenha aparecido em captura de tela, especialmente o token temporário do Pinterest; nunca reutilizar o valor exposto.
@@ -196,6 +198,8 @@ Progresso em 07/09/2026: os comandos `backup-restore-test` e `security-audit` fo
 Critério de conclusão: quatro semanas de publicações consistentes, sem mídia incorreta, repetição evidente, falha de qualidade ou problema de direitos.
 
 Progresso em 07/09/2026: o piloto automático foi corrigido para representar frequência semanal real, três pautas automáticas vencidas e sem produção foram arquivadas, e a cadência foi reduzida de três para um vídeo por semana. Uma combinação contraditória de noite com amanhecer foi identificada, arquivada e bloqueada no gerador. A próxima pauta ficou planejada para 11/09/2026 às 19:00, sem renderização ou publicação. Treze pacotes antigos de validação foram removidos da fila ativa de revisão sem exclusão de arquivos; os quatro lotes da Fase 2 continuam certificados e agora registram zero revisão pendente. O comando `music-diversity-audit` comparou as 13 faixas aprovadas em 78 pares e não encontrou duplicatas exatas ou quase duplicatas; o relatório é somente leitura e não substitui audição humana. A automação editorial está ativa, sem bloqueios, e continua incapaz de publicar sozinha.
+
+Atualização em 09/09/2026: a pauta de 11/09 foi produzida localmente como `Take a Breath. You're Safe Here. | Rainy Night Lo-fi`, em 1920×1080, H.264, 30 fps, AAC estéreo e 30 minutos. O vídeo e a capa usam a mesma referência oficial `anime-window-night`, com a faixa aprovada `3 A.M. Exhaustion`; o quality gate marcou 100/100 e o manifesto passou. Uma revisão visual detectou que a thumbnail ainda usava o PNG bruto, enquanto o vídeo exibia o crop tratado. O gerador foi corrigido para derivar a capa do enquadramento final e ganhou um gate perceptual real; o pacote foi reconstruído com backup, atingindo erro médio de 0,86, diferença de brilho de 0,06 e zero pixel significativamente divergente na amostra. O pacote permanece em `awaiting_approval`, sem upload, porque a novidade de 44,4/100 indicou risco editorial médio por proximidade com material histórico. A revisão humana foi preservada deliberadamente.
 
 ### Prioridade 2 — aprendizado com dados reais
 
@@ -272,6 +276,8 @@ Critério de conclusão: Hub acessível por HTTPS sem depender do computador pes
 Critério de conclusão: isolamento entre clientes comprovado, segurança e recuperação testadas, documentação legal disponível e piloto fechado operando sem acesso indevido ou publicação duplicada.
 
 Progresso em 07/09/2026: a fronteira entre o Hub pessoal e um futuro produto foi documentada em `commercial-readiness.md`, com sequência para isolamento de espaços, papéis, conectores modulares, cotas, exportação, suporte, revisão profissional e piloto fechado. O checklist reutilizável `release-checklist.md` também foi criado. A arquitetura multiusuário ainda não foi implementada e o FFactory continua corretamente classificado como sistema pessoal em validação.
+
+Atualização em 09/09/2026: a primeira fundação opt-in de isolamento físico foi implementada. O espaço pessoal `3am-shelter` preserva `data/`; espaços explicitamente provisionados usam `data/workspaces/<id>/`, com banco, mídias, backups, auditoria, entregas e cofre separados. Identificadores não podem atravessar diretórios e uma consulta não cria um espaço inexistente. Testes negativos com IDs de produção iguais comprovam isolamento de leitura e alteração. Isso ainda não autoriza clientes externos: autenticação individual, papéis, seleção por sessão, auditoria com workspace e testes cruzados de publicação permanecem necessários.
 
 ### Prioridade 8 — lançamento e melhoria contínua
 

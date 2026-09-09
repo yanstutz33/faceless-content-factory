@@ -295,7 +295,8 @@ class Pipeline:
         }
 
     def quality_gate(self, video: Path, expected_duration: int, metadata: dict[str, Any],
-                     technical_report: dict[str, Any] | None = None) -> dict[str, Any]:
+                     technical_report: dict[str, Any] | None = None,
+                     thumbnail: Path | None = None) -> dict[str, Any]:
         """Fast, deterministic checks that keep broken renders out of the approval queue."""
         technical_report = technical_report or self.inspect_video(video, expected_duration)
         duration = max(1.0, float(technical_report.get("duration_seconds") or expected_duration))
@@ -341,14 +342,96 @@ class Pipeline:
             {"id": "audio", "label": "Áudio audível sem clipping", "passed": mean_db is not None and max_db is not None and
              -38 <= mean_db <= -10 and -30 <= max_db <= -0.5, "value": {"mean_db": mean_db, "max_db": max_db}},
         ]
+        poster_consistency = None
+        if thumbnail is not None:
+            poster_consistency = self.poster_video_consistency(thumbnail, video, sample_times)
+            checks.append({
+                "id": "poster",
+                "label": "Thumbnail derivada do enquadramento final do vídeo",
+                "passed": poster_consistency["passed"],
+                "value": {
+                    "mean_absolute_error": poster_consistency["mean_absolute_error"],
+                    "brightness_delta": poster_consistency["brightness_delta"],
+                    "changed_pixel_ratio": poster_consistency["changed_pixel_ratio"],
+                    "sample_time": poster_consistency["sample_time"],
+                },
+            })
         failed = [check for check in checks if not check["passed"]]
-        return {
+        result = {
             "passed": not failed,
             "score": round(100 * (len(checks) - len(failed)) / len(checks)),
             "checks": checks,
             "failed_check_ids": [check["id"] for check in failed],
             "sample_times": sample_times,
-            "policy": "ambient_fixed_camera_v1",
+            "policy": "ambient_fixed_camera_v2",
+        }
+        if poster_consistency is not None:
+            result["poster_consistency"] = poster_consistency
+        return result
+
+    def _gray_visual_sample(self, media: Path, moment: float | None = None) -> bytes:
+        command = [self.settings.ffmpeg, "-v", "error"]
+        if moment is not None:
+            command.extend(["-ss", f"{moment:.3f}"])
+        command.extend([
+            "-i", str(media), "-vf", "scale=160:90", "-frames:v", "1",
+            "-f", "rawvideo", "-pix_fmt", "gray", "-",
+        ])
+        result = subprocess.run(command, capture_output=True)
+        if result.returncode or len(result.stdout) != 160 * 90:
+            raise RuntimeError(f"Não foi possível comparar a aparência de {media.name}")
+        return result.stdout
+
+    def poster_video_consistency(self, thumbnail: Path, video: Path,
+                                 sample_times: list[float] | None = None) -> dict[str, Any]:
+        """Compare framing and treatment while tolerating a localized animated plate."""
+        if not thumbnail.is_file() or not video.is_file():
+            return {
+                "passed": False, "mean_absolute_error": None, "brightness_delta": None,
+                "changed_pixel_ratio": None, "sample_time": None,
+                "policy": "treated_video_base_v1", "reason": "thumbnail ou vídeo ausente",
+            }
+        try:
+            poster = self._gray_visual_sample(thumbnail)
+            poster_brightness = sum(poster) / len(poster)
+            comparisons = []
+            for moment in sample_times or [0.5, 4.0, 8.0]:
+                frame = self._gray_visual_sample(video, moment)
+                differences = [abs(first - second) for first, second in zip(poster, frame)]
+                comparisons.append({
+                    "sample_time": round(float(moment), 3),
+                    "mean_absolute_error": round(sum(differences) / len(differences), 2),
+                    "brightness_delta": round(abs(poster_brightness - sum(frame) / len(frame)), 2),
+                    "changed_pixel_ratio": round(
+                        sum(value >= 16 for value in differences) / len(differences), 4
+                    ),
+                })
+        except RuntimeError as exc:
+            return {
+                "passed": False, "mean_absolute_error": None, "brightness_delta": None,
+                "changed_pixel_ratio": None, "sample_time": None,
+                "policy": "treated_video_base_v1", "reason": str(exc),
+            }
+        best = min(comparisons, key=lambda item: (
+            item["mean_absolute_error"], item["changed_pixel_ratio"], item["brightness_delta"]
+        ))
+        passed = (
+            best["mean_absolute_error"] <= 10
+            and best["brightness_delta"] <= 10
+            and best["changed_pixel_ratio"] <= .25
+        )
+        return {
+            "passed": passed, **best, "policy": "treated_video_base_v1",
+            "thresholds": {
+                "mean_absolute_error_max": 10,
+                "brightness_delta_max": 10,
+                "changed_pixel_ratio_max": .25,
+            },
+            "reason": (
+                "derivação visual compatível; diferenças locais de overlay são toleradas"
+                if passed else
+                "thumbnail diverge perceptualmente do crop ou tratamento do vídeo"
+            ),
         }
 
     @staticmethod
@@ -886,6 +969,19 @@ class Pipeline:
         self.command([self.settings.ffmpeg, "-y", "-i", str(source), "-vf", vf,
                       "-frames:v", "1", "-q:v", "2", str(output)])
 
+    @staticmethod
+    def treated_scene_filter(width: int, height: int,
+                             creative_dna: dict[str, Any] | None = None) -> str:
+        """Canonical crop/color treatment shared by the video base and its poster."""
+        creative_dna = creative_dna or {}
+        crop_x = float(creative_dna.get("crop_x", .5))
+        crop_y = float(creative_dna.get("crop_y", .5))
+        treatment = str(creative_dna.get("visual_filter", "eq=contrast=1:saturation=1"))
+        return (
+            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}:x=(iw-ow)*{crop_x:.2f}:y=(ih-oh)*{crop_y:.2f},{treatment}"
+        )
+
     def create_thumbnail_variants(self, out: Path, topic: str, width: int, height: int,
                                    fallback_source: Path, selected: str = "a",
                                    excluded_cover_ids: set[str] | None = None,
@@ -893,10 +989,10 @@ class Pipeline:
         selected = selected if selected in {"a", "b"} else "a"
         cover_pair = select_cover_references(self.settings.root, topic, excluded_cover_ids)
         if canonical_cover:
-            # A/B may compare crops later, but never a different scene: the
-            # poster must remain identical to what appears after pressing play.
+            # Keep the approved identity for metadata, but render the poster
+            # from the already cropped and treated base used by the encoder.
             cover_a = cover_b = canonical_cover
-            source_a = source_b = Path(canonical_cover["path"])
+            source_a = source_b = fallback_source
         elif cover_pair:
             cover_a = cover_b = cover_pair[0]
             source_a = source_b = Path(cover_a["path"])
@@ -911,6 +1007,7 @@ class Pipeline:
         return {
             "selected": selected,
             "style_id": COVER_STYLE_ID,
+            "derivation": {"policy": "treated_video_base_v1", "source_file": fallback_source.name},
             "direction": visual_direction(),
             "variants": [
                 {"id": "a", "file": "thumbnail-a.jpg", "style": "cinematográfica limpa",
@@ -1094,10 +1191,11 @@ class Pipeline:
             current_metadata = job.get("metadata") or {}
             current_visual = current_metadata.get("visual_source") or {}
             current_video = (current_metadata.get("verification") or {}).get("video") or {}
+            current_poster = self.poster_video_consistency(out / "thumbnail.jpg", video)
             target_profile = PROFILES.get(job.get("profile"), PROFILES["youtube_long"])
             if (not force
                     and current_visual.get("reference_id") == cover["id"]
-                    and current_visual.get("poster_matches_video") is True
+                    and current_poster["passed"]
                     and int(current_video.get("width") or 0) == int(target_profile["width"])
                     and int(current_video.get("height") or 0) == int(target_profile["height"])):
                 skipped.append({"job_id": job["id"], "reason": "imagem e vídeo já sincronizados"})
@@ -1114,9 +1212,17 @@ class Pipeline:
             try:
                 profile = target_profile
                 width, height, fps = profile["width"], profile["height"], profile["fps"]
-                self.create_thumbnail(Path(cover["path"]), candidate_background, width, height)
-                self.create_thumbnail(Path(cover["path"]), candidate_thumb_a, width, height)
-                self.create_thumbnail(Path(cover["path"]), candidate_thumb_b, width, height)
+                creative_dna = dict(
+                    current_metadata.get("creative_fingerprint")
+                    or current_metadata.get("creative_dna") or {}
+                )
+                self.command([
+                    self.settings.ffmpeg, "-y", "-i", str(cover["path"]), "-vf",
+                    self.treated_scene_filter(width, height, creative_dna),
+                    "-frames:v", "1", str(candidate_background),
+                ])
+                self.create_thumbnail(candidate_background, candidate_thumb_a, width, height)
+                self.create_thumbnail(candidate_background, candidate_thumb_b, width, height)
                 effect = COVER_MOTION.get(cover["id"], "lamp_flicker")
                 motion_dna = {
                     "seed": int(hashlib.sha256(f"{job['id']}:{cover['id']}".encode()).hexdigest()[:8], 16),
@@ -1163,9 +1269,17 @@ class Pipeline:
                 }
                 metadata["creative_dna"] = metadata["creative_fingerprint"]
                 report = self.inspect_video(candidate_video, int(job["duration"]))
-                gate = self.quality_gate(candidate_video, int(job["duration"]), metadata, report)
+                gate = self.quality_gate(
+                    candidate_video, int(job["duration"]), metadata, report, candidate_thumb_a,
+                )
                 if not gate["passed"]:
                     raise RuntimeError("controle bloqueou: " + ", ".join(gate["failed_check_ids"]))
+                metadata["poster_consistency"] = gate.get("poster_consistency")
+                metadata["visual_source"].update({
+                    "poster_matches_video": bool((gate.get("poster_consistency") or {}).get("passed")),
+                    "poster_derivation": "treated_video_base_v1",
+                    "poster_source_file": "background.jpg",
+                })
 
                 archive = archive_root / job["id"]
                 archive.mkdir(parents=True, exist_ok=True)
@@ -1426,13 +1540,7 @@ class Pipeline:
                              creative_dna: dict[str, Any] | None = None,
                              canonical_cover: dict[str, Any] | None = None) -> list[Path]:
         creative_dna = creative_dna or {}
-        crop_x = float(creative_dna.get("crop_x", .5))
-        crop_y = float(creative_dna.get("crop_y", .5))
-        treatment = str(creative_dna.get("visual_filter", "eq=contrast=1:saturation=1"))
-        visual_filter = (
-            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}:x=(iw-ow)*{crop_x:.2f}:y=(ih-oh)*{crop_y:.2f},{treatment}"
-        )
+        visual_filter = self.treated_scene_filter(width, height, creative_dna)
         assets = job.get("source_assets") or []
         backgrounds: list[Path] = []
         if assets:
@@ -1692,7 +1800,9 @@ class Pipeline:
             (out / "thumbnail-design.json").write_text(json.dumps(thumbnail_design, ensure_ascii=False, indent=2), encoding="utf-8")
 
             media_report = self.inspect_video(render_candidate, job["duration"])
-            gate = self.quality_gate(render_candidate, job["duration"], metadata, media_report)
+            gate = self.quality_gate(
+                render_candidate, job["duration"], metadata, media_report, out / "thumbnail.jpg",
+            )
             (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
             if not gate["passed"]:
                 failed_labels = [check["label"] for check in gate["checks"] if not check["passed"]]
@@ -1703,6 +1813,7 @@ class Pipeline:
             (out / "render-report.json").write_text(json.dumps(media_report, ensure_ascii=False, indent=2), encoding="utf-8")
             self.store.event(job_id, "verification", f"Vídeo, áudio e duração validados com {media_report['validation_engine']}")
             metadata["quality_gate"] = gate
+            metadata["poster_consistency"] = gate.get("poster_consistency")
             self.store.event(job_id, "quality_gate", f"Controle automático aprovado: {gate['score']}/100")
 
             self.store.update(job_id, "reviewing", metadata=metadata, progress=88)
@@ -1726,7 +1837,9 @@ class Pipeline:
                 "style_id": COVER_STYLE_ID if canonical_cover else "licensed_production_scene",
                 "reference_id": rendered_cover["id"],
                 "source_path": rendered_cover["path"],
-                "poster_matches_video": True,
+                "poster_matches_video": bool((gate.get("poster_consistency") or {}).get("passed")),
+                "poster_derivation": "treated_video_base_v1",
+                "poster_source_file": backgrounds[0].name,
             }
             metadata["verification"] = media_report
             metadata["quality"] = plan["review"]
@@ -1765,9 +1878,15 @@ class Pipeline:
         out = Path(job["output_dir"])
         metadata = dict(job.get("metadata") or {})
         technical = self.inspect_video(out / "video.mp4", job["duration"])
-        gate = self.quality_gate(out / "video.mp4", job["duration"], metadata, technical)
+        gate = self.quality_gate(
+            out / "video.mp4", job["duration"], metadata, technical, out / "thumbnail.jpg",
+        )
         metadata["verification"] = technical
         metadata["quality_gate"] = gate
+        metadata["poster_consistency"] = gate.get("poster_consistency")
+        metadata.setdefault("visual_source", {})["poster_matches_video"] = bool(
+            (gate.get("poster_consistency") or {}).get("passed")
+        )
         metadata.setdefault("files", {})["quality_gate"] = "quality-gate.json"
         (out / "quality-gate.json").write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
         (out / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")

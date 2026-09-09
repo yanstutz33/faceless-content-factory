@@ -11,12 +11,13 @@ Use este checklist em toda versão do Hub e em todo novo conector. Cada item pre
 - [ ] Diagnóstico de FFmpeg, FFprobe, armazenamento e modo seguro aprovado.
 - [ ] Auditoria de segurança sem segredo versionado.
 - [ ] Backup criado e restauração isolada aprovada.
+- [ ] Quando houver outro espaço, banco, mídias, entregas, auditoria e cofre permanecem na raiz exclusiva dele.
 
 ## Conteúdo
 
 - [ ] Música ouvida, aprovada, licenciada e diferente das faixas recentes.
 - [ ] Imagem pertence à coleção aprovada e possui origem registrada.
-- [ ] Thumbnail e primeiro quadro após o play representam a mesma cena.
+- [ ] O gate perceptual confirma que thumbnail e quadro após o play usam o mesmo crop e tratamento, tolerando apenas o overlay animado.
 - [ ] Vídeo final possui 1920×1080, H.264, 30 fps, `yuv420p` e áudio AAC.
 - [ ] Início, meio e fim decodificam corretamente.
 - [ ] Título público está em inglês natural e corresponde à cena.

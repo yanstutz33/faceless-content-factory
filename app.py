@@ -16,8 +16,8 @@ from factory.music_audit import MusicDiversityAuditor
 from factory.pipeline import Pipeline
 from factory.publishing import PublishingCenter
 from factory.security import SecurityAuditor
-from factory.store import Store
 from factory.web import serve
+from factory.workspaces import DEFAULT_WORKSPACE_ID, WorkspaceRegistry
 
 
 ROOT = Path(__file__).parent
@@ -27,7 +27,13 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="Faceless Content Factory")
+    parser.add_argument("--workspace", default=DEFAULT_WORKSPACE_ID,
+                        help="Espaço isolado a operar; o padrão preserva a instalação pessoal")
     sub = parser.add_subparsers(dest="command", required=True)
+    workspace_create = sub.add_parser("workspace-create", help="Create an isolated client workspace")
+    workspace_create.add_argument("workspace_id")
+    workspace_create.add_argument("--name", required=True)
+    sub.add_parser("workspace-list", help="List provisioned workspaces without opening their data")
     generate = sub.add_parser("generate", help="Generate one complete local video package")
     generate.add_argument("--topic", default="Biblioteca chuvosa à noite")
     generate.add_argument("--duration", type=int, choices=[1800, 3600], default=3600)
@@ -117,7 +123,18 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = Settings.load(ROOT)
-    store = Store(settings.data_dir / "factory.db")
+    registry = WorkspaceRegistry(settings.data_dir)
+    if args.command == "workspace-create":
+        context = registry.provision(args.workspace_id, args.name)
+        context.open_store()
+        print(json.dumps(context.public_info(), ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-list":
+        print(json.dumps([item.public_info() for item in registry.list()], ensure_ascii=False, indent=2))
+        return
+    context = registry.get(args.workspace)
+    settings = context.scoped_settings(settings)
+    store = context.open_store()
     pipeline = Pipeline(settings, store)
     publishing = PublishingCenter(pipeline, store)
     integrations = IntegrationManager(settings, store, publishing)

@@ -123,7 +123,11 @@ python app.py phase2-status
 python app.py commerce-overview
 python app.py commerce-pinterest-package ID_DA_CAMPANHA --board-name "Achados úteis"
 python app.py bilibili-package ID_DA_PRODUCAO
+python app.py workspace-create client-alpha --name "Cliente Alpha"
+python app.py --workspace client-alpha list
 ```
+
+O espaço pessoal `3am-shelter` continua sendo o padrão. Espaços provisionados usam raízes físicas separadas para banco, mídias, backups, auditoria, entregas e cofre; consulte [`docs/workspace-isolation.md`](docs/workspace-isolation.md). Essa fundação ainda exige uma instância por espaço e não substitui contas, papéis ou seleção autenticada de cliente.
 
 ## Acesso de qualquer lugar
 
