@@ -89,7 +89,8 @@ class WorkspaceLifecycleTests(unittest.TestCase):
         second = self.service.delete_workspace("client-alpha", confirmation="DELETE:client-alpha")
         kept = list(self.backups.glob("client-alpha-backup-*.zip"))
         self.assertEqual(len(kept), 1)
-        self.assertEqual(Path(second["backup_archive"]), kept[0])
+        # Windows TEMP can use an 8.3 alias for the same existing file.
+        self.assertTrue(Path(second["backup_archive"]).samefile(kept[0]))
         self.assertFalse(Path(first["backup_archive"]).exists())
         self.assertTrue(self.beta.data_dir.is_dir())
 
