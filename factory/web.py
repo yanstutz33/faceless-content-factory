@@ -13,12 +13,14 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .agents import PROFILES
 from .autopilot import Autopilot
+from .auth import LocalAuth
 from .backup import BackupManager
 from .commerce import CommercePackager, validate_commerce_brief
 from .commercial_center import CommercialCenter
@@ -27,31 +29,67 @@ from .music_sources import FLOW_MUSIC_PROMPTS, flow_music_guide
 from .pipeline import Pipeline, SUPPORTED_MUSIC_EXTENSIONS
 from .publishing import PublishingCenter
 from .nightshift import NightShift
+from .operational_controls import (CrossWorkspaceClaims, CrossWorkspaceDuplicateError,
+                                   OperationalLimitError, UsageLedger, UsagePolicy,
+                                   operational_health)
 from .store import Store
 from .templates import SERIES, series_catalog
 from .teams import DEFAULT_TEAM_ID, skill_catalog, team_catalog
+from .workspace_lifecycle import WorkspaceLifecycle, WorkspaceLifecycleError
+from .workspaces import DEFAULT_WORKSPACE_ID
 
 
 class JobRunner:
-    def __init__(self, pipeline: Pipeline, workers: int = 1):
+    def __init__(self, pipeline: Pipeline, workers: int = 1,
+                 usage: UsageLedger | None = None, workspace_id: str = "3am-shelter"):
         self.pipeline = pipeline
         self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="factory-worker")
         self.active: set[str] = set()
         self.lock = threading.RLock()
         self._health_at = 0.0
         self._health: dict = {}
+        self.usage = usage
+        self.workspace_id = workspace_id
 
     def submit(self, job_id: str) -> None:
+        operation_id = f"render:{job_id}"
         with self.lock:
             if job_id in self.active:
                 return
+            if self.usage:
+                try:
+                    self.usage.reserve(operation_id, self.workspace_id, "render")
+                    self.usage.attempt(operation_id)
+                except Exception:
+                    try:
+                        self.usage.finish(operation_id, "cancelled")
+                    except KeyError:
+                        pass
+                    raise
             self.active.add(job_id)
-        future = self.executor.submit(self.pipeline.run, job_id)
-        future.add_done_callback(lambda _future: self._finished(job_id))
+        try:
+            future = self.executor.submit(self._run, job_id, operation_id)
+        except Exception:
+            with self.lock:
+                self.active.discard(job_id)
+            if self.usage:
+                self.usage.finish(operation_id, "failed", error="worker submission failed")
+            raise
+        future.add_done_callback(lambda completed: self._finished(job_id, completed.exception()))
 
-    def _finished(self, job_id: str) -> None:
+    def _run(self, job_id: str, operation_id: str):
+        if self.usage:
+            self.usage.start(operation_id)
+        return self.pipeline.run(job_id)
+
+    def _finished(self, job_id: str, error: BaseException | None = None) -> None:
         with self.lock:
             self.active.discard(job_id)
+        if self.usage:
+            self.usage.finish(
+                f"render:{job_id}", "failed" if error else "completed",
+                error=type(error).__name__ if error else None,
+            )
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -152,7 +190,12 @@ class Handler(SimpleHTTPRequestHandler):
     backups: BackupManager
     commerce: CommercePackager
     commercial: CommercialCenter
+    usage: UsageLedger
+    claims: CrossWorkspaceClaims
+    lifecycle: WorkspaceLifecycle | None
     static_dir: Path
+    auth: LocalAuth | None
+    workspace_id: str
 
     def handle_one_request(self) -> None:
         self.request_id = uuid.uuid4().hex[:12]
@@ -184,11 +227,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-    def send_json(self, value: object, status: int = 200) -> None:
+    def send_json(self, value: object, status: int = 200,
+                  headers: dict[str, str] | None = None) -> None:
         body = json.dumps(value, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for name, header_value in (headers or {}).items():
+            self.send_header(name, header_value)
         try:
             self.end_headers()
             self.wfile.write(body)
@@ -241,6 +287,119 @@ class Handler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
         return False
+
+    def session_token(self) -> str:
+        try:
+            cookie = SimpleCookie(self.headers.get("Cookie", ""))
+            value = cookie.get("ffactory_session")
+            return value.value if value else ""
+        except Exception:
+            return ""
+
+    def require_local_session(self) -> dict | None:
+        if self.auth is None:
+            self.auth_session = None
+            return {"workspace_id": self.workspace_id, "role": "personal_owner"}
+        session = self.auth.session(self.session_token())
+        if not session:
+            self.send_api_error("Faça login para continuar", HTTPStatus.UNAUTHORIZED, "LOGIN_REQUIRED")
+            return None
+        if session["workspace_id"] != self.workspace_id:
+            self.send_api_error(
+                "A sessão pertence a outro espaço", HTTPStatus.FORBIDDEN, "WORKSPACE_MISMATCH"
+            )
+            return None
+        self.auth_session = session
+        return session
+
+    def require_role(self, allowed: set[str]) -> bool:
+        if self.auth is None:
+            return True
+        session = getattr(self, "auth_session", None)
+        if not session:
+            return False
+        try:
+            self.auth.require_role(session, allowed)
+            return True
+        except PermissionError as exc:
+            self.send_api_error(str(exc), HTTPStatus.FORBIDDEN, "ROLE_FORBIDDEN")
+            return False
+
+    @staticmethod
+    def mutation_roles(path: str) -> set[str]:
+        admin_prefixes = (
+            "/api/system/", "/api/integrations/", "/api/music-sources/lyria/",
+            "/api/covers/", "/api/auth/users", "/api/auth/memberships",
+            "/api/auth/recovery-tokens", "/api/workspace/lifecycle/",
+        )
+        if path.startswith(admin_prefixes):
+            return {"admin"}
+        if re.fullmatch(r"/api/jobs/[^/]+/(approve|reject|quality-audit|release-package|youtube-package)", path):
+            return {"admin", "reviewer"}
+        return {"admin", "editor"}
+
+    def secure_cookie(self, token: str, *, clear: bool = False) -> str:
+        parts = [f"ffactory_session={'' if clear else token}", "Path=/", "HttpOnly", "SameSite=Strict"]
+        if clear:
+            parts.extend(["Max-Age=0", "Expires=Thu, 01 Jan 1970 00:00:00 GMT"])
+        else:
+            parts.append("Max-Age=28800")
+        if not self.is_local_request() or self.headers.get("X-Forwarded-Proto", "").lower() == "https":
+            parts.append("Secure")
+        return "; ".join(parts)
+
+    def require_lifecycle_admin(self) -> bool:
+        if (self.workspace_id == DEFAULT_WORKSPACE_ID or self.lifecycle is None
+                or self.auth is None):
+            self.send_api_error("Gestão de workspace indisponível", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+            return False
+        return self.require_role({"admin"})
+
+    @staticmethod
+    def public_export(result: dict) -> dict:
+        manifest = result.get("manifest") or {}
+        return {
+            "workspace_id": (manifest.get("workspace") or {}).get("id"),
+            "request_id": result.get("request_id"),
+            "archive_name": Path(str(result.get("archive", ""))).name,
+            "archive_sha256": result.get("archive_sha256"),
+            "file_count": len(manifest.get("files") or []),
+            "idempotent": bool(result.get("idempotent")),
+        }
+
+    def controlled(self, operation_id: str, kind: str, action):
+        try:
+            self.usage.reserve(operation_id, self.workspace_id, kind)
+            self.usage.attempt(operation_id)
+            self.usage.start(operation_id)
+        except Exception:
+            try:
+                self.usage.finish(operation_id, "cancelled")
+            except KeyError:
+                pass
+            raise
+        try:
+            result = action()
+        except Exception as exc:
+            self.usage.finish(operation_id, "failed", error=type(exc).__name__)
+            raise
+        self.usage.finish(operation_id, "completed")
+        return result
+
+    def claim_delivery(self, job_id: str, platform: str) -> dict:
+        job = self.store.get_job(job_id)
+        if not job:
+            raise ValueError("Produção não encontrada")
+        manifest_path = Path(job["output_dir"]) / "artifact-manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("Manifesto íntegro obrigatório antes da entrega") from exc
+        video = next((item for item in manifest.get("files", []) if item.get("name") == "video.mp4"), None)
+        digest = str((video or {}).get("sha256") or "")
+        if not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise ValueError("Hash do vídeo ausente antes da entrega")
+        return self.claims.claim(self.workspace_id, platform, f"sha256:{digest}", job_id)
 
     def send_html(self, value: str, status: int = 200) -> None:
         body = value.encode("utf-8")
@@ -450,10 +609,41 @@ class Handler(SimpleHTTPRequestHandler):
         return parsed.scheme == "https" and parsed.hostname == request_host.hostname and origin_port == request_port
 
     def do_GET(self) -> None:
-        if urlparse(self.path).path == "/healthz":
+        path = urlparse(self.path).path
+        if path == "/healthz":
             self.send_json({"status": "ok"})
             return
         if not self.require_remote_auth():
+            return
+        if path == "/api/auth/status":
+            session = self.auth.session(self.session_token(), touch=False) if self.auth else None
+            return self.send_json({
+                "enabled": self.auth is not None, "authenticated": bool(session),
+                "workspace_id": self.workspace_id,
+            })
+        if path == "/api/auth/session":
+            session = self.require_local_session()
+            if not session:
+                return
+            public = {key: value for key, value in session.items() if key != "csrf_hash"}
+            csrf = self.auth.rotate_csrf(self.session_token()) if self.auth else None
+            return self.send_json({"enabled": self.auth is not None, "session": public,
+                                   "csrf_token": csrf})
+        # SameSite=Strict intentionally keeps the session cookie off the OAuth
+        # provider redirect. The encrypted, one-time, expiring state created by
+        # the admin-only oauth-start mutation authorizes this callback instead.
+        if path.startswith("/api/oauth/callback/"):
+            try:
+                return self._do_GET()
+            except (ValueError, KeyError, json.JSONDecodeError) as exc:
+                return self.send_api_error(str(exc), HTTPStatus.BAD_REQUEST, "INVALID_REQUEST")
+            except Exception as exc:
+                print(f"[{getattr(self, 'request_id', 'unknown')}] GET {path}: {type(exc).__name__}")
+                return self.send_api_error(
+                    "Falha interna. Use o código da solicitação para diagnóstico.",
+                    HTTPStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
+                )
+        if path.startswith("/api/") and not self.require_local_session():
             return
         try:
             self._do_GET()
@@ -495,8 +685,13 @@ class Handler(SimpleHTTPRequestHandler):
             elif autopilot["mode"] == "active":
                 recommendations.append({"tone": "safe", "title": "Semana sendo cuidada automaticamente", "body": f"{autopilot['planned']} conteúdo(s) já estão planejados e serão repostos pelo piloto."})
             recommendations.append({"tone": "safe", "title": "Publicação protegida", "body": "O sistema prepara os arquivos, mas não envia nada automaticamente."})
+            operation = self.runner.health()
+            operation["controls"] = operational_health(
+                self.usage, self.claims, self.integrations.credential_expiry_records(),
+                workspace_id=self.workspace_id,
+            )
             return self.send_json({"summary": summary, "jobs": jobs, "recommendations": recommendations,
-                                   "operation": self.runner.health(), "creative": creative})
+                                   "operation": operation, "creative": creative})
         if path == "/api/insights":
             return self.send_json(self.store.performance_insights())
         if path == "/api/thumbnail-insights":
@@ -524,6 +719,11 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(self.nightshift.daily_report())
         if path == "/api/operations/phase2-certification":
             return self.send_json(self.nightshift.phase2_certification())
+        if path == "/api/operations/health":
+            return self.send_json(operational_health(
+                self.usage, self.claims, self.integrations.credential_expiry_records(),
+                workspace_id=self.workspace_id,
+            ))
         if path == "/api/calendar":
             return self.send_json(self.store.list_calendar())
         if path == "/api/assets":
@@ -543,6 +743,29 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/integrations/audit":
             limit = int(parse_qs(parsed.query).get("limit", ["40"])[0])
             return self.send_json(self.integrations.audit.recent(limit))
+        if path == "/api/auth/audit":
+            if not self.require_role({"admin"}):
+                return
+            limit = int(parse_qs(parsed.query).get("limit", ["100"])[0])
+            return self.send_json(self.auth.recent_audit(self.workspace_id, limit) if self.auth else [])
+        if path == "/api/auth/users":
+            if not self.require_role({"admin"}):
+                return
+            return self.send_json(self.auth.list_users(self.auth_session) if self.auth else [])
+        if path == "/api/workspace/lifecycle/status":
+            if not self.require_lifecycle_admin():
+                return
+            context = self.lifecycle.registry.get(self.workspace_id)
+            return self.send_json({
+                "eligible": True,
+                "workspace": {"id": context.id, "name": context.name, "personal": False},
+                "demo": self.lifecycle.demo_status(self.workspace_id),
+            })
+        if path == "/api/workspace/lifecycle/delete-plan":
+            if not self.require_lifecycle_admin():
+                return
+            plan = self.lifecycle.deletion_plan(self.workspace_id)
+            return self.send_json({key: value for key, value in plan.items() if key != "workspace_root"})
         if path == "/api/integrations/deliveries":
             return self.send_json(self.integrations.deliveries.list())
         if path == "/api/integrations/youtube/metrics-status":
@@ -586,6 +809,139 @@ class Handler(SimpleHTTPRequestHandler):
                                        "JSON_REQUIRED")
         try:
             data = self.read_json()
+            if path == "/api/auth/login":
+                if self.auth is None:
+                    return self.send_api_error("Contas locais não estão ativadas", HTTPStatus.NOT_FOUND,
+                                               "AUTH_DISABLED")
+                requested_workspace = str(data.get("workspace_id") or self.workspace_id)
+                if requested_workspace != self.workspace_id:
+                    return self.send_api_error(
+                        "Abra a instância correspondente ao espaço solicitado",
+                        HTTPStatus.CONFLICT, "WORKSPACE_PROCESS_REQUIRED",
+                    )
+                result = self.auth.login(str(data.get("username", "")), str(data.get("password", "")),
+                                         requested_workspace)
+                raw_token = result.pop("session_token")
+                return self.send_json(
+                    result, headers={"Set-Cookie": self.secure_cookie(raw_token)}
+                )
+            if path == "/api/auth/recover":
+                if self.auth is None:
+                    return self.send_api_error("Contas locais não estão ativadas", HTTPStatus.NOT_FOUND,
+                                               "AUTH_DISABLED")
+                result = self.auth.recover(str(data.get("recovery_token", "")),
+                                           str(data.get("new_password", "")))
+                return self.send_json(result)
+            session = self.require_local_session()
+            if not session:
+                return
+            if self.auth is not None and not self.auth.csrf_valid(
+                    session, self.headers.get("X-CSRF-Token", "")):
+                return self.send_api_error("Confirmação de sessão ausente ou inválida", HTTPStatus.FORBIDDEN,
+                                           "CSRF_REQUIRED")
+            if path == "/api/auth/logout":
+                if self.auth:
+                    self.auth.logout(self.session_token())
+                return self.send_json(
+                    {"logged_out": True}, headers={"Set-Cookie": self.secure_cookie("", clear=True)}
+                )
+            if path == "/api/auth/workspace":
+                requested = str(data.get("workspace_id", ""))
+                membership = next(
+                    (item for item in session.get("memberships", []) if item["workspace_id"] == requested), None
+                )
+                if not membership:
+                    return self.send_api_error("Sem acesso ao espaço solicitado", HTTPStatus.FORBIDDEN,
+                                               "WORKSPACE_FORBIDDEN")
+                if requested != self.workspace_id:
+                    return self.send_api_error(
+                        "O espaço é autorizado, mas exige abrir sua instância isolada",
+                        HTTPStatus.CONFLICT, "WORKSPACE_PROCESS_REQUIRED",
+                    )
+                selected = self.auth.select_workspace(self.session_token(), requested) if self.auth else session
+                return self.send_json({
+                    "workspace_id": selected["workspace_id"], "role": selected["role"]
+                })
+            if not self.require_role(self.mutation_roles(path)):
+                return
+            if path == "/api/auth/users":
+                return self.send_json(self.auth.create_user(
+                    session, str(data.get("username", "")), str(data.get("password", "")),
+                    str(data.get("role", "")),
+                ), HTTPStatus.CREATED)
+            if path == "/api/auth/memberships":
+                return self.send_json(self.auth.grant_workspace(
+                    session, str(data.get("user_id", "")), str(data.get("workspace_id", "")),
+                    str(data.get("role", "")),
+                ))
+            if path == "/api/auth/recovery-tokens":
+                return self.send_json(self.auth.issue_recovery(
+                    session, str(data.get("username", "")), int(data.get("lifetime_minutes", 15)),
+                ), HTTPStatus.CREATED)
+            if path.startswith("/api/workspace/lifecycle/"):
+                if not self.require_lifecycle_admin():
+                    return
+                action = path.rsplit("/", 1)[-1]
+                if action == "export":
+                    result = self.lifecycle.export_workspace(
+                        self.workspace_id, request_id=str(data.get("request_id") or "") or None
+                    )
+                    self.auth.audit(self.workspace_id, "workspace_export", "success",
+                                    user_id=session["user_id"], detail={"request_id": result["request_id"]})
+                    return self.send_json(self.public_export(result), HTTPStatus.CREATED)
+                if action == "demo-seed":
+                    result = self.lifecycle.seed_demo(self.workspace_id)
+                    self.auth.audit(self.workspace_id, "workspace_demo_seed", "success",
+                                    user_id=session["user_id"])
+                    return self.send_json(result, HTTPStatus.CREATED)
+                if action == "demo-reset":
+                    result = self.lifecycle.reset_demo(self.workspace_id)
+                    self.auth.audit(self.workspace_id, "workspace_demo_reset", "success",
+                                    user_id=session["user_id"])
+                    return self.send_json(result)
+                if action == "delete":
+                    if self.runner.snapshot()["active"]:
+                        return self.send_api_error(
+                            "Finalize as produções ativas antes de excluir o workspace",
+                            HTTPStatus.CONFLICT, "WORKSPACE_BUSY",
+                        )
+                    password = str(data.get("password") or "")
+                    if not password:
+                        return self.send_api_error(
+                            "Confirme sua senha atual para excluir o workspace",
+                            HTTPStatus.UNAUTHORIZED, "REAUTH_REQUIRED",
+                        )
+                    try:
+                        refreshed = self.auth.reauthenticate(self.session_token(), password)
+                    except ValueError:
+                        return self.send_api_error(
+                            "Reautenticação inválida", HTTPStatus.UNAUTHORIZED, "REAUTH_FAILED"
+                        )
+                    if not self.auth.recently_reauthenticated(refreshed):
+                        return self.send_api_error(
+                            "Reautenticação recente obrigatória", HTTPStatus.UNAUTHORIZED,
+                            "REAUTH_REQUIRED",
+                        )
+                    self.server.scheduler.stop()
+                    try:
+                        result = self.lifecycle.delete_workspace(
+                            self.workspace_id, confirmation=str(data.get("confirmation") or "")
+                        )
+                        self.auth.audit(self.workspace_id, "workspace_delete", "success",
+                                        user_id=session["user_id"])
+                        public = {
+                            "workspace_id": result["workspace_id"],
+                            "deleted_at": result.get("deleted_at"),
+                            "backup_name": Path(str(result.get("backup_archive", ""))).name,
+                            "backup_sha256": result.get("backup_sha256"),
+                            "already_deleted": bool(result.get("already_deleted")),
+                        }
+                        self.send_json(public)
+                    finally:
+                        threading.Thread(target=self.server.shutdown,
+                                         name="workspace-delete-shutdown", daemon=True).start()
+                    return
+                return self.send_api_error("Rota não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
             if path == "/api/system/backup":
                 return self.send_json(self.backups.create(), HTTPStatus.CREATED)
             if path == "/api/commerce/validate":
@@ -617,10 +973,19 @@ class Handler(SimpleHTTPRequestHandler):
                 if action == "preflight":
                     return self.send_json(self.integrations.preflight(platform, data.get("job_id")))
                 if action == "upload-private" and platform == "youtube":
-                    return self.send_json(self.integrations.youtube_upload_private(
-                        str(data.get("job_id", "")), data.get("confirmed") is True))
+                    job_id = str(data.get("job_id", ""))
+                    return self.send_json(self.controlled(
+                        f"delivery:youtube:{job_id}", "delivery",
+                        lambda: (self.claim_delivery(job_id, "youtube"),
+                                 self.integrations.youtube_upload_private(
+                                     job_id, data.get("confirmed") is True))[1],
+                    ))
                 if action == "sync-metrics" and platform == "youtube":
-                    return self.send_json(self.integrations.sync_youtube_metrics())
+                    day = datetime.now().date().isoformat()
+                    return self.send_json(self.controlled(
+                        f"metrics:{self.workspace_id}:{day}", "metrics",
+                        self.integrations.sync_youtube_metrics,
+                    ))
             if path == "/api/jobs":
                 asset_ids = [int(value) for value in data.get("asset_ids", [])]
                 selected_assets = self.store.get_assets(asset_ids)
@@ -798,6 +1163,14 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json({"error": "Ação não encontrada"}, 404)
                 return self.send_json(self.store.get_job(job_id))
             return self.send_api_error("Rota não encontrada", HTTPStatus.NOT_FOUND, "NOT_FOUND")
+        except PermissionError as exc:
+            return self.send_api_error(str(exc), HTTPStatus.FORBIDDEN, "FORBIDDEN")
+        except CrossWorkspaceDuplicateError as exc:
+            return self.send_api_error(str(exc), HTTPStatus.CONFLICT, "DUPLICATE_DELIVERY")
+        except OperationalLimitError as exc:
+            return self.send_api_error(str(exc), HTTPStatus.TOO_MANY_REQUESTS, "OPERATION_LIMIT")
+        except WorkspaceLifecycleError as exc:
+            return self.send_api_error(str(exc), HTTPStatus.CONFLICT, "WORKSPACE_LIFECYCLE_ERROR")
         except (ValueError, KeyError, json.JSONDecodeError) as exc:
             return self.send_api_error(str(exc), HTTPStatus.BAD_REQUEST, "INVALID_REQUEST")
         except Exception as exc:
@@ -819,11 +1192,32 @@ class Handler(SimpleHTTPRequestHandler):
     do_DELETE = _method_not_allowed
 
 
-def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> ThreadingHTTPServer:
+def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path,
+                  *, auth: LocalAuth | None = None, workspace_id: str | None = None,
+                  operational_dir: Path | None = None,
+                  lifecycle: WorkspaceLifecycle | None = None) -> ThreadingHTTPServer:
     if pipeline.settings.remote_access and (
             not pipeline.settings.remote_username or len(pipeline.settings.remote_password) < 16):
         raise ValueError("Acesso remoto exige usuário e senha com pelo menos 16 caracteres")
-    runner = JobRunner(pipeline, pipeline.settings.workers)
+    workspace_id = workspace_id or pipeline.settings.workspace_id
+    if pipeline.settings.local_auth:
+        if auth is None:
+            raise ValueError("Contas locais ativadas sem uma base de autenticação")
+        if not auth.has_admin(workspace_id):
+            raise ValueError("Crie o primeiro administrador antes de ativar contas locais")
+    else:
+        auth = None
+    operational_dir = operational_dir or pipeline.settings.data_dir / "private"
+    controls_database = operational_dir / "operational-controls.sqlite3"
+    usage = UsageLedger(controls_database, UsagePolicy(
+        max_active=pipeline.settings.workers,
+        max_queue=max(12, pipeline.settings.autopilot_max_review),
+        max_attempts=3,
+        max_metric_syncs_per_day=1,
+    ))
+    claims = CrossWorkspaceClaims(controls_database)
+    usage.recover_interrupted(workspace_id)
+    runner = JobRunner(pipeline, pipeline.settings.workers, usage, workspace_id)
     autopilot = Autopilot(pipeline.settings, store)
     nightshift = NightShift(pipeline, store, runner, autopilot)
     publishing = PublishingCenter(pipeline, store)
@@ -836,7 +1230,9 @@ def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static
                                                    "autopilot": autopilot, "nightshift": nightshift,
                                                    "publishing": publishing, "integrations": integrations,
                                                    "backups": backups, "commerce": commerce, "commercial": commercial,
-                                                   "static_dir": static_dir})
+                                                   "usage": usage, "claims": claims,
+                                                   "static_dir": static_dir, "auth": auth, "lifecycle": lifecycle,
+                                                   "workspace_id": workspace_id})
     server = FactoryServer((host, port), handler, runner, scheduler)
     backups.ensure_daily()
     store.recover_interrupted()
@@ -846,14 +1242,22 @@ def create_server(pipeline: Pipeline, store: Store, host: str, port: int, static
     return server
 
 
-def serve(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path) -> None:
+def serve(pipeline: Pipeline, store: Store, host: str, port: int, static_dir: Path,
+          *, auth: LocalAuth | None = None, workspace_id: str | None = None,
+          operational_dir: Path | None = None,
+          lifecycle: WorkspaceLifecycle | None = None) -> None:
     try:
         with socket.create_connection((host, port), timeout=0.5):
             print(f"Faceless Factory já está ativo em http://{host}:{port}")
             return
     except OSError:
         pass
-    server = create_server(pipeline, store, host, port, static_dir)
+    server = create_server(pipeline, store, host, port, static_dir,
+                           auth=auth, workspace_id=workspace_id,
+                           operational_dir=operational_dir, lifecycle=lifecycle)
     print(f"Faceless Factory: http://{host}:{port}")
     print("Publicação automática: DESATIVADA")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()

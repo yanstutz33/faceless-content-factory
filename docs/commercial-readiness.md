@@ -4,7 +4,7 @@ Este documento define a passagem do Hub pessoal para um produto com usuários ex
 
 ## Limite atual
 
-- Operação de um único proprietário e um único banco SQLite.
+- Workspaces fisicamente isolados, com uma instância por workspace e autenticação local opt-in.
 - Credenciais protegidas localmente pelo Windows DPAPI.
 - Publicação automática desligada e entregas externas sujeitas a revisão.
 - Infraestrutura em nuvem preparada, mas implantação permanente adiada enquanto o orçamento for zero.
@@ -24,7 +24,7 @@ Saída obrigatória: teste automatizado prova que dois espaços não conseguem l
 
 O primeiro recorte seguro usa isolamento físico por processo: `3am-shelter` preserva os caminhos históricos, enquanto cada espaço provisionado recebe banco, mídias, backups, auditoria, fila de entregas e cofre próprios em `data/workspaces/<id>/`. A seleção é explícita por `--workspace`, identificadores não podem conter caminhos e a leitura de um espaço desconhecido nunca o cria. Testes negativos usam o mesmo ID de produção em dois espaços e comprovam que leitura e alteração permanecem separadas. Detalhes: [workspace-isolation.md](workspace-isolation.md).
 
-Isso ainda não conclui a Etapa A: falta selecionar o espaço a partir de uma sessão autenticada, registrar o `workspace_id` também nos eventos de auditoria exportados e criar testes de publicação simulada entre espaços. Até lá, cada espaço deve rodar em um processo separado e o Hub continua sem usuários externos.
+Atualização em 12/09/2026: sessões validam membership e workspace da instância; auditorias incluem `workspace_id`. Contas admin/editor/reviewer, CSRF, lockout, recuperação de uso único e revogação de sessões estão testados. Um ledger SQLite transacional bloqueia entrega duplicada entre workspaces antes do envio privado. A arquitetura continua com uma instância por workspace, não um SaaS compartilhado.
 
 ## Etapa B — usuários e responsabilidades
 
@@ -57,6 +57,8 @@ Saída obrigatória: conectar ou remover uma plataforma não afeta as demais e n
 Saída obrigatória: um operador identifica e recupera uma falha sem consultar diretamente o banco.
 
 ## Etapa E — revisão profissional obrigatória
+
+Operação local implementada: limites de fila/workers/tentativas/sincronização diária, painel redigido por workspace e recuperação após reinício. Clientes possuem demo descartável, exportação com manifesto/checksums sem `private/` e exclusão protegida por senha atual, CSRF, admin, confirmação literal, bloqueio de trabalhos ativos e backup. O espaço pessoal não expõe essas ações. Cotas completas de armazenamento/custos, piloto externo e revisão profissional permanecem pendentes.
 
 Antes de vender ou receber dados de clientes, obter revisão profissional sobre privacidade, termos, direitos autorais, licenças de música e imagem, obrigações fiscais, proteção do consumidor e tratamento de dados. O software deve implementar as decisões dessa revisão; este documento não substitui aconselhamento jurídico ou contábil.
 

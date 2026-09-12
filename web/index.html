@@ -19,6 +19,7 @@
       <a class="nav-item" href="#library"><span>▤</span> Biblioteca</a>
       <a class="nav-item" href="#agents"><span>✦</span> Agentes</a>
       <a class="nav-item" href="#insights"><span>↗</span> Direcionamento</a>
+      <a class="nav-item" id="workspace-nav" href="#workspace" hidden><span>▣</span> Workspace</a>
     </nav>
     <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Usar tema escuro" aria-pressed="false"><span aria-hidden="true">◐</span> <b>Tema</b></button>
     <div class="side-foot"><span class="pulse" id="operation-pulse"></span><div><b id="operation-title">Verificando estúdio</b><small id="operation-status">Publicação manual segura</small></div></div>
@@ -41,6 +42,11 @@
         </article>
         <article class="safety-card"><div class="shield" id="health-shield">✓</div><div><span class="tag">MODO SEGURO · DIAGNÓSTICO CONTÍNUO</span><h3 id="health-title">Nada é publicado sem você.</h3><p id="health-detail">A fábrica gera, verifica e empacota. A decisão final continua humana.</p></div></article>
       </div>
+    </section>
+
+    <section id="workspace" class="section" hidden>
+      <div class="section-heading"><div><p class="kicker">AMBIENTE DO CLIENTE</p><h2>Workspace</h2><p class="section-copy">Onboarding, exportação e encerramento ficam separados da operação diária.</p></div></div>
+      <div id="workspace-management" aria-live="polite"></div>
     </section>
 
     <section id="calendar" class="section">

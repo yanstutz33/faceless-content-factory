@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import sys
 from pathlib import Path
@@ -11,12 +12,14 @@ from factory.commerce import CommercePackager, validate_commerce_brief
 from factory.commercial_center import CommercialCenter
 from factory.integrations import IntegrationManager
 from factory.autopilot import Autopilot
+from factory.auth import LocalAuth
 from factory.nightshift import NightShift
 from factory.music_audit import MusicDiversityAuditor
 from factory.pipeline import Pipeline
 from factory.publishing import PublishingCenter
 from factory.security import SecurityAuditor
 from factory.web import serve
+from factory.workspace_lifecycle import WorkspaceLifecycle
 from factory.workspaces import DEFAULT_WORKSPACE_ID, WorkspaceRegistry
 
 
@@ -34,6 +37,18 @@ def main() -> None:
     workspace_create.add_argument("workspace_id")
     workspace_create.add_argument("--name", required=True)
     sub.add_parser("workspace-list", help="List provisioned workspaces without opening their data")
+    sub.add_parser("workspace-status", help="Show safe lifecycle and demo status for a client workspace")
+    workspace_export = sub.add_parser("workspace-export", help="Export one client workspace with checksums")
+    workspace_export.add_argument("--request-id")
+    sub.add_parser("workspace-demo-seed", help="Add discardable onboarding demo files")
+    sub.add_parser("workspace-demo-reset", help="Remove only service-owned demo files")
+    sub.add_parser("workspace-delete-plan", help="Preview deletion without changing files")
+    workspace_delete = sub.add_parser("workspace-delete", help="Backup and delete a client workspace")
+    workspace_delete.add_argument("--confirmation", required=True)
+    workspace_delete.add_argument("--username", required=True)
+    auth_bootstrap = sub.add_parser("auth-bootstrap", help="Create the first local administrator safely")
+    auth_bootstrap.add_argument("--username", required=True)
+    sub.add_parser("auth-status", help="Check whether the selected workspace has a local administrator")
     generate = sub.add_parser("generate", help="Generate one complete local video package")
     generate.add_argument("--topic", default="Biblioteca chuvosa à noite")
     generate.add_argument("--duration", type=int, choices=[1800, 3600], default=3600)
@@ -134,6 +149,56 @@ def main() -> None:
         return
     context = registry.get(args.workspace)
     settings = context.scoped_settings(settings)
+    lifecycle = WorkspaceLifecycle(registry)
+    auth = None
+    if settings.local_auth or args.command in {"auth-bootstrap", "auth-status", "workspace-delete"}:
+        auth = LocalAuth(registry.personal_data_dir / "private" / "access.db")
+    if args.command == "auth-bootstrap":
+        password = getpass.getpass("Senha do administrador: ")
+        confirmation = getpass.getpass("Repita a senha: ")
+        if password != confirmation:
+            raise ValueError("As senhas não coincidem")
+        print(json.dumps(auth.bootstrap_admin(args.username, password, context.id), ensure_ascii=False, indent=2))
+        return
+    if args.command == "auth-status":
+        print(json.dumps({"workspace_id": context.id, "admin_ready": auth.has_admin(context.id)},
+                         ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-status":
+        print(json.dumps({"workspace": context.public_info(), "demo": lifecycle.demo_status(context.id),
+                          "deletion": lifecycle.deletion_plan(context.id)}, ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-export":
+        print(json.dumps(lifecycle.export_workspace(context.id, request_id=args.request_id),
+                         ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-demo-seed":
+        print(json.dumps(lifecycle.seed_demo(context.id), ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-demo-reset":
+        print(json.dumps(lifecycle.reset_demo(context.id), ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-delete-plan":
+        print(json.dumps(lifecycle.deletion_plan(context.id), ensure_ascii=False, indent=2))
+        return
+    if args.command == "workspace-delete":
+        password = getpass.getpass("Confirme a senha atual do administrador: ")
+        login = auth.login(args.username, password, context.id)
+        token = login.pop("session_token")
+        try:
+            session = auth.session(token)
+            if not session:
+                raise PermissionError("Sessão administrativa inválida")
+            auth.require_role(session, {"admin"})
+            verified = auth.reauthenticate(token, password)
+            if not auth.recently_reauthenticated(verified):
+                raise PermissionError("Reautenticação recente obrigatória")
+            print(json.dumps(lifecycle.delete_workspace(
+                context.id, confirmation=args.confirmation
+            ), ensure_ascii=False, indent=2))
+        finally:
+            auth.logout(token)
+        return
     store = context.open_store()
     pipeline = Pipeline(settings, store)
     publishing = PublishingCenter(pipeline, store)
@@ -155,7 +220,9 @@ def main() -> None:
                           args.thumbnail_variant, args.conversions, args.revenue)
         print(f"Métricas registradas: {args.job_id}")
     elif args.command == "serve":
-        serve(pipeline, store, settings.host, settings.port, ROOT / "web")
+        serve(pipeline, store, settings.host, settings.port, ROOT / "web", auth=auth,
+              workspace_id=context.id, operational_dir=registry.personal_data_dir / "private",
+              lifecycle=lifecycle)
     elif args.command == "migrate-covers":
         print(json.dumps(pipeline.synchronize_video_visuals(), ensure_ascii=False, indent=2))
     elif args.command == "sync-video-visuals":

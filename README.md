@@ -4,6 +4,8 @@ Uma fábrica local e automatizada para transformar um tema em um pacote de víde
 
 ## O que já funciona
 
+Atualização de 12/09/2026: workspaces isolados por instância, contas locais opt-in com admin/editor/reviewer, CSRF e recuperação de uso único; controles transacionais de fila/tentativas/deduplicação; exportação, demo e exclusão protegida de clientes. O YouTube permite envio privado explicitamente confirmado e métricas somente leitura. Vídeos longos usam músicas aprovadas da biblioteca, sem fallback sintético. O produto ainda depende de piloto externo e revisão profissional antes de comercialização.
+
 - Tema digitado, sugerido pelos agentes ou recebido pela linha de comando
 - Oito agentes locais: pesquisa, estratégia, roteiro, direção, SEO, conformidade, crítica e reaproveitamento
 - Roteiro, título, descrição, tags, capítulos, direção visual/sonora e score de qualidade

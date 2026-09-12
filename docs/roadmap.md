@@ -1,5 +1,15 @@
 # Roadmap executivo — Faceless Content Factory
 
+## Fechamento local de 12/09/2026
+
+Validação final local: 157 testes Python e 24 cenários de navegador/mobile/acessibilidade aprovados; sintaxe de todos os scripts JavaScript, diagnóstico e auditoria de segurança aprovados. Backup `factory-20260912T230656006122Z.sqlite3` restaurado em isolamento: 12 tabelas, 1.784 registros. O teste de reinício com fila maior que os workers confirmou a recuperação de reservas e a abertura do Hub.
+
+Implementados: contas admin/editor/reviewer, login/logout, sessões opacas expirantes, CSRF, lockout, recuperação de uso único, auditoria por usuário/workspace; controles SQLite transacionais de fila, workers, tentativas e deduplicação de entregas entre clientes; painel redigido; recuperação de reservas após reinício; onboarding demo descartável, exportação sem credenciais e exclusão com reautenticação, confirmação literal e backup. Cada cliente continua em uma instância isolada. Gestão de contas/recovery usa API e bootstrap CLI; não há SaaS compartilhado pronto.
+
+A alternativa de 11/09 `It's Okay. Get Some Rest. | Rainy Night Café Lo-fi` usa `rainy-hillside-cafe` e `Accepting the Distance`, tem novidade 61,7 (baixo risco), 1080p/30min e gate 100/100. A versão 44,4 foi arquivada e preservada. Nenhum upload dessa alternativa foi feito.
+
+Permanecem externos: token/OAuth do Pinterest, contas/permissões das outras plataformas, revisão profissional, piloto com usuários reais, audiência suficiente e hospedagem contínua compatível com custo zero. A implementação não equivale a comercialização aprovada.
+
 Última revisão: 09/09/2026. O roadmap separa o que foi validado localmente, o que foi confirmado no YouTube e o que ainda depende de contas ou dados externos. Publicação pública automática continua desativada por padrão: o envio começa privado, passa por integridade e processamento HD e somente então recebe a liberação já autorizada no Studio. Hospedagem permanente foi adiada para manter custo zero; o Hub continua disponível localmente enquanto o computador estiver ligado.
 
 ## Estado atual verificável

@@ -57,7 +57,7 @@ class WorkspaceContext:
 
     def scoped_settings(self, settings: Settings) -> Settings:
         """Reuse application configuration while moving every persisted path."""
-        return replace(settings, data_dir=self.data_dir)
+        return replace(settings, data_dir=self.data_dir, workspace_id=self.id)
 
     def open_store(self) -> Store:
         # Local import avoids making workspace discovery initialize the database.

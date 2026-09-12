@@ -32,4 +32,6 @@ Sem `--workspace`, o comportamento continua sendo o da instalação pessoal `3am
 
 ## Limite deliberado
 
-Esta fundação fornece isolamento de armazenamento para um processo inteiro, mas ainda não transforma o Hub em um SaaS multiusuário. Contas individuais, papéis, seleção de espaço por sessão, recuperação de acesso, exportação/exclusão e trilha de auditoria por usuário continuam bloqueadores antes de receber dados de clientes. Até essas etapas serem concluídas, um operador deve iniciar uma instância separada para cada espaço e não deve apresentar o produto como comercialmente pronto.
+Contas individuais, papéis admin/editor/reviewer, validação de workspace por sessão, recuperação de uso único, auditoria por usuário/workspace e exportação/demo/exclusão estão implementados localmente. Ative login somente depois de criar o administrador com `python app.py --workspace client-alpha auth-bootstrap --username owner`, usando `FACTORY_LOCAL_AUTH=true`. Cada espaço continua exigindo uma instância separada. Revisão profissional, piloto externo e infraestrutura contínua permanecem necessários antes de comercializar.
+
+Os comandos `workspace-status`, `workspace-export`, `workspace-demo-seed`, `workspace-demo-reset` e `workspace-delete-plan` usam o workspace global selecionado. `workspace-delete` exige `--username` e `--confirmation DELETE:<id>`, além de senha atual. Exportações excluem credenciais; backups de exclusão são privados e recuperáveis. Essas operações nunca atingem `3am-shelter`.

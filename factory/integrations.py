@@ -42,12 +42,14 @@ def _scrub(value: Any) -> Any:
 
 
 class IntegrationAudit:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, workspace_id: str = "3am-shelter"):
         self.path = path
+        self.workspace_id = workspace_id
         self.lock = threading.RLock()
 
     def record(self, event: str, platform: str, detail: dict[str, Any] | None = None) -> None:
-        row = {"created_at": datetime.now(UTC).isoformat(), "event": event, "platform": platform,
+        row = {"created_at": datetime.now(UTC).isoformat(), "workspace_id": self.workspace_id,
+               "event": event, "platform": platform,
                "detail": _scrub(detail or {})}
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +64,7 @@ class IntegrationAudit:
             try:
                 value = json.loads(line)
                 if isinstance(value, dict):
+                    value.setdefault("workspace_id", self.workspace_id)
                     rows.append(value)
             except json.JSONDecodeError:
                 continue
@@ -127,7 +130,7 @@ class IntegrationManager:
         self.store = store
         self.publishing = publishing
         self.vault = SecureVault(settings.data_dir / "private" / "oauth.vault")
-        self.audit = IntegrationAudit(settings.data_dir / "integration-audit.jsonl")
+        self.audit = IntegrationAudit(settings.data_dir / "integration-audit.jsonl", settings.workspace_id)
         self.deliveries = DeliveryLedger(settings.data_dir / "deliveries.json")
 
     def _youtube_credentials(self) -> dict[str, Any]:
@@ -223,6 +226,27 @@ class IntegrationManager:
                 "platforms": platforms, "vault": self.vault.status(),
                 "security": "Tokens ficam criptografados localmente e nunca são enviados ao frontend.",
                 "vault_error": vault_error}
+
+    def credential_expiry_records(self) -> list[dict[str, Any]]:
+        """Return only expiry metadata needed by the operational panel."""
+        records: list[dict[str, Any]] = []
+        for definition in self._definitions():
+            platform = definition["id"]
+            try:
+                token = self.vault.get(f"token:{platform}") or {}
+            except RuntimeError:
+                token = {}
+            expires_at = token.get("expires_at")
+            if not expires_at and token.get("stored_at") and token.get("expires_in") is not None:
+                try:
+                    expires_at = (
+                        datetime.fromisoformat(str(token["stored_at"]))
+                        + timedelta(seconds=max(0, int(token["expires_in"])))
+                    ).isoformat()
+                except (TypeError, ValueError):
+                    expires_at = None
+            records.append({"platform": platform, "expires_at": expires_at})
+        return records
 
     def oauth_start(self, platform: str) -> dict[str, Any]:
         definition = next((item for item in self._definitions() if item["id"] == platform), None)

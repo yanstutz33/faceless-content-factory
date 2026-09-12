@@ -59,6 +59,8 @@ class Settings:
     remote_access: bool = False
     remote_username: str = ""
     remote_password: str = ""
+    local_auth: bool = False
+    workspace_id: str = "3am-shelter"
 
     @classmethod
     def load(cls, root: Path) -> "Settings":
@@ -112,4 +114,5 @@ class Settings:
             remote_access=os.getenv("FACTORY_REMOTE_ACCESS", "false").lower() == "true",
             remote_username=os.getenv("FACTORY_REMOTE_USERNAME", "").strip(),
             remote_password=os.getenv("FACTORY_REMOTE_PASSWORD", ""),
+            local_auth=os.getenv("FACTORY_LOCAL_AUTH", "false").lower() == "true",
         )

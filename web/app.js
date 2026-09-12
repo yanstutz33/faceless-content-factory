@@ -1,10 +1,11 @@
-const state={jobs:[],summary:{},recommendations:[],profiles:{},operation:{},filter:'all'};
+const state={jobs:[],summary:{},recommendations:[],profiles:{},operation:{},filter:'all',auth:{}};
 const $=selector=>document.querySelector(selector);
 const esc=value=>{const node=document.createElement('div');node.textContent=value??'';return node.innerHTML};
 const jobDetailExtensions=[];
 const apiCache=new Map();
 let toastTimer=0;
 let loadSequence=0;
+let authCsrf=sessionStorage.getItem('ffactory_csrf')||'';
 const statusLabels={queued:'Na fila',planning:'Planejamento',assets:'Assets',rendering:'Renderizando',reviewing:'Revisão dos agentes',awaiting_approval:'Sua revisão',approved:'Aprovado',rejected:'Ajustes pedidos',failed:'Falhou'};
 const activeStatuses=new Set(['queued','planning','assets','rendering','reviewing']);
 const legacyFailurePattern=/beat sintético antigo|original lo-fi|som esta igual|reprovada na audição/i;
@@ -30,6 +31,7 @@ const api=async(url,options={})=>{
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   const headers=new Headers(fetchOptions.headers||{});
   if(fetchOptions.body!=null&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
+  if(method!=='GET'&&authCsrf&&!headers.has('X-CSRF-Token'))headers.set('X-CSRF-Token',authCsrf);
   try{
     const response=await fetch(url,{...fetchOptions,headers,signal:controller.signal});
     const text=await response.text();
@@ -39,7 +41,9 @@ const api=async(url,options={})=>{
     }
     if(!response.ok){
       const error=new Error(data.error||'Não foi possível concluir a operação.');
-      error.code=data.code||`HTTP_${response.status}`;error.requestId=data.request_id||response.headers.get('X-Request-ID');throw error;
+      error.code=data.code||`HTTP_${response.status}`;error.requestId=data.request_id||response.headers.get('X-Request-ID');
+      if(error.code==='LOGIN_REQUIRED'&&typeof showAuthLogin==='function')showAuthLogin();
+      throw error;
     }
     if(method==='GET')apiCache.set(url,{at:Date.now(),data});else apiCache.clear();
     return data;
@@ -316,4 +320,53 @@ $('#asset-form').addEventListener('submit',async event=>{
 
 $('#create-dialog').addEventListener('click',event=>{if(event.target===$('#create-dialog'))$('#create-dialog').close()});
 $('#job-dialog').addEventListener('click',event=>{if(event.target===$('#job-dialog'))$('#job-dialog').close()});
-Promise.all([load(),loadAssets(),loadMusicAssets(),loadCatalogReadiness(),loadFlowMusicGuide(),api('/api/agents').then(renderAgents)]);setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);
+
+document.body.insertAdjacentHTML('beforeend',`<dialog id="auth-dialog" class="auth-dialog"><form id="auth-login-form"><p class="kicker">ACESSO LOCAL</p><h2>Entrar no FFactory</h2><p>Use sua conta e o espaço autorizado.</p><label>Usuário<input name="username" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" minlength="12" required></label><label>Espaço<input name="workspace_id" value="3am-shelter" required></label><p id="auth-error" class="form-error" role="alert"></p><button class="primary" type="submit">Entrar com segurança</button></form></dialog><button id="auth-logout" class="auth-logout" type="button" hidden>Sair</button>`);
+const showAuthLogin=()=>{const dialog=$('#auth-dialog');if(!dialog.open)dialog.showModal()};
+$('#auth-login-form').addEventListener('submit',async event=>{event.preventDefault();const fields=new FormData(event.currentTarget);const error=$('#auth-error');error.textContent='';try{const result=await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:fields.get('username'),password:fields.get('password'),workspace_id:fields.get('workspace_id')})});authCsrf=result.csrf_token||'';state.auth={...(result.user||{}),workspace_id:result.workspace_id,enabled:true};sessionStorage.setItem('ffactory_csrf',authCsrf);event.currentTarget.reset();$('#auth-dialog').close();$('#auth-logout').hidden=false;await startStudio()}catch(problem){error.textContent=problem.message}});
+$('#auth-logout').addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST',body:'{}'})}catch{}authCsrf='';state.auth={};sessionStorage.removeItem('ffactory_csrf');apiCache.clear();$('#auth-logout').hidden=true;$('#workspace-nav').hidden=true;$('#workspace').hidden=true;showAuthLogin()});
+
+async function loadWorkspaceManagement(){
+  const nav=$('#workspace-nav'),section=$('#workspace'),root=$('#workspace-management');
+  nav.hidden=true;section.hidden=true;root.innerHTML='';
+  if(state.auth.role!=='admin'||state.auth.workspace_id==='3am-shelter')return;
+  const status=await api('/api/workspace/lifecycle/status');
+  if(!status.eligible)return;
+  nav.hidden=false;section.hidden=false;
+  const demo=status.demo?.seeded;
+  root.innerHTML=`<article class="workspace-console"><div class="workspace-console-copy"><span class="tag">AMBIENTE ISOLADO</span><h3>${esc(status.workspace.name)}</h3><p>${demo?'Os dados demonstrativos estão ativos e podem ser removidos sem tocar nos projetos reais.':'Comece com uma demonstração descartável ou siga direto para a operação real.'}</p><small>${esc(status.workspace.id)}</small></div><div class="workspace-console-actions"><button class="secondary" type="button" data-workspace-action="${demo?'demo-reset':'demo-seed'}">${demo?'Limpar demonstração':'Carregar demonstração'}</button><button class="secondary" type="button" data-workspace-action="export">Exportar workspace</button><button class="text-button danger" type="button" data-workspace-action="delete-plan">Encerrar workspace</button></div></article><div id="workspace-plan"></div>`;
+  root.querySelectorAll('[data-workspace-action]').forEach(button=>button.addEventListener('click',()=>workspaceAction(button.dataset.workspaceAction,status.workspace)));
+}
+
+async function workspaceAction(action,workspace){
+  try{
+    if(action==='delete-plan'){
+      const plan=await api('/api/workspace/lifecycle/delete-plan');
+      const root=$('#workspace-plan');
+      root.innerHTML=`<article class="workspace-danger"><span class="tag">ENCERRAMENTO PROTEGIDO</span><h3>Revise antes de excluir</h3><p>${Number(plan.file_count)} arquivo(s), ${Number(plan.total_bytes).toLocaleString('pt-BR')} bytes. Um backup verificado será criado antes da remoção.</p><form id="workspace-delete-form"><label>Confirmação literal<input name="confirmation" required autocomplete="off" value="${esc(plan.confirmation_required)}"></label><label>Senha atual do administrador<input name="password" type="password" required autocomplete="current-password"></label><div class="form-error" role="alert"></div><div class="dialog-actions"><button class="secondary" type="button" data-cancel-delete>Cancelar</button><button class="primary danger" type="submit">Criar backup e excluir</button></div></form></article>`;
+      root.querySelector('[data-cancel-delete]').onclick=()=>{root.innerHTML=''};
+      root.querySelector('form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,fields=new FormData(form),error=form.querySelector('.form-error');error.textContent='';try{const result=await api('/api/workspace/lifecycle/delete',{method:'POST',body:JSON.stringify({confirmation:fields.get('confirmation'),password:fields.get('password')})});root.innerHTML=`<article class="workspace-complete"><h3>Workspace encerrado com backup verificado.</h3><p>${esc(result.backup_name)} · ${esc(result.backup_sha256)}</p><small>Esta instância será desligada com segurança.</small></article>`;toast('Workspace encerrado com segurança.','success')}catch(problem){error.textContent=problem.message}};
+      return;
+    }
+    const endpoint={export:'export','demo-seed':'demo-seed','demo-reset':'demo-reset'}[action];
+    const result=await api(`/api/workspace/lifecycle/${endpoint}`,{method:'POST',body:'{}'});
+    apiCache.clear();
+    toast(action==='export'?`Exportação pronta: ${result.archive_name}`:action==='demo-seed'?'Demonstração carregada.':'Demonstração removida.','success');
+    await loadWorkspaceManagement();
+  }catch(problem){toast(problem.message,'error')}
+}
+
+async function startStudio(){
+  await Promise.all([load(),loadAssets(),loadMusicAssets(),loadCatalogReadiness(),loadFlowMusicGuide(),api('/api/agents').then(renderAgents),loadWorkspaceManagement()]);
+}
+async function initializeStudio(){
+  try{
+    const status=await api('/api/auth/status');
+    if(status.enabled){
+      $('#auth-login-form [name=workspace_id]').value=status.workspace_id;
+      try{const current=await api('/api/auth/session');authCsrf=current.csrf_token||'';state.auth={...(current.session||{}),enabled:true};sessionStorage.setItem('ffactory_csrf',authCsrf);$('#auth-logout').hidden=false}catch{showAuthLogin();return}
+    }
+    await startStudio();
+  }catch(error){toast(error.message,'error')}
+}
+initializeStudio();setInterval(()=>{if(state.jobs.some(j=>activeStatuses.has(j.status)))load()},3000);
