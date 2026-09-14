@@ -29,6 +29,7 @@ class DeliverySafetyTests(unittest.TestCase):
         self.manager.audit = Mock(spec=IntegrationAudit)
         self.manager.vault = Mock(available=True)
         self.manager.vault.contains.return_value = True
+        self.manager.vault.get.return_value = {"access_token": "test-access-token"}
         self.enterContext(patch.object(self.manager, "_config", return_value={"client_id": "test", "client_secret": "test"}))
         self.network = self.enterContext(patch("factory.integrations.urlopen", side_effect=AssertionError("Unexpected network request")))
         self.token = self.enterContext(patch.object(self.manager, "_youtube_access_token", return_value="test-access-token"))
@@ -51,6 +52,7 @@ class DeliverySafetyTests(unittest.TestCase):
                     original = self.manager.deliveries.stage("pilot", "youtube", uploaded, [])
                     original_file = self.manager.deliveries.path.read_bytes()
                     self.manager.vault.contains.return_value = authenticated
+                    self.manager.vault.get.return_value = {"access_token": "test-access-token"} if authenticated else None
                     self.publishing.queue.return_value["items"][0]["release_ready"] = release_ready
 
                     result = self.manager.preflight("youtube", "pilot")

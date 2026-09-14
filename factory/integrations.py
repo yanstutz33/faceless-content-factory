@@ -202,7 +202,8 @@ class IntegrationManager:
             configured = bool(config.get("client_id") and config.get("client_secret") and
                               (config.get("redirect_uri") or not definition["oauth_supported"]))
             try:
-                authenticated = self.vault.available and self.vault.contains(f"token:{definition['id']}")
+                token_record = self.vault.get(f"token:{definition['id']}") if self.vault.available else None
+                authenticated = bool(token_record) and not token_record.get("reauthorization_required", False)
             except RuntimeError:
                 authenticated = False
                 vault_error = "O cofre precisa ser reparado antes de conectar contas"
@@ -357,7 +358,8 @@ class IntegrationManager:
                        "detail": "Pacote de mídia completo" if item and item["release_ready"] else "Prepare e aprove um pacote completo"})
         configured = bool(self._config(platform).get("client_id") and self._config(platform).get("client_secret"))
         checks.append({"id": "config", "passed": configured, "detail": "Credenciais detectadas" if configured else "Credenciais ainda não configuradas"})
-        authenticated = self.vault.available and self.vault.contains(f"token:{platform}")
+        token_record = self.vault.get(f"token:{platform}") if self.vault.available else None
+        authenticated = bool(token_record) and not token_record.get("reauthorization_required", False)
         checks.append({"id": "auth", "passed": authenticated, "detail": "Conta autorizada" if authenticated else definition["manual_step"]})
         checks.append({"id": "approval", "passed": False, "detail": "Confirmação final de envio permanece manual"})
         blockers = [check["detail"] for check in checks if not check["passed"]]
@@ -372,6 +374,8 @@ class IntegrationManager:
 
     def _youtube_access_token(self) -> str:
         token = self.vault.get("token:youtube") or {}
+        if token.get("reauthorization_required"):
+            raise ValueError("A autorização do YouTube expirou ou foi revogada; reconecte a conta em Conexões")
         access_token = str(token.get("access_token", ""))
         refresh_token = str(token.get("refresh_token", ""))
         try:
@@ -385,10 +389,21 @@ class IntegrationManager:
         if not refresh_token:
             raise ValueError("A autorização do YouTube expirou; conecte a conta novamente")
         config = self._config("youtube")
-        refreshed = self._post_form("https://oauth2.googleapis.com/token", {
-            "client_id": config["client_id"], "client_secret": config["client_secret"],
-            "refresh_token": refresh_token, "grant_type": "refresh_token",
-        })
+        try:
+            refreshed = self._post_form("https://oauth2.googleapis.com/token", {
+                "client_id": config["client_id"], "client_secret": config["client_secret"],
+                "refresh_token": refresh_token, "grant_type": "refresh_token",
+            })
+        except HTTPError as exc:
+            try:
+                response = json.loads(exc.read())
+            except (ValueError, UnicodeDecodeError):
+                response = {}
+            if exc.code == 400 and isinstance(response, dict) and response.get("error") == "invalid_grant":
+                self.vault.set("token:youtube", {**token, "reauthorization_required": True})
+                self.audit.record("oauth_reauthorization_required", "youtube", {"reason": "invalid_grant"})
+                raise ValueError("A autorização do YouTube expirou ou foi revogada; reconecte a conta em Conexões") from None
+            raise
         access_token = str(refreshed.get("access_token", ""))
         if not access_token:
             raise RuntimeError("O Google não renovou a autorização do YouTube")
@@ -553,8 +568,8 @@ class IntegrationManager:
             "mode": "read_only",
             "published_videos": len(publications),
             "metrics_scope_ready": required.issubset(granted),
-            "reconnect_required": bool(token) and not required.issubset(granted),
-            "authenticated": bool(token),
+            "reconnect_required": bool(token) and (not required.issubset(granted) or bool(token.get("reauthorization_required"))),
+            "authenticated": bool(token) and not token.get("reauthorization_required", False),
             "reach_reporting": {"configured": bool(reach_job),
                                 "status": "waiting_for_first_report" if reach_job else "not_configured"},
             **snapshots,

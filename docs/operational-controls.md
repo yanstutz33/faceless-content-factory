@@ -32,6 +32,12 @@ redigido em `/api/operations/health` e no dashboard.
 5. Interprete `expiring_soon` como alerta operacional e `expired` como bloqueio
    de integração; o relatório contém somente plataforma, estado e data.
 
+Se o Google devolver `invalid_grant` ao renovar o YouTube, o conector marca
+`reauthorization_required` no cofre e apresenta login necessário no Hub.
+Não repete a renovação rejeitada nem expõe o corpo da resposta. Reconecte
+em **Conexões**; uma nova autorização substitui a marcação. O histórico e
+os vínculos de vídeos continuam preservados.
+
 Os testes em `tests/test_operational_controls.py` simulam dois workspaces
 tentando publicar o mesmo payload e confirmam que a segunda reivindicação é
 rejeitada antes de qualquer credencial ou rede.

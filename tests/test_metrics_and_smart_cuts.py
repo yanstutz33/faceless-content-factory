@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from io import BytesIO
+from unittest.mock import MagicMock
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -14,6 +15,41 @@ from factory.store import Store
 
 
 class MetricsAndSmartCutsTests(unittest.TestCase):
+    def test_revoked_refresh_requires_reconnection_without_retry_or_secret_disclosure(self):
+        manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))
+        records = {"token:youtube": {"refresh_token": "private-refresh", "stored_at": "2020-01-01T00:00:00+00:00"}}
+        vault = MagicMock(available=True)
+        vault.get.side_effect = lambda key: records.get(key)
+        vault.set.side_effect = lambda key, value: records.update({key: value})
+        error = HTTPError("https://oauth2.googleapis.com/token", 400, "Bad Request", {},
+                          BytesIO(b'{"error":"invalid_grant","error_description":"private-refresh"}'))
+        with patch.object(manager, "vault", vault), patch.object(manager, "_config", return_value={
+                "client_id": "id", "client_secret": "secret", "redirect_uri": "http://localhost"}), \
+                patch.object(manager, "_post_form", side_effect=error) as refresh:
+            for _ in range(2):
+                with self.assertRaisesRegex(ValueError, "reconecte a conta") as caught:
+                    manager._youtube_access_token()
+                self.assertNotIn("private-refresh", str(caught.exception))
+            self.assertEqual(refresh.call_count, 1)
+            self.assertTrue(manager.youtube_metrics_status()["reconnect_required"])
+            youtube = next(item for item in manager.readiness()["platforms"] if item["id"] == "youtube")
+            self.assertFalse(youtube["authenticated"])
+            self.assertEqual(youtube["state"], "login_required")
+        error.close()
+
+    def test_temporary_refresh_failure_does_not_mark_authorization_revoked(self):
+        manager = IntegrationManager(self.settings, self.store, PublishingCenter(self.pipeline, self.store))
+        vault = MagicMock(available=True)
+        vault.get.return_value = {"refresh_token": "private-refresh", "stored_at": "2020-01-01T00:00:00+00:00"}
+        error = HTTPError("https://oauth2.googleapis.com/token", 503, "Unavailable", {}, BytesIO(b"unavailable"))
+        with patch.object(manager, "vault", vault), patch.object(manager, "_config", return_value={
+                "client_id": "id", "client_secret": "secret"}), \
+                patch.object(manager, "_post_form", side_effect=error):
+            with self.assertRaises(HTTPError):
+                manager._youtube_access_token()
+            vault.set.assert_not_called()
+        error.close()
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

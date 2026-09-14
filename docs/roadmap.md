@@ -1,5 +1,11 @@
 # Roadmap executivo — Faceless Content Factory
 
+## Atualização de 14/09/2026 — autorização do YouTube
+
+A entrega `6a16ef1` passou na validação remota do GitHub (Windows, navegador/acessibilidade e imagem de nuvem). A coleta de métricas está temporariamente bloqueada: o Google retornou `invalid_grant` ao renovar a autorização. O Hub agora marca essa conexão como exigindo novo login, bloqueia novas tentativas com o token rejeitado e mantém as mídias, os vínculos de vídeos e o histórico de métricas preservados. A reconexão depende do titular em **Conexões**; nenhuma publicação ou mudança de visibilidade foi feita. As referências anteriores a uma conexão autenticada são históricas.
+
+Próximas pendências locais: cotas de armazenamento/custos e ampliação dos testes operacionais. Pendências externas: reconectar YouTube, autorização Pinterest, piloto com usuários reais e revisão profissional. Hospedagem permanente continua adiada pelo orçamento zero; não há SaaS comercial concluído.
+
 ## Fechamento local de 12/09/2026
 
 Validação final local: 157 testes Python e 24 cenários de navegador/mobile/acessibilidade aprovados; sintaxe de todos os scripts JavaScript, diagnóstico e auditoria de segurança aprovados. Backup `factory-20260912T230656006122Z.sqlite3` restaurado em isolamento: 12 tabelas, 1.784 registros. O teste de reinício com fila maior que os workers confirmou a recuperação de reservas e a abertura do Hub.
