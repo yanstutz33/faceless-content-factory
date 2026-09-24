@@ -2,6 +2,29 @@
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
+## Case de portfólio — crescimento orgânico
+
+Este projeto demonstra como transformar a operação de conteúdo orgânico em um
+sistema mensurável e seguro. Ele estrutura o ciclo completo — pesquisa e SEO,
+planejamento editorial, produção em lote, revisão humana, teste A/B de capas e
+leitura de CTR, retenção, impressões e conversões — sem publicar
+automaticamente nem misturar métricas editoriais e comerciais.
+
+O que eu buscava resolver:
+
+- manter um calendário de conteúdo com reposição inteligente e evitar repetição
+  de temas;
+- converter dados de desempenho em hipóteses editoriais, sem "otimizações"
+  cegas;
+- produzir variações para YouTube, Shorts, Reels e TikTok com rastreabilidade
+  de direitos, qualidade técnica e aprovação humana;
+- usar agentes de IA quando configurados, preservando um fallback local e
+  reproduzível.
+
+> As integrações com plataformas são deliberadamente manuais: o repositório é
+> uma demonstração de processo e produto, não contém contas, credenciais ou
+> dados de campanhas.
+
 ## O que já funciona
 
 - Tema digitado, sugerido pelos agentes ou recebido pela linha de comando
