@@ -2,28 +2,26 @@
 
 Uma fábrica local e automatizada para transformar um tema em um pacote de vídeo de ambientação: roteiro, metadados, paisagem sonora, imagem, vídeo MP4, thumbnail, legenda e checklist de publicação. O MVP não envia nada para plataformas; a fila termina em aprovação para upload manual.
 
-## Case de portfólio — crescimento orgânico
+## Case de portfólio — IA e automação de conteúdo
 
-Este projeto demonstra como transformar a operação de conteúdo orgânico em um
-sistema mensurável e seguro. Ele estrutura o ciclo completo — pesquisa e SEO,
-planejamento editorial, produção em lote, revisão humana, teste A/B de capas e
-leitura de CTR, retenção, impressões e conversões — sem publicar
-automaticamente nem misturar métricas editoriais e comerciais.
+**[Ler o case completo](docs/portfolio/case-ia.md)** ·
+[Ver a prévia de 12 segundos](docs/portfolio/evidencias/factory-demo.mp4) ·
+[Inspecionar o plano gerado](docs/portfolio/evidencias/agents.json)
 
-O que eu buscava resolver:
+O projeto conecta planejamento editorial, produção de mídia e revisão humana
+em um fluxo local auditável. A demonstração documentada em 24/09/2026 gerou uma
+prévia H.264/AAC e terminou aguardando aprovação, sem upload. Os 63 testes Python
+da versão auditada passaram com FFmpeg/FFprobe disponíveis.
 
-- manter um calendário de conteúdo com reposição inteligente e evitar repetição
-  de temas;
-- converter dados de desempenho em hipóteses editoriais, sem "otimizações"
-  cegas;
-- produzir variações para YouTube, Shorts, Reels e TikTok com rastreabilidade
-  de direitos, qualidade técnica e aprovação humana;
-- usar agentes de IA quando configurados, preservando um fallback local e
-  reproduzível.
+![Revisão de uma produção de demonstração](docs/portfolio/evidencias/factory-revisao.png)
 
-> As integrações com plataformas são deliberadamente manuais: o repositório é
-> uma demonstração de processo e produto, não contém contas, credenciais ou
-> dados de campanhas.
+As etapas editoriais têm uma base de regras locais e enriquecimento opcional por
+IA para palavras-chave, promessa, título, descrição e tags. A demo anexada usa o
+modo local, sem chamada externa. Não há treinamento de modelo próprio demonstrado.
+
+Este é um case de software e operação de conteúdo. Não é prova de crescimento
+orgânico, receita ou economia de horas. Notas internas de qualidade não são
+métricas de desempenho de audiência.
 
 ## O que já funciona
 

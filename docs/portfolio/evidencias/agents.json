@@ -1,0 +1,176 @@
+{
+  "research": {
+    "audience": "Pessoas buscando foco e leitura sem interrupções",
+    "intent": "background listening",
+    "keywords": [
+      "demo de portfólio — biblioteca chuvosa",
+      "demo de portfólio — biblioteca chuvosa ambience",
+      "foco e leitura",
+      "som ambiente",
+      "ambiente imersivo"
+    ],
+    "opportunity": "Promessa clara + longa permanência + identidade visual consistente"
+  },
+  "strategy": {
+    "promise": "Transportar o público para demo de portfólio — biblioteca chuvosa em poucos segundos",
+    "primary_goal": "watch_time",
+    "hook": "Você entrou em demo de portfólio — biblioteca chuvosa. O mundo lá fora pode esperar.",
+    "cadence": "entrada suave, estabilidade e microvariações sem cortes bruscos"
+  },
+  "script": {
+    "intro": "Bem-vindo a DEMO de portfólio — Biblioteca chuvosa. Diminua o ritmo e deixe este ambiente acompanhar seu momento. Respire com calma. A partir daqui, a experiência segue sem interrupções.",
+    "spoken": "",
+    "chapters": [
+      {
+        "time": "00:00:00",
+        "label": "Entrada no ambiente"
+      }
+    ],
+    "on_screen": [
+      "Você entrou em demo de portfólio — biblioteca chuvosa. O mundo lá fora pode esperar."
+    ]
+  },
+  "visual": {
+    "mood": "acolhedor",
+    "palette": [
+      "#071426",
+      "#153A4F",
+      "#D8A96C"
+    ],
+    "motion": "câmera fixa; movimento localizado em fumaça, chuva ou pontos de luz",
+    "sound": "beat lo-fi original com acordes suaves e chuva discreta ao fundo",
+    "sound_profile": "rain",
+    "asset_brief": "Cena original de demo de portfólio — biblioteca chuvosa, sem marcas, sem personagens identificáveis, composição cinematográfica",
+    "thumbnail": {
+      "eyebrow": "AMBIENTE IMERSIVO",
+      "headline": "DEMO de portfólio — Biblioteca chuvosa",
+      "composition": "cena ampla, faixa escura inferior e tipografia editorial"
+    },
+    "creative_dna": {
+      "version": "creative_dna_v2",
+      "seed": 232503163446083,
+      "attempt": 0,
+      "scene": "lofi-rainy-cafe.jpg",
+      "treatment": "amber_glow",
+      "treatment_label": "Âmbar acolhedor",
+      "visual_filter": "eq=contrast=1.06:brightness=0.01:saturation=1.10,colorbalance=rs=.055:bs=-.025",
+      "composition": "high_shelter",
+      "composition_label": "Abrigo elevado",
+      "crop_x": 0.5,
+      "crop_y": 0.3,
+      "motion_effect": "angled_rain",
+      "motion_density": 1.38,
+      "music_arrangement": "deep_focus_pad",
+      "progression_variant": 2,
+      "bpm": 84,
+      "bpm_bucket": 21,
+      "key_shift": -5,
+      "melody_density": 0.37,
+      "swing": 0.154,
+      "texture": "air_hiss",
+      "novelty": {
+        "score": 100.0,
+        "risk": "low",
+        "closest_job_id": null,
+        "closest_topic": null,
+        "reused_fields": [],
+        "candidates_evaluated": 48
+      },
+      "learning": {
+        "evidence_count": 0,
+        "preferred": {},
+        "mode": "exploration",
+        "reason": "Sem métricas suficientes: exploração equilibrada ativada."
+      }
+    }
+  },
+  "seo": {
+    "title": "DEMO de portfólio — Biblioteca chuvosa — Música Lo-fi Chill para foco e leitura",
+    "description": "Entre em uma atmosfera de demo de portfólio — biblioteca chuvosa criada para foco e leitura.\n\nDuração: 12 s · experiência original · use fones.\n\n#lofi #chill #focus #relax",
+    "tags": [
+      "lofi",
+      "chill",
+      "focus",
+      "relax",
+      "study",
+      "demo-de-portf-lio-biblioteca-chuvosa",
+      "prévia rápida · não publicável"
+    ]
+  },
+  "compliance": {
+    "publish_mode": "manual_safe",
+    "checks": [
+      "asset original ou licenciado",
+      "sem alegações enganosas",
+      "metadados revisáveis",
+      "upload não executado",
+      "equipe e skills registradas no pacote"
+    ],
+    "risks": [
+      "Confirmar licença de qualquer asset externo antes da aprovação"
+    ],
+    "passed": true
+  },
+  "review": {
+    "score": 92,
+    "verdict": "Pronto para prévia",
+    "warnings": [
+      "Sem narração: ideal para ambientação contínua e baixo atrito."
+    ],
+    "next_action": "Renderizar, assistir aos 30s iniciais e revisar o pacote antes de aprovar."
+  },
+  "production": {
+    "profile": "preview",
+    "format": "Prévia rápida · não publicável",
+    "resolution": "960x540",
+    "fps": 24,
+    "duration_seconds": 12
+  },
+  "team": {
+    "id": "youtube_ambient",
+    "name": "YouTube Ambient",
+    "mission": "Criar sessões longas originais de chill/lo-fi com alta permanência.",
+    "primary_goal": "watch_time",
+    "destinations": [
+      "youtube"
+    ],
+    "recommended_profile": "youtube_long",
+    "agents": [
+      {
+        "id": "yt_strategist",
+        "name": "Arquiteto de Sessão",
+        "role": "Estratégia e retenção",
+        "skills": [
+          "audience_research",
+          "longform_retention"
+        ]
+      },
+      {
+        "id": "yt_director",
+        "name": "Diretor de Atmosfera",
+        "role": "Direção visual e sonora",
+        "skills": [
+          "ambient_direction"
+        ]
+      },
+      {
+        "id": "yt_packager",
+        "name": "Editor de Canal",
+        "role": "Descoberta e embalagem",
+        "skills": [
+          "youtube_package"
+        ]
+      }
+    ],
+    "skills_executed": [
+      "rights_guard",
+      "quality_gate",
+      "safe_publish",
+      "audience_research",
+      "longform_retention",
+      "ambient_direction",
+      "youtube_package"
+    ],
+    "entrypoint": "production"
+  }
+}
